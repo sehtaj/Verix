@@ -25,7 +25,7 @@
 - [x] Set up Next.js frontend
 - [x] Build code input page
 - [x] Connect frontend to backend
-- [ ] Display backend response
+- [x] Display backend response
 - [ ] Add basic validation
 - [ ] Test complete workflow
 - [ ] Update README
@@ -34,7 +34,7 @@
 
 ## Current Task
 
-**Display backend response**
+**Add basic validation**
 
 ---
 

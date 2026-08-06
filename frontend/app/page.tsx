@@ -6,17 +6,29 @@ import { FormEvent, useState } from "react";
 export default function Home() {
   const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [tests, setTests] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
+    setError(null);
 
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/generate`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code }),
       });
+
+      if (!response.ok) {
+        throw new Error("The request failed.");
+      }
+
+      const result: { tests: string } = await response.json();
+      setTests(result.tests);
+    } catch {
+      setError("Unable to generate tests. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -39,6 +51,13 @@ export default function Home() {
         <button disabled={isLoading} type="submit">
           {isLoading ? "Generating..." : "Generate tests"}
         </button>
+        {error && <p className="error">{error}</p>}
+        {tests !== null && (
+          <section className="result">
+            <h2>Generated tests</h2>
+            <pre>{tests}</pre>
+          </section>
+        )}
       </form>
     </main>
   );
