@@ -21,7 +21,7 @@
 
 - [x] Set up FastAPI backend
 - [x] Add health endpoint
-- [ ] Create generate endpoint
+- [x] Create generate endpoint
 - [ ] Set up Next.js frontend
 - [ ] Build code input page
 - [ ] Connect frontend to backend
@@ -34,7 +34,7 @@
 
 ## Current Task
 
-**Create generate endpoint**
+**Set up Next.js frontend**
 
 ---
 
