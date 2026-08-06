@@ -27,14 +27,14 @@
 - [x] Connect frontend to backend
 - [x] Display backend response
 - [x] Add basic validation
-- [ ] Test complete workflow
+- [x] Test complete workflow
 - [ ] Update README
 
 ---
 
 ## Current Task
 
-**Test complete workflow**
+**Update README**
 
 ---
 
