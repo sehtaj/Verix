@@ -24,7 +24,7 @@
 - [x] Create generate endpoint
 - [x] Set up Next.js frontend
 - [x] Build code input page
-- [ ] Connect frontend to backend
+- [x] Connect frontend to backend
 - [ ] Display backend response
 - [ ] Add basic validation
 - [ ] Test complete workflow
@@ -34,7 +34,7 @@
 
 ## Current Task
 
-**Connect frontend to backend**
+**Display backend response**
 
 ---
 
