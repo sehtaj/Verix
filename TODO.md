@@ -28,13 +28,13 @@
 - [x] Display backend response
 - [x] Add basic validation
 - [x] Test complete workflow
-- [ ] Update README
+- [x] Update README
 
 ---
 
 ## Current Task
 
-**Update README**
+**V0.1 tasks complete — choose the next milestone**
 
 ---
 
