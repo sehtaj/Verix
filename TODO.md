@@ -23,7 +23,7 @@
 - [x] Add health endpoint
 - [x] Create generate endpoint
 - [x] Set up Next.js frontend
-- [ ] Build code input page
+- [x] Build code input page
 - [ ] Connect frontend to backend
 - [ ] Display backend response
 - [ ] Add basic validation
@@ -34,7 +34,7 @@
 
 ## Current Task
 
-**Build code input page**
+**Connect frontend to backend**
 
 ---
 
