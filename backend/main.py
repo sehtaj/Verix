@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 app = FastAPI(title="Verix API")
@@ -16,7 +16,7 @@ app.add_middleware(
 
 
 class GenerateTestsRequest(BaseModel):
-    code: str
+    code: str = Field(min_length=1)
 
 
 @app.get("/")

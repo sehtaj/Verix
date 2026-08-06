@@ -11,6 +11,12 @@ export default function Home() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!code.trim()) {
+      setError("Enter Python code before generating tests.");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 

@@ -26,7 +26,7 @@
 - [x] Build code input page
 - [x] Connect frontend to backend
 - [x] Display backend response
-- [ ] Add basic validation
+- [x] Add basic validation
 - [ ] Test complete workflow
 - [ ] Update README
 
@@ -34,7 +34,7 @@
 
 ## Current Task
 
-**Add basic validation**
+**Test complete workflow**
 
 ---
 
