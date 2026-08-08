@@ -103,13 +103,15 @@ An empty `code` value is rejected with FastAPI's validation response. The fronte
 
 ## Configuration
 
-The frontend supports `NEXT_PUBLIC_API_URL` for its backend address and defaults to `http://localhost:8000`. Version 0.1 has no backend environment variables, secrets, database, or external service configuration.
+The frontend supports `NEXT_PUBLIC_API_URL` for its backend address and defaults to `http://localhost:8000`.
+
+`backend/.env.example` reserves `LLM_API_KEY` for the V0.2 LLM service. Real values belong in an ignored `backend/.env` file or in the process environment; the key is not read or required until that service is implemented.
 
 ## V0.1 boundaries
 
 The following are deliberately outside the current architecture:
 
-- LLM providers and API keys
+- LLM providers and API-key use
 - Test generation beyond the placeholder response
 - Docker or any code execution
 - Databases, Redis, queues, authentication, and background jobs

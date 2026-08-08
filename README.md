@@ -35,6 +35,12 @@ Open `http://localhost:3000` in a browser. Keep both the backend and frontend pr
 
 To point the frontend at a different API address, set `NEXT_PUBLIC_API_URL`; it defaults to `http://localhost:8000`. The backend's local CORS configuration permits requests from `http://localhost:3000`.
 
+## Backend environment variables
+
+`backend/.env.example` lists backend configuration reserved for future features. Do not commit `backend/.env` or an API key.
+
+For the upcoming LLM integration, create `backend/.env` from the example and set `LLM_API_KEY`. The current V0.1 backend does not read or require this value yet.
+
 ## API
 
 ### Health check
