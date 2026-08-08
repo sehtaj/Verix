@@ -29,7 +29,10 @@ The frontend is responsible for the interface and API request state. The backend
 verix/
 ├── backend/
 │   ├── main.py
+│   ├── services/
+│   │   └── llm_service.py
 │   ├── requirements.txt
+│   ├── .env.example
 │   └── .gitignore
 ├── frontend/
 │   ├── app/
@@ -49,14 +52,16 @@ verix/
 
 ### Backend
 
-`backend/main.py` contains the entire V0.1 FastAPI application because the API is small:
+`backend/main.py` contains the FastAPI application because the API is still small:
 
 - Creates the FastAPI application.
 - Permits browser requests from `http://localhost:3000` with CORS.
 - Defines the Pydantic request model for `/generate`.
-- Exposes the health and generate endpoints.
+- Exposes the health and placeholder generate endpoints.
 
-Separate `models`, `routes`, `services`, and backend test folders are not present yet. They should be introduced only when the single module becomes difficult to maintain.
+`backend/services/llm_service.py` contains the Gemini integration. It loads the local API key, sends a Python function to Gemini, and returns generated pytest code. The endpoint does not call this service yet; that is the next V0.2 task.
+
+Separate `models`, `routes`, and backend test folders are not present yet. They should be introduced only when the current files become difficult to maintain.
 
 ### Frontend
 
@@ -105,18 +110,18 @@ An empty `code` value is rejected with FastAPI's validation response. The fronte
 
 The frontend supports `NEXT_PUBLIC_API_URL` for its backend address and defaults to `http://localhost:8000`.
 
-`backend/.env.example` reserves `LLM_API_KEY` for the V0.2 LLM service. Real values belong in an ignored `backend/.env` file or in the process environment; the key is not read or required until that service is implemented.
+`backend/.env.example` documents `LLM_API_KEY`, which the Gemini service reads from an ignored `backend/.env` file. The key is never sent to the frontend.
 
 ## V0.1 boundaries
 
 The following are deliberately outside the current architecture:
 
-- LLM providers and API-key use
-- Test generation beyond the placeholder response
+- LLM calls from the `/generate` endpoint
+- Test execution
 - Docker or any code execution
 - Databases, Redis, queues, authentication, and background jobs
 - Repository analysis and GitHub integration
 
 ## Next evolution
 
-V0.2 may add an LLM service behind the existing `/generate` endpoint. The request and response flow can remain the same while the placeholder result is replaced with generated tests. Docker execution remains a later version because untrusted code must not run on the host.
+The next V0.2 task connects the existing `/generate` endpoint to the Gemini service. The request and response flow can remain the same while the placeholder result is replaced with generated tests. Docker execution remains a later version because untrusted code must not run on the host.

@@ -35,7 +35,7 @@
 ## V0.2
 
 - [x] Add environment variables
-- [ ] Create LLM service
+- [x] Create LLM service
 - [ ] Connect `/generate` to the LLM service
 - [ ] Replace the placeholder response with generated tests
 - [ ] Handle LLM API errors
@@ -46,7 +46,7 @@
 
 ## Current Task
 
-**Create LLM service**
+**Connect `/generate` to the LLM service**
 
 ---
 

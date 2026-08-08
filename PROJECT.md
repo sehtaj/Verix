@@ -86,6 +86,7 @@ Given code or a repository, Verix will eventually:
 
 - FastAPI
 - Python
+- Google GenAI SDK
 
 Future additions
 
@@ -141,6 +142,19 @@ NOT included:
 - Background jobs
 
 V0.1 intentionally does not generate or execute tests. The placeholder response exists only to validate the client-server workflow before LLM integration.
+
+## V0.2 — In Progress
+
+Goal:
+
+Generate real Python unit tests with Gemini.
+
+Completed so far:
+
+- Added a local environment-variable template for the Gemini API key.
+- Created a backend Gemini service that generates pytest test code.
+
+The `/generate` endpoint still returns the V0.1 placeholder until the next task connects it to this service.
 
 ---
 

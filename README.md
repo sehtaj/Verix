@@ -1,6 +1,6 @@
 # Verix
 
-Verix is an early-stage AI software quality engineer. Version 0.1 proves the client-server flow: paste Python code, send it to FastAPI, and display a placeholder test result. It does not yet generate or execute tests.
+Verix is an early-stage AI software quality engineer. Version 0.1 proves the client-server flow: paste Python code, send it to FastAPI, and display a placeholder test result. Version 0.2 is in progress: a backend Gemini service can generate pytest code, but the API endpoint still returns the V0.1 placeholder response.
 
 ## Requirements
 
@@ -39,7 +39,7 @@ To point the frontend at a different API address, set `NEXT_PUBLIC_API_URL`; it 
 
 `backend/.env.example` lists backend configuration reserved for future features. Do not commit `backend/.env` or an API key.
 
-For the upcoming LLM integration, create `backend/.env` from the example and set `LLM_API_KEY`. The current V0.1 backend does not read or require this value yet.
+The Gemini service reads `LLM_API_KEY` from `backend/.env`. The `/generate` endpoint still returns the V0.1 placeholder response until the next V0.2 task connects it to the service.
 
 ## API
 
