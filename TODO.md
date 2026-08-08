@@ -32,9 +32,21 @@
 
 ---
 
+## V0.2
+
+- [ ] Add environment variables
+- [ ] Create LLM service
+- [ ] Connect `/generate` to the LLM service
+- [ ] Replace the placeholder response with generated tests
+- [ ] Handle LLM API errors
+- [ ] Test the V0.2 flow
+- [ ] Update README
+
+---
+
 ## Current Task
 
-**V0.1 tasks complete — choose the next milestone**
+**Add environment variables**
 
 ---
 

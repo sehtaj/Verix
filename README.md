@@ -1,6 +1,6 @@
 # Verix
 
-Verix is an early-stage AI software quality engineer. Version 0.1 accepts a pasted Python function and returns a placeholder unit-test result.
+Verix is an early-stage AI software quality engineer. Version 0.1 proves the client-server flow: paste Python code, send it to FastAPI, and display a placeholder test result. It does not yet generate or execute tests.
 
 ## Requirements
 
@@ -31,9 +31,9 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000` in a browser.
+Open `http://localhost:3000` in a browser. Keep both the backend and frontend processes running while using the app.
 
-To point the frontend at a different API address, set `NEXT_PUBLIC_API_URL`; it defaults to `http://localhost:8000`.
+To point the frontend at a different API address, set `NEXT_PUBLIC_API_URL`; it defaults to `http://localhost:8000`. The backend's local CORS configuration permits requests from `http://localhost:3000`.
 
 ## API
 
@@ -64,3 +64,5 @@ Version 0.1 returns a placeholder response:
   "tests": "Coming soon"
 }
 ```
+
+An empty `code` value is rejected by the API, and the frontend asks the user to enter code before sending a request.

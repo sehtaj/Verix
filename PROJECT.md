@@ -80,7 +80,7 @@ Given code or a repository, Verix will eventually:
 - Next.js
 - React
 - TypeScript
-- Tailwind CSS
+- CSS
 
 ## Backend
 
@@ -115,18 +115,19 @@ Always build the smallest working version first.
 
 # Current Version
 
-## V0.1
+## V0.1 — Complete
 
 Goal:
 
-Generate unit tests from a pasted Python function.
+Prove the end-to-end flow for submitting Python code and returning a test result.
 
 Features:
 
-- Accept Python code
-- Send code to backend
-- Generate placeholder tests
-- Display generated tests
+- FastAPI health check at `GET /`
+- `POST /generate` request validation for non-empty Python code
+- Placeholder test response: `{"tests": "Coming soon"}`
+- Next.js code-input page with loading, validation, error, and result states
+- Local frontend-to-backend communication via CORS
 
 NOT included:
 
@@ -138,6 +139,8 @@ NOT included:
 - Authentication
 - Database
 - Background jobs
+
+V0.1 intentionally does not generate or execute tests. The placeholder response exists only to validate the client-server workflow before LLM integration.
 
 ---
 
