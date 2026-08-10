@@ -45,19 +45,30 @@
 
 ## V0.3
 
-- [ ] Add Docker test runner image
-- [ ] Create isolated test execution service
-- [ ] Run generated tests with a timeout
-- [ ] Return test execution results
-- [ ] Display test execution results
-- [ ] Test the V0.3 flow
+- [x] Add Docker test runner image
+- [x] Create isolated test execution service
+- [x] Run generated tests with a timeout
+- [x] Return test execution results
+- [x] Display test execution results
+- [x] Test the V0.3 flow
+- [x] Update README
+
+---
+
+## V0.4
+
+- [ ] Add a GitHub repository URL input
+- [ ] Validate public GitHub repository URLs
+- [ ] Fetch basic repository metadata
+- [ ] Display the selected repository details
+- [ ] Test the V0.4 flow
 - [ ] Update README
 
 ---
 
 ## Current Task
 
-**Add Docker test runner image**
+**Add a GitHub repository URL input**
 
 ---
 

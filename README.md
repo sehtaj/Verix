@@ -1,11 +1,20 @@
 # Verix
 
-Verix is an early-stage AI software quality engineer. Version 0.2 accepts pasted Python code and uses Gemini to generate pytest test code. It does not execute generated tests.
+Verix is an early-stage AI software quality engineer. Version 0.3 accepts pasted Python code, uses Gemini to generate pytest test code, and runs those tests in an isolated Docker container.
 
 ## Requirements
 
 - Python 3
 - Node.js 20 or later
+- Docker Desktop (running)
+
+## Build the test runner
+
+From the repository root, build the local Docker image used to execute generated tests:
+
+```bash
+docker build --tag verix-test-runner:dev backend
+```
 
 ## Run the backend
 
@@ -37,7 +46,7 @@ To point the frontend at a different API address, set `NEXT_PUBLIC_API_URL`; it 
 
 ## Backend environment variables
 
-`backend/.env.example` lists backend configuration reserved for future features. Do not commit `backend/.env` or an API key.
+`backend/.env.example` documents the Gemini configuration. Do not commit `backend/.env` or an API key.
 
 The Gemini service reads `LLM_API_KEY` from `backend/.env`. If it is missing, `POST /generate` returns HTTP 503. Keep the key private and never expose it to the frontend.
 
@@ -63,12 +72,19 @@ The Gemini service reads `LLM_API_KEY` from `backend/.env`. If it is missing, `P
 }
 ```
 
-Version 0.2 returns Gemini-generated pytest code:
+Version 0.3 returns Gemini-generated pytest code and its Docker execution result:
 
 ```json
 {
-  "tests": "import pytest\n\ndef test_add(): ..."
+  "tests": "from main import add\n\ndef test_add(): ...",
+  "execution": {
+    "return_code": 0,
+    "output": "... 1 passed ...",
+    "timed_out": false
+  }
 }
 ```
 
 An empty `code` value is rejected by the API, and the frontend asks the user to enter code before sending a request. Gemini failures return HTTP 502 with a safe error message.
+
+Generated tests run only inside the local Docker image. The runner has no network access, a read-only container filesystem, restricted resources, and a 10-second timeout. A non-zero `return_code` means the tests failed; a timeout returns `null` for `return_code` and `true` for `timed_out`.

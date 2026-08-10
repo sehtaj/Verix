@@ -87,10 +87,10 @@ Given code or a repository, Verix will eventually:
 - FastAPI
 - Python
 - Google GenAI SDK
+- Docker
 
 Future additions
 
-- Docker
 - PostgreSQL
 - Redis
 - LangGraph
@@ -158,6 +158,22 @@ Features:
 - Verified the full browser-to-Gemini workflow.
 
 V0.2 generates test code but does not run it. Test execution remains a later isolated Docker-based version.
+
+## V0.3 — Complete
+
+Goal:
+
+Generate and safely execute pytest tests for submitted Python code.
+
+Features:
+
+- Added a local Docker image with pytest and a non-root execution user.
+- Runs submitted code and Gemini-generated tests only in an isolated Docker container.
+- Applies network isolation, a read-only filesystem, dropped capabilities, resource limits, and a 10-second timeout.
+- Returns pytest output, the exit code, and timeout status from `POST /generate`.
+- Displays generated tests and their execution outcome in the frontend.
+
+V0.3 executes only within the local Docker runner; user code is never run directly on the host.
 
 ---
 
