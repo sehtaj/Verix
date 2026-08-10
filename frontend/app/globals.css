@@ -79,6 +79,18 @@ button:disabled {
   color: #b91c1c;
 }
 
+.execution-status {
+  font-weight: 700;
+}
+
+.execution-status.passed {
+  color: #15803d;
+}
+
+.execution-status.failed {
+  color: #b91c1c;
+}
+
 .result {
   margin-top: 1.5rem;
 }
