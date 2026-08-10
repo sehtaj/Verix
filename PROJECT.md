@@ -143,18 +143,21 @@ NOT included:
 
 V0.1 intentionally does not generate or execute tests. The placeholder response exists only to validate the client-server workflow before LLM integration.
 
-## V0.2 — In Progress
+## V0.2 — Complete
 
 Goal:
 
 Generate real Python unit tests with Gemini.
 
-Completed so far:
+Features:
 
 - Added a local environment-variable template for the Gemini API key.
 - Created a backend Gemini service that generates pytest test code.
+- Connected `POST /generate` to Gemini while preserving the existing API shape.
+- Added safe API responses for missing configuration and Gemini failures.
+- Verified the full browser-to-Gemini workflow.
 
-The `/generate` endpoint still returns the V0.1 placeholder until the next task connects it to this service.
+V0.2 generates test code but does not run it. Test execution remains a later isolated Docker-based version.
 
 ---
 

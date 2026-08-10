@@ -1,6 +1,6 @@
 # Verix
 
-Verix is an early-stage AI software quality engineer. Version 0.1 proves the client-server flow: paste Python code, send it to FastAPI, and display a placeholder test result. Version 0.2 is in progress: a backend Gemini service can generate pytest code, but the API endpoint still returns the V0.1 placeholder response.
+Verix is an early-stage AI software quality engineer. Version 0.2 accepts pasted Python code and uses Gemini to generate pytest test code. It does not execute generated tests.
 
 ## Requirements
 
@@ -39,7 +39,7 @@ To point the frontend at a different API address, set `NEXT_PUBLIC_API_URL`; it 
 
 `backend/.env.example` lists backend configuration reserved for future features. Do not commit `backend/.env` or an API key.
 
-The Gemini service reads `LLM_API_KEY` from `backend/.env`. The `/generate` endpoint still returns the V0.1 placeholder response until the next V0.2 task connects it to the service.
+The Gemini service reads `LLM_API_KEY` from `backend/.env`. If it is missing, `POST /generate` returns HTTP 503. Keep the key private and never expose it to the frontend.
 
 ## API
 
@@ -63,12 +63,12 @@ The Gemini service reads `LLM_API_KEY` from `backend/.env`. The `/generate` endp
 }
 ```
 
-Version 0.1 returns a placeholder response:
+Version 0.2 returns Gemini-generated pytest code:
 
 ```json
 {
-  "tests": "Coming soon"
+  "tests": "import pytest\n\ndef test_add(): ..."
 }
 ```
 
-An empty `code` value is rejected by the API, and the frontend asks the user to enter code before sending a request.
+An empty `code` value is rejected by the API, and the frontend asks the user to enter code before sending a request. Gemini failures return HTTP 502 with a safe error message.

@@ -1,11 +1,18 @@
 """Verix FastAPI application."""
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from services.llm_service import GeminiLLMService
+
 
 app = FastAPI(title="Verix API")
+
+try:
+    llm_service: GeminiLLMService | None = GeminiLLMService()
+except RuntimeError:
+    llm_service = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,5 +34,19 @@ def health_check() -> dict[str, str]:
 
 @app.post("/generate")
 def generate_tests(request: GenerateTestsRequest) -> dict[str, str]:
-    """Return the Version 0.1 placeholder test result."""
-    return {"tests": "Coming soon"}
+    """Generate tests for the supplied Python code."""
+    if llm_service is None:
+        raise HTTPException(
+            status_code=503,
+            detail="LLM service is not configured.",
+        )
+
+    try:
+        tests = llm_service.generate_tests(request.code)
+    except Exception:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to generate tests. Please try again.",
+        ) from None
+
+    return {"tests": tests}

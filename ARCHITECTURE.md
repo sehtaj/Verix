@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Verix is a small client-server application. Version 0.1 proves the user flow for submitting Python code to a backend and displaying a structured placeholder result. It does not generate or execute tests.
+Verix is a small client-server application. Version 0.2 generates pytest test code from submitted Python code with Gemini. It does not execute generated tests.
 
 ## Current architecture
 
@@ -16,9 +16,13 @@ Next.js frontend (localhost:3000)
   v
 FastAPI backend (localhost:8000)
   |
-  | validates code and returns placeholder data
+  | validates code and calls Gemini
   v
-Next.js displays { "tests": "Coming soon" }
+Gemini API
+  |
+  | returns generated pytest code
+  v
+Next.js displays { "tests": "..." }
 ```
 
 The frontend is responsible for the interface and API request state. The backend is responsible for API validation and responses. No user code is executed.
@@ -57,9 +61,10 @@ verix/
 - Creates the FastAPI application.
 - Permits browser requests from `http://localhost:3000` with CORS.
 - Defines the Pydantic request model for `/generate`.
-- Exposes the health and placeholder generate endpoints.
+- Exposes the health and Gemini-backed generate endpoints.
+- Returns HTTP 503 when the local LLM configuration is unavailable and HTTP 502 when Gemini generation fails.
 
-`backend/services/llm_service.py` contains the Gemini integration. It loads the local API key, sends a Python function to Gemini, and returns generated pytest code. The endpoint does not call this service yet; that is the next V0.2 task.
+`backend/services/llm_service.py` contains the Gemini integration. It loads the local API key, sends a Python function to Gemini, and returns generated pytest code.
 
 Separate `models`, `routes`, and backend test folders are not present yet. They should be introduced only when the current files become difficult to maintain.
 
@@ -96,15 +101,15 @@ Accepts a non-empty code string.
 }
 ```
 
-V0.1 response:
+V0.2 response:
 
 ```json
 {
-  "tests": "Coming soon"
+  "tests": "import pytest\n\ndef test_add(): ..."
 }
 ```
 
-An empty `code` value is rejected with FastAPI's validation response. The frontend also prevents empty submissions before sending a request.
+An empty `code` value is rejected with FastAPI's validation response. The frontend also prevents empty submissions before sending a request. Gemini failures return HTTP 502 with a safe error message; a missing key returns HTTP 503.
 
 ## Configuration
 
@@ -112,11 +117,10 @@ The frontend supports `NEXT_PUBLIC_API_URL` for its backend address and defaults
 
 `backend/.env.example` documents `LLM_API_KEY`, which the Gemini service reads from an ignored `backend/.env` file. The key is never sent to the frontend.
 
-## V0.1 boundaries
+## V0.2 boundaries
 
 The following are deliberately outside the current architecture:
 
-- LLM calls from the `/generate` endpoint
 - Test execution
 - Docker or any code execution
 - Databases, Redis, queues, authentication, and background jobs
@@ -124,4 +128,4 @@ The following are deliberately outside the current architecture:
 
 ## Next evolution
 
-The next V0.2 task connects the existing `/generate` endpoint to the Gemini service. The request and response flow can remain the same while the placeholder result is replaced with generated tests. Docker execution remains a later version because untrusted code must not run on the host.
+V0.3 will add isolated Docker execution for generated tests. User-provided and AI-generated code must never run directly on the host.

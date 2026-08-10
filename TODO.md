@@ -36,17 +36,28 @@
 
 - [x] Add environment variables
 - [x] Create LLM service
-- [ ] Connect `/generate` to the LLM service
-- [ ] Replace the placeholder response with generated tests
-- [ ] Handle LLM API errors
-- [ ] Test the V0.2 flow
+- [x] Connect `/generate` to the LLM service
+- [x] Replace the placeholder response with generated tests
+- [x] Handle LLM API errors
+- [x] Test the V0.2 flow
+
+---
+
+## V0.3
+
+- [ ] Add Docker test runner image
+- [ ] Create isolated test execution service
+- [ ] Run generated tests with a timeout
+- [ ] Return test execution results
+- [ ] Display test execution results
+- [ ] Test the V0.3 flow
 - [ ] Update README
 
 ---
 
 ## Current Task
 
-**Connect `/generate` to the LLM service**
+**Add Docker test runner image**
 
 ---
 
