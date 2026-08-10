@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from services.llm_service import GeminiLLMService
+from services.test_runner import DockerTestRunner
 
 
 app = FastAPI(title="Verix API")
@@ -13,6 +14,8 @@ try:
     llm_service: GeminiLLMService | None = GeminiLLMService()
 except RuntimeError:
     llm_service = None
+
+test_runner = DockerTestRunner()
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,8 +36,8 @@ def health_check() -> dict[str, str]:
 
 
 @app.post("/generate")
-def generate_tests(request: GenerateTestsRequest) -> dict[str, str]:
-    """Generate tests for the supplied Python code."""
+def generate_tests(request: GenerateTestsRequest) -> dict[str, object]:
+    """Generate and execute tests for the supplied Python code."""
     if llm_service is None:
         raise HTTPException(
             status_code=503,
@@ -49,4 +52,13 @@ def generate_tests(request: GenerateTestsRequest) -> dict[str, str]:
             detail="Unable to generate tests. Please try again.",
         ) from None
 
-    return {"tests": tests}
+    execution = test_runner.run_tests(request.code, tests)
+
+    return {
+        "tests": tests,
+        "execution": {
+            "return_code": execution.return_code,
+            "output": execution.output,
+            "timed_out": execution.timed_out,
+        },
+    }

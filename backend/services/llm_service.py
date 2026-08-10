@@ -28,6 +28,8 @@ class GeminiLLMService:
         prompt = f"""Generate pytest unit tests for the following Python code.
 
 Return only the test code, without Markdown fences or explanation.
+The submitted code is available as main.py. Import the functions or classes being
+tested from main; do not leave an import commented out or assume an unspecified module.
 
 Python code:
 {code}
