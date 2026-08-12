@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Verix",
-  description: "Generate placeholder Python unit tests.",
+  description: "Plan and verify Python code and public repositories.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

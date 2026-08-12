@@ -88,6 +88,11 @@ button:disabled {
   color: #b91c1c;
 }
 
+.warning {
+  color: #a16207;
+  font-weight: 700;
+}
+
 .field-hint {
   margin: -0.5rem 0 1rem;
   font-size: 0.9rem;
@@ -131,6 +136,54 @@ button:disabled {
 .file-tree li {
   padding-block: 0.125rem;
   overflow-wrap: anywhere;
+}
+
+.plan-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+}
+
+.plan-summary div,
+.test-plan li {
+  padding: 0.75rem;
+  background: #f1f5f9;
+  border-radius: 0.5rem;
+}
+
+.plan-summary dt {
+  color: #475569;
+  font-size: 0.85rem;
+}
+
+.plan-summary dd {
+  margin: 0.25rem 0 0;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.test-plan {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+  padding-left: 1.5rem;
+}
+
+.test-plan li p {
+  margin: 0.5rem 0;
+}
+
+.test-plan strong {
+  display: block;
+  text-transform: capitalize;
+}
+
+.test-plan code {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: #dbeafe;
+  border-radius: 0.25rem;
+  color: #1e3a8a;
 }
 
 pre {

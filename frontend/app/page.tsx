@@ -22,6 +22,23 @@ type RepositoryTree = {
   is_truncated: boolean;
 };
 
+type RepositoryTestPlan = {
+  setup: {
+    is_python_project: boolean;
+    project_tool: string | null;
+    test_runner: string | null;
+    configuration_files: string[];
+  };
+  source_paths: string[];
+  test_paths: string[];
+  steps: Array<{
+    action: string;
+    description: string;
+    command: string | null;
+  }>;
+  is_truncated: boolean;
+};
+
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 function isPublicGitHubRepositoryUrl(value: string): boolean {
@@ -47,6 +64,7 @@ export default function Home() {
   const [repositoryUrl, setRepositoryUrl] = useState("");
   const [repository, setRepository] = useState<RepositoryMetadata | null>(null);
   const [repositoryTree, setRepositoryTree] = useState<RepositoryTree | null>(null);
+  const [repositoryTestPlan, setRepositoryTestPlan] = useState<RepositoryTestPlan | null>(null);
   const [isRepositoryLoading, setIsRepositoryLoading] = useState(false);
   const [repositoryError, setRepositoryError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -59,6 +77,9 @@ export default function Home() {
 
     if (!isPublicGitHubRepositoryUrl(repositoryUrl)) {
       setRepositoryError("Enter a public GitHub repository URL, such as https://github.com/owner/repository.");
+      setRepository(null);
+      setRepositoryTree(null);
+      setRepositoryTestPlan(null);
       return;
     }
 
@@ -66,6 +87,7 @@ export default function Home() {
     setRepositoryError(null);
     setRepository(null);
     setRepositoryTree(null);
+    setRepositoryTestPlan(null);
 
     try {
       const metadataResponse = await fetch(`${apiUrl}/repository`, {
@@ -79,22 +101,36 @@ export default function Home() {
         throw new Error("detail" in metadata ? metadata.detail : "The request failed.");
       }
 
-      const treeResponse = await fetch(`${apiUrl}/repository/tree`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: repositoryUrl }),
-      });
-      const tree: RepositoryTree | { detail: string } = await treeResponse.json();
+      const [treeResponse, testPlanResponse] = await Promise.all([
+        fetch(`${apiUrl}/repository/tree`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: repositoryUrl }),
+        }),
+        fetch(`${apiUrl}/repository/test-plan`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: repositoryUrl }),
+        }),
+      ]);
+      const [tree, testPlan]: [
+        RepositoryTree | { detail: string },
+        RepositoryTestPlan | { detail: string },
+      ] = await Promise.all([treeResponse.json(), testPlanResponse.json()]);
 
       if (!treeResponse.ok || !("entries" in tree)) {
         throw new Error("detail" in tree ? tree.detail : "The request failed.");
       }
+      if (!testPlanResponse.ok || !("steps" in testPlan)) {
+        throw new Error("detail" in testPlan ? testPlan.detail : "The request failed.");
+      }
 
       setRepository(metadata);
       setRepositoryTree(tree);
+      setRepositoryTestPlan(testPlan);
     } catch (error) {
       setRepositoryError(
-        error instanceof Error ? error.message : "Unable to fetch repository metadata. Please try again.",
+        error instanceof Error ? error.message : "Unable to fetch repository details. Please try again.",
       );
     } finally {
       setIsRepositoryLoading(false);
@@ -148,6 +184,7 @@ export default function Home() {
             placeholder="https://github.com/owner/repository"
             type="url"
             value={repositoryUrl}
+            disabled={isRepositoryLoading}
             onChange={(event) => setRepositoryUrl(event.target.value)}
           />
           <p className="field-hint">Use an HTTPS URL for a public repository.</p>
@@ -187,6 +224,45 @@ export default function Home() {
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+        {repositoryTestPlan !== null && (
+          <section className="result">
+            <h2>Repository test plan</h2>
+            <dl className="plan-summary">
+              <div>
+                <dt>Python project</dt>
+                <dd>{repositoryTestPlan.setup.is_python_project ? "Yes" : "Not detected"}</dd>
+              </div>
+              <div>
+                <dt>Project tool</dt>
+                <dd>{repositoryTestPlan.setup.project_tool ?? "Not detected"}</dd>
+              </div>
+              <div>
+                <dt>Test runner</dt>
+                <dd>{repositoryTestPlan.setup.test_runner ?? "Not detected"}</dd>
+              </div>
+              <div>
+                <dt>Likely source files</dt>
+                <dd>{repositoryTestPlan.source_paths.length}</dd>
+              </div>
+              <div>
+                <dt>Existing test files</dt>
+                <dd>{repositoryTestPlan.test_paths.length}</dd>
+              </div>
+            </dl>
+            {repositoryTestPlan.is_truncated && (
+              <p className="warning">The repository tree is incomplete, so this plan may miss files.</p>
+            )}
+            <ol className="test-plan">
+              {repositoryTestPlan.steps.map((step) => (
+                <li key={step.action}>
+                  <strong>{step.action.replaceAll("_", " ")}</strong>
+                  <p>{step.description}</p>
+                  {step.command && <code>{step.command}</code>}
+                </li>
+              ))}
+            </ol>
           </section>
         )}
         <form className="code-generator" onSubmit={handleSubmit}>
