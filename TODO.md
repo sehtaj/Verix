@@ -78,8 +78,9 @@
 
 ## V0.6
 
-- [ ] Create a repository analysis agent
+- [ ] Fetch relevant repository configuration file contents
 - [ ] Identify likely source and test paths from the repository tree
+- [ ] Detect Python project setup from configuration files
 - [ ] Generate a structured repository test plan
 - [ ] Display the repository test plan
 - [ ] Test the V0.6 flow
@@ -89,7 +90,7 @@
 
 ## Current Task
 
-**Create a repository analysis agent**
+**Fetch relevant repository configuration file contents**
 
 ---
 

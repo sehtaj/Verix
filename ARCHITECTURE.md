@@ -177,4 +177,4 @@ The following are deliberately outside the current architecture:
 
 ## Next evolution
 
-V0.6 will add a first repository-analysis agent that turns the selected repository structure into a structured testing plan. User-provided and AI-generated code must continue to run only inside isolated containers.
+V0.6 will retrieve focused repository context, identify likely source and test paths, and produce a structured testing plan. The first multi-step agent workflow comes later, after Verix can understand repository context and execute its existing tests reliably. User-provided and AI-generated code must continue to run only inside isolated containers.

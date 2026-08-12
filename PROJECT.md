@@ -228,23 +228,40 @@ V0.5 reads repository metadata and paths only. It does not fetch file contents, 
 
 ## V0.6
 
-- Multi-agent workflow
+- Repository context and test planning
+- Fetch relevant configuration, source, and test-file contents
+- Identify project setup and likely test targets
+- Produce a structured testing plan
 
 ## V0.7
 
-- Automatic bug fixing
+- Safe repository test execution
+- Support public Python repositories first
+- Install declared dependencies and run existing tests in an isolated environment
 
 ## V0.8
 
-- Performance analysis
+- Repository-aware test generation
+- Generate tests from selected repository context and conventions
+- Run generated tests with the existing test suite
 
 ## V0.9
 
-- Security analysis
+- Agentic investigation and explanation
+- Plan, generate, execute, and investigate using structured evidence
+- Explain failures and distinguish setup issues from code bugs
 
 ## V1.0
 
-AI Software Quality Engineer
+- Approval-based fix proposals and verified quality reports
+- Propose minimal patches, rerun relevant tests, and report merge confidence
+
+## After V1.0
+
+- Support additional languages and test frameworks
+- Add GitHub App integration for private repositories and pull requests
+- Add performance and security review capabilities
+- Add historical reports and CI integration
 
 ---
 
@@ -255,6 +272,7 @@ AI Software Quality Engineer
 - Never expose API keys to the frontend.
 - Never execute user code directly on the host machine.
 - Every execution must eventually happen inside an isolated Docker container.
+- Understand code and verify tests before proposing a fix.
 - Every feature should be modular and easy to extend.
 
 ---
