@@ -91,3 +91,22 @@ def get_repository_metadata(request: RepositoryRequest) -> dict[str, object]:
         "stars": repository.stars,
         "url": repository.url,
     }
+
+
+@app.post("/repository/tree")
+def get_repository_tree(request: RepositoryRequest) -> dict[str, object]:
+    """Return a bounded file tree for a public GitHub repository."""
+    try:
+        tree = github_repository_service.fetch_file_tree(request.url)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to fetch repository file structure. Please try again.",
+        ) from None
+
+    return {
+        "entries": [{"path": entry.path, "type": entry.type} for entry in tree.entries],
+        "is_truncated": tree.is_truncated,
+    }

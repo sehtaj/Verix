@@ -10,6 +10,7 @@ from urllib.request import Request, urlopen
 import certifi
 
 GITHUB_API_URL = "https://api.github.com/repos"
+MAX_TREE_ENTRIES = 500
 SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
 
@@ -25,29 +26,29 @@ class RepositoryMetadata:
     url: str
 
 
+@dataclass
+class RepositoryTreeEntry:
+    """A file or directory in a repository tree."""
+
+    path: str
+    type: str
+
+
+@dataclass
+class RepositoryTree:
+    """The bounded repository tree returned to the V0.5 interface."""
+
+    entries: list[RepositoryTreeEntry]
+    is_truncated: bool
+
+
 class GitHubRepositoryService:
     """Retrieve metadata for a public GitHub repository."""
 
     def fetch_metadata(self, repository_url: str) -> RepositoryMetadata:
         """Validate a GitHub URL and return its public repository metadata."""
         owner, repository = self._parse_repository_url(repository_url)
-        request = Request(
-            f"{GITHUB_API_URL}/{quote(owner)}/{quote(repository)}",
-            headers={"Accept": "application/vnd.github+json"},
-        )
-
-        try:
-            with urlopen(request, context=SSL_CONTEXT, timeout=10) as response:
-                data = json.load(response)
-        except HTTPError as error:
-            if error.code == 404:
-                raise ValueError("Repository was not found or is not public.") from None
-            raise RuntimeError("GitHub could not return repository metadata.") from None
-        except URLError:
-            raise RuntimeError("GitHub could not return repository metadata.") from None
-
-        if data["private"]:
-            raise ValueError("Repository is not public.")
+        data = self._fetch_repository_data(owner, repository)
 
         return RepositoryMetadata(
             name=data["name"],
@@ -58,6 +59,52 @@ class GitHubRepositoryService:
             url=data["html_url"],
         )
 
+    def fetch_file_tree(self, repository_url: str) -> RepositoryTree:
+        """Return a bounded recursive tree for a public GitHub repository."""
+        owner, repository = self._parse_repository_url(repository_url)
+        repository_data = self._fetch_repository_data(owner, repository)
+        branch = quote(repository_data["default_branch"], safe="")
+        tree_data = self._request_json(
+            f"{GITHUB_API_URL}/{quote(owner, safe='')}/{quote(repository, safe='')}/git/trees/{branch}?recursive=1"
+        )
+        tree_entries = sorted(
+            tree_data["tree"],
+            key=lambda entry: (entry["path"].lower(), entry["type"] != "tree"),
+        )
+
+        return RepositoryTree(
+            entries=[
+                RepositoryTreeEntry(path=entry["path"], type=entry["type"])
+                for entry in tree_entries[:MAX_TREE_ENTRIES]
+            ],
+            is_truncated=tree_data["truncated"] or len(tree_entries) > MAX_TREE_ENTRIES,
+        )
+
+    def _fetch_repository_data(self, owner: str, repository: str) -> dict[str, object]:
+        """Fetch repository data and reject private repositories."""
+        data = self._request_json(
+            f"{GITHUB_API_URL}/{quote(owner, safe='')}/{quote(repository, safe='')}"
+        )
+
+        if data["private"]:
+            raise ValueError("Repository is not public.")
+
+        return data
+
+    @staticmethod
+    def _request_json(url: str) -> dict[str, object]:
+        """Request JSON from GitHub's public API with safe error messages."""
+        request = Request(url, headers={"Accept": "application/vnd.github+json"})
+        try:
+            with urlopen(request, context=SSL_CONTEXT, timeout=10) as response:
+                return json.load(response)
+        except HTTPError as error:
+            if error.code == 404:
+                raise ValueError("Repository was not found or is not public.") from None
+            raise RuntimeError("GitHub could not return repository metadata.") from None
+        except URLError:
+            raise RuntimeError("GitHub could not return repository metadata.") from None
+
     @staticmethod
     def _parse_repository_url(repository_url: str) -> tuple[str, str]:
         parsed_url = urlparse(repository_url)
@@ -65,7 +112,7 @@ class GitHubRepositoryService:
 
         if (
             parsed_url.scheme != "https"
-            or parsed_url.netloc != "github.com"
+            or parsed_url.netloc.lower() not in {"github.com", "github.com:443"}
             or len(path_segments) != 2
             or parsed_url.query
             or parsed_url.fragment
