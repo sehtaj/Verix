@@ -78,19 +78,33 @@
 
 ## V0.6
 
-- [ ] Fetch relevant repository configuration file contents
-- [ ] Identify likely source and test paths from the repository tree
-- [ ] Detect Python project setup from configuration files
-- [ ] Generate a structured repository test plan
-- [ ] Display the repository test plan
-- [ ] Test the V0.6 flow
+- [x] Fetch relevant repository configuration file contents
+- [x] Identify likely source and test paths from the repository tree
+- [x] Detect Python project setup from configuration files
+- [x] Generate a structured repository test plan
+- [x] Display the repository test plan
+- [x] Test the V0.6 flow
+- [x] Update README
+
+---
+
+## V0.7
+
+- [ ] Consolidate repository context fetching to reduce duplicate GitHub API requests
+- [ ] Prepare a selected public Python repository for isolated test execution
+- [ ] Extend the isolated Docker runner for repository test runs
+- [ ] Install declared repository dependencies inside the isolated environment
+- [ ] Run the existing repository test suite with bounded resources
+- [ ] Return repository test execution results
+- [ ] Display repository test execution results
+- [ ] Test the V0.7 flow
 - [ ] Update README
 
 ---
 
 ## Current Task
 
-**Fetch relevant repository configuration file contents**
+**Consolidate repository context fetching to reduce duplicate GitHub API requests**
 
 ---
 
