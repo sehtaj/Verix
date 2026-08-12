@@ -1,6 +1,6 @@
 # Verix
 
-Verix is an early-stage AI software quality engineer. Version 0.3 accepts pasted Python code, uses Gemini to generate pytest test code, and runs those tests in an isolated Docker container.
+Verix is an early-stage AI software quality engineer. Version 0.4 can look up basic metadata for a public GitHub repository, as well as generate and safely run pytest tests for pasted Python code.
 
 ## Requirements
 
@@ -72,7 +72,7 @@ The Gemini service reads `LLM_API_KEY` from `backend/.env`. If it is missing, `P
 }
 ```
 
-Version 0.3 returns Gemini-generated pytest code and its Docker execution result:
+Version 0.4 returns Gemini-generated pytest code and its Docker execution result:
 
 ```json
 {
@@ -88,3 +88,30 @@ Version 0.3 returns Gemini-generated pytest code and its Docker execution result
 An empty `code` value is rejected by the API, and the frontend asks the user to enter code before sending a request. Gemini failures return HTTP 502 with a safe error message.
 
 Generated tests run only inside the local Docker image. The runner has no network access, a read-only container filesystem, restricted resources, and a 10-second timeout. A non-zero `return_code` means the tests failed; a timeout returns `null` for `return_code` and `true` for `timed_out`.
+
+### Fetch repository metadata
+
+`POST /repository`
+
+Accepts a public GitHub repository URL:
+
+```json
+{
+  "url": "https://github.com/octocat/Hello-World"
+}
+```
+
+It uses GitHub's public API to return basic repository details. No GitHub token is required, and private repositories are not supported.
+
+```json
+{
+  "name": "Hello-World",
+  "owner": "octocat",
+  "description": "My first repository on GitHub!",
+  "language": null,
+  "stars": 0,
+  "url": "https://github.com/octocat/Hello-World"
+}
+```
+
+The frontend provides a **Fetch repository** action that displays these details. It does not clone, download, inspect, or test repository files yet.

@@ -57,18 +57,28 @@
 
 ## V0.4
 
-- [ ] Add a GitHub repository URL input
-- [ ] Validate public GitHub repository URLs
-- [ ] Fetch basic repository metadata
-- [ ] Display the selected repository details
-- [ ] Test the V0.4 flow
+- [x] Add a GitHub repository URL input
+- [x] Validate public GitHub repository URLs
+- [x] Fetch basic repository metadata
+- [x] Display the selected repository details
+- [x] Test the V0.4 flow
+- [x] Update README
+
+---
+
+## V0.5
+
+- [ ] Fetch the selected repository's file tree
+- [ ] Display the repository file structure
+- [ ] Detect the repository's primary language
+- [ ] Test the V0.5 flow
 - [ ] Update README
 
 ---
 
 ## Current Task
 
-**Add a GitHub repository URL input**
+**Fetch the selected repository's file tree**
 
 ---
 

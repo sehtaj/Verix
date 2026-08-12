@@ -175,6 +175,21 @@ Features:
 
 V0.3 executes only within the local Docker runner; user code is never run directly on the host.
 
+## V0.4 — Complete
+
+Goal:
+
+Accept a public GitHub repository URL and show its basic metadata.
+
+Features:
+
+- Added client- and server-side validation for public GitHub repository URLs.
+- Added a backend service that fetches public metadata from GitHub's API without a token.
+- Displays a repository's owner, name, description, primary language, stars, and GitHub link.
+- Keeps repository lookup separate from the existing pasted-code generation flow.
+
+V0.4 does not clone, download, inspect, or test repository files. Private repositories and authentication are not supported.
+
 ---
 
 # Roadmap
