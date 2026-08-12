@@ -110,3 +110,96 @@ def get_repository_tree(request: RepositoryRequest) -> dict[str, object]:
         "entries": [{"path": entry.path, "type": entry.type} for entry in tree.entries],
         "is_truncated": tree.is_truncated,
     }
+
+
+@app.post("/repository/configuration")
+def get_repository_configuration(request: RepositoryRequest) -> dict[str, object]:
+    """Return selected root-level Python configuration files from a public repository."""
+    try:
+        files = github_repository_service.fetch_configuration_files(request.url)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to fetch repository configuration files. Please try again.",
+        ) from None
+
+    return {
+        "files": [{"path": file.path, "content": file.content} for file in files]
+    }
+
+
+@app.post("/repository/paths")
+def get_repository_paths(request: RepositoryRequest) -> dict[str, object]:
+    """Identify likely Python source and test paths in a public repository."""
+    try:
+        paths = github_repository_service.fetch_likely_paths(request.url)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to identify repository paths. Please try again.",
+        ) from None
+
+    return {
+        "source_paths": paths.source_paths,
+        "test_paths": paths.test_paths,
+        "is_truncated": paths.is_truncated,
+    }
+
+
+@app.post("/repository/setup")
+def get_repository_setup(request: RepositoryRequest) -> dict[str, object]:
+    """Detect Python project setup from a public repository's configuration files."""
+    try:
+        setup = github_repository_service.detect_python_project_setup(request.url)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to detect repository setup. Please try again.",
+        ) from None
+
+    return {
+        "is_python_project": setup.is_python_project,
+        "project_tool": setup.project_tool,
+        "test_runner": setup.test_runner,
+        "configuration_files": setup.configuration_files,
+    }
+
+
+@app.post("/repository/test-plan")
+def get_repository_test_plan(request: RepositoryRequest) -> dict[str, object]:
+    """Generate an evidence-based test plan for a public repository."""
+    try:
+        plan = github_repository_service.generate_test_plan(request.url)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to generate a repository test plan. Please try again.",
+        ) from None
+
+    return {
+        "setup": {
+            "is_python_project": plan.setup.is_python_project,
+            "project_tool": plan.setup.project_tool,
+            "test_runner": plan.setup.test_runner,
+            "configuration_files": plan.setup.configuration_files,
+        },
+        "source_paths": plan.source_paths,
+        "test_paths": plan.test_paths,
+        "steps": [
+            {
+                "action": step.action,
+                "description": step.description,
+                "command": step.command,
+            }
+            for step in plan.steps
+        ],
+        "is_truncated": plan.is_truncated,
+    }
