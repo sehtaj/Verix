@@ -17,6 +17,11 @@ type RepositoryMetadata = {
   url: string;
 };
 
+type RepositoryTree = {
+  entries: Array<{ path: string; type: string }>;
+  is_truncated: boolean;
+};
+
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 function isPublicGitHubRepositoryUrl(value: string): boolean {
@@ -27,6 +32,7 @@ function isPublicGitHubRepositoryUrl(value: string): boolean {
     return (
       url.protocol === "https:" &&
       url.hostname === "github.com" &&
+      !url.port &&
       pathSegments.length === 2 &&
       !url.search &&
       !url.hash
@@ -40,6 +46,7 @@ export default function Home() {
   const [code, setCode] = useState("");
   const [repositoryUrl, setRepositoryUrl] = useState("");
   const [repository, setRepository] = useState<RepositoryMetadata | null>(null);
+  const [repositoryTree, setRepositoryTree] = useState<RepositoryTree | null>(null);
   const [isRepositoryLoading, setIsRepositoryLoading] = useState(false);
   const [repositoryError, setRepositoryError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,20 +65,33 @@ export default function Home() {
     setIsRepositoryLoading(true);
     setRepositoryError(null);
     setRepository(null);
+    setRepositoryTree(null);
 
     try {
-      const response = await fetch(`${apiUrl}/repository`, {
+      const metadataResponse = await fetch(`${apiUrl}/repository`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: repositoryUrl }),
       });
-      const result: RepositoryMetadata | { detail: string } = await response.json();
+      const metadata: RepositoryMetadata | { detail: string } = await metadataResponse.json();
 
-      if (!response.ok || !("name" in result)) {
-        throw new Error("detail" in result ? result.detail : "The request failed.");
+      if (!metadataResponse.ok || !("name" in metadata)) {
+        throw new Error("detail" in metadata ? metadata.detail : "The request failed.");
       }
 
-      setRepository(result);
+      const treeResponse = await fetch(`${apiUrl}/repository/tree`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: repositoryUrl }),
+      });
+      const tree: RepositoryTree | { detail: string } = await treeResponse.json();
+
+      if (!treeResponse.ok || !("entries" in tree)) {
+        throw new Error("detail" in tree ? tree.detail : "The request failed.");
+      }
+
+      setRepository(metadata);
+      setRepositoryTree(tree);
     } catch (error) {
       setRepositoryError(
         error instanceof Error ? error.message : "Unable to fetch repository metadata. Please try again.",
@@ -147,6 +167,26 @@ export default function Home() {
             <p>{repository.description ?? "No description provided."}</p>
             <p>Primary language: {repository.language ?? "Not specified"}</p>
             <p>Stars: {repository.stars}</p>
+          </section>
+        )}
+        {repositoryTree !== null && (
+          <section className="result">
+            <h2>Repository file structure</h2>
+            <p className="field-hint">
+              {repositoryTree.is_truncated
+                ? `Showing the first ${repositoryTree.entries.length} entries.`
+                : `${repositoryTree.entries.length} entries.`}
+            </p>
+            <ul className="file-tree">
+              {repositoryTree.entries.map((entry) => (
+                <li
+                  key={`${entry.type}-${entry.path}`}
+                  style={{ paddingLeft: `${entry.path.split("/").length - 1}rem` }}
+                >
+                  <span aria-hidden="true">{entry.type === "tree" ? "📁" : "📄"}</span> {entry.path}
+                </li>
+              ))}
+            </ul>
           </section>
         )}
         <form className="code-generator" onSubmit={handleSubmit}>
