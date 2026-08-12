@@ -86,8 +86,10 @@ Given code or a repository, Verix will eventually:
 
 - FastAPI
 - Python
+- Pydantic
 - Google GenAI SDK
 - Docker
+- GitHub public REST API
 
 Future additions
 
@@ -205,6 +207,22 @@ Features:
 
 V0.5 reads repository metadata and paths only. It does not fetch file contents, clone repositories, install dependencies, or execute repository code.
 
+## V0.6 — Complete
+
+Goal:
+
+Build focused context for public Python repositories and turn it into a transparent test plan.
+
+Features:
+
+- Fetches an allowlisted set of root-level Python configuration files when they exist.
+- Identifies likely Python source and test paths from the bounded repository tree.
+- Recognizes common Python project tools and test runners from configuration evidence.
+- Produces an evidence-based, structured test plan with conservative suggested commands.
+- Displays the detected setup, candidate counts, plan steps, and incomplete-tree warning in the frontend.
+
+V0.6 does not retrieve arbitrary source or test-file contents, clone repositories, install dependencies, or execute repository code. GitHub access remains unauthenticated and is therefore subject to GitHub's public API rate limits.
+
 ---
 
 # Roadmap
@@ -229,7 +247,7 @@ V0.5 reads repository metadata and paths only. It does not fetch file contents, 
 ## V0.6
 
 - Repository context and test planning
-- Fetch relevant configuration, source, and test-file contents
+- Fetch selected configuration-file contents and identify likely source and test paths
 - Identify project setup and likely test targets
 - Produce a structured testing plan
 
@@ -237,6 +255,7 @@ V0.5 reads repository metadata and paths only. It does not fetch file contents, 
 
 - Safe repository test execution
 - Support public Python repositories first
+- Consolidate repository context requests to reduce GitHub API usage
 - Install declared dependencies and run existing tests in an isolated environment
 
 ## V0.8
