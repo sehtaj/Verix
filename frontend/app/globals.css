@@ -33,6 +33,7 @@ p {
 }
 
 label,
+input,
 textarea,
 button {
   display: block;
@@ -52,6 +53,14 @@ textarea {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.95rem;
   line-height: 1.5;
+}
+
+input {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border: 1px solid #94a3b8;
+  border-radius: 0.5rem;
+  font: inherit;
 }
 
 button {
@@ -77,6 +86,11 @@ button:disabled {
 
 .error {
   color: #b91c1c;
+}
+
+.field-hint {
+  margin: -0.5rem 0 1rem;
+  font-size: 0.9rem;
 }
 
 .execution-status {

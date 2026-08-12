@@ -8,8 +8,26 @@ type TestExecution = {
   timed_out: boolean;
 };
 
+function isPublicGitHubRepositoryUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    const pathSegments = url.pathname.split("/").filter(Boolean);
+
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "github.com" &&
+      pathSegments.length === 2 &&
+      !url.search &&
+      !url.hash
+    );
+  } catch {
+    return false;
+  }
+}
+
 export default function Home() {
   const [code, setCode] = useState("");
+  const [repositoryUrl, setRepositoryUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [tests, setTests] = useState<string | null>(null);
   const [execution, setExecution] = useState<TestExecution | null>(null);
@@ -17,6 +35,11 @@ export default function Home() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (repositoryUrl && !isPublicGitHubRepositoryUrl(repositoryUrl)) {
+      setError("Enter a public GitHub repository URL, such as https://github.com/owner/repository.");
+      return;
+    }
 
     if (!code.trim()) {
       setError("Enter Python code before generating tests.");
@@ -53,7 +76,17 @@ export default function Home() {
     <main>
       <form className="generator" onSubmit={handleSubmit}>
         <h1>Verix</h1>
-        <p>Paste a Python function to generate unit tests.</p>
+        <p>Paste Python code to generate unit tests, or add a GitHub repository for a future analysis flow.</p>
+        <label htmlFor="repository-url">GitHub repository URL</label>
+        <input
+          id="repository-url"
+          name="repository-url"
+          placeholder="https://github.com/owner/repository"
+          type="url"
+          value={repositoryUrl}
+          onChange={(event) => setRepositoryUrl(event.target.value)}
+        />
+        <p className="field-hint">Use an HTTPS URL for a public repository.</p>
         <label htmlFor="code">Python code</label>
         <textarea
           id="code"
