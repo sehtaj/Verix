@@ -109,6 +109,10 @@ button:disabled {
   margin-top: 1.5rem;
 }
 
+.code-generator {
+  margin-top: 2rem;
+}
+
 .result h2 {
   font-size: 1.1rem;
 }
