@@ -190,6 +190,21 @@ Features:
 
 V0.4 does not clone, download, inspect, or test repository files. Private repositories and authentication are not supported.
 
+## V0.5 — Complete
+
+Goal:
+
+Understand the basic structure of a selected public GitHub repository.
+
+Features:
+
+- Fetches a repository's recursive file and directory tree through GitHub's public API.
+- Displays a scrollable, indented repository structure in the frontend.
+- Limits the displayed structure to 500 entries and reports when it is truncated.
+- Shows GitHub's detected primary language with the repository metadata.
+
+V0.5 reads repository metadata and paths only. It does not fetch file contents, clone repositories, install dependencies, or execute repository code.
+
 ---
 
 # Roadmap

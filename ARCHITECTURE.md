@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Verix is a small client-server application. Version 0.4 can look up basic metadata for public GitHub repositories, in addition to generating and executing pytest tests for submitted Python code.
+Verix is a small client-server application. Version 0.5 can look up basic metadata and a bounded file tree for public GitHub repositories, in addition to generating and executing pytest tests for submitted Python code.
 
 ## Current architecture
 
@@ -11,21 +11,22 @@ Browser
   |
   v
 Next.js frontend (localhost:3000)
-  |                          |
-  | POST /repository          | POST /generate
-  v                          v
-FastAPI repository service    Gemini API
-  |                          |
-  | GET public metadata       | generated pytest code
-  v                          v
-GitHub public API        Docker pytest runner
-  |                          |
-  | repository details         | execution result
-  v                          v
-Next.js displays repository details and test results
+  |                               |
+  | POST /repository             | POST /generate
+  | POST /repository/tree         v
+  v                           Gemini API
+FastAPI repository service         |
+  |                                 | generated pytest code
+  | GET metadata + recursive tree  v
+  v                           Docker pytest runner
+GitHub public API                  |
+  |                                 | execution result
+  | repository details + paths     v
+  v                           Next.js displays test results
+Next.js displays repository metadata and file structure
 ```
 
-The frontend is responsible for the interface and API request state. The backend validates repository URLs, retrieves public metadata, calls Gemini, and coordinates test execution. User code and generated tests are never executed on the host.
+The frontend is responsible for the interface and API request state. The backend validates repository URLs, retrieves public metadata and paths, calls Gemini, and coordinates test execution. User code and generated tests are never executed on the host.
 
 ## Repository structure
 
@@ -68,10 +69,11 @@ verix/
 - Returns HTTP 503 when the local LLM configuration is unavailable and HTTP 502 when Gemini generation fails.
 - Runs generated tests with `DockerTestRunner` and returns their execution details.
 - Exposes `POST /repository` for public GitHub repository metadata.
+- Exposes `POST /repository/tree` for a bounded public GitHub repository tree.
 
 `backend/services/llm_service.py` contains the Gemini integration. It loads the local API key, sends submitted Python code to Gemini, and returns pytest code that imports the submitted symbols from `main`.
 
-`backend/services/github_service.py` validates an HTTPS `github.com/owner/repository` URL and calls GitHub's unauthenticated public repository endpoint. It returns only basic metadata; it does not clone or inspect repository files. `certifi` supplies the CA bundle for the outbound HTTPS connection.
+`backend/services/github_service.py` validates canonical public GitHub URLs and calls GitHub's unauthenticated metadata and recursive-tree endpoints. It returns basic metadata plus up to 500 file or directory paths, marking the response when GitHub or Verix truncates it. It does not clone repositories or retrieve file contents. `certifi` supplies the CA bundle for the outbound HTTPS connection.
 
 `backend/services/test_runner.py` writes submitted code to `main.py` and generated tests to `test_generated.py` in a temporary workspace, then invokes the local `verix-test-runner:dev` image. The runner container has no network access, a read-only filesystem and workspace mount, no Linux capabilities, no new privileges, PID and memory limits, a temporary `/tmp`, and a 10-second host-side timeout. The timeout path removes the named container before returning a timeout result.
 
@@ -81,9 +83,10 @@ Separate `models`, `routes`, and backend test folders are not present yet. They 
 
 ### Frontend
 
-`frontend/app/page.tsx` is a client component containing the complete V0.4 interface:
+`frontend/app/page.tsx` is a client component containing the complete V0.5 interface:
 
-- A separate form that validates a public GitHub repository URL and fetches its metadata.
+- A separate form that validates a public GitHub repository URL and fetches its metadata and file tree.
+- An indented, scrollable tree that shows paths and distinguishes directories from files.
 - A controlled textarea for pasted Python code.
 - Empty-input validation.
 - A `POST /generate` request to `NEXT_PUBLIC_API_URL`, defaulting to `http://localhost:8000`.
@@ -140,21 +143,38 @@ Accepts a public GitHub repository URL.
 
 It returns the repository owner, name, description, primary language, star count, and canonical GitHub URL. Invalid, private, or unavailable repositories receive a safe error response. No GitHub token is used.
 
+### `POST /repository/tree`
+
+Accepts the same public GitHub repository URL as `POST /repository` and returns a recursive list of file and directory paths.
+
+```json
+{
+  "entries": [
+    { "path": "src", "type": "tree" },
+    { "path": "src/app.py", "type": "blob" }
+  ],
+  "is_truncated": false
+}
+```
+
+The endpoint returns at most 500 entries. `is_truncated` is `true` when the displayed result is incomplete.
+
 ## Configuration
 
 The frontend supports `NEXT_PUBLIC_API_URL` for its backend address and defaults to `http://localhost:8000`.
 
 `backend/.env.example` documents `LLM_API_KEY`, which the Gemini service reads from an ignored `backend/.env` file. The key is never sent to the frontend. The Docker runner image must be built locally as `verix-test-runner:dev` before test generation can execute. Repository metadata uses GitHub's public API and does not need a token.
 
-## V0.4 boundaries
+## V0.5 boundaries
 
 The following are deliberately outside the current architecture:
 
 - Databases, Redis, queues, authentication, and background jobs
-- Repository cloning, file inspection, and test generation from repositories
+- Repository cloning, file-content retrieval, and test generation from repositories
 - Private repositories and GitHub authentication
+- Repository analysis agents
 - Automatic bug explanations or fixes
 
 ## Next evolution
 
-V0.5 will retrieve and display a selected public repository's file structure. User-provided and AI-generated code must continue to run only inside isolated containers.
+V0.6 will add a first repository-analysis agent that turns the selected repository structure into a structured testing plan. User-provided and AI-generated code must continue to run only inside isolated containers.

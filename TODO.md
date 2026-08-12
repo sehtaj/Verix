@@ -68,17 +68,28 @@
 
 ## V0.5
 
-- [ ] Fetch the selected repository's file tree
-- [ ] Display the repository file structure
-- [ ] Detect the repository's primary language
-- [ ] Test the V0.5 flow
+- [x] Fetch the selected repository's file tree
+- [x] Display the repository file structure
+- [x] Detect the repository's primary language
+- [x] Test the V0.5 flow
+- [x] Update README
+
+---
+
+## V0.6
+
+- [ ] Create a repository analysis agent
+- [ ] Identify likely source and test paths from the repository tree
+- [ ] Generate a structured repository test plan
+- [ ] Display the repository test plan
+- [ ] Test the V0.6 flow
 - [ ] Update README
 
 ---
 
 ## Current Task
 
-**Fetch the selected repository's file tree**
+**Create a repository analysis agent**
 
 ---
 

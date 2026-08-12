@@ -1,6 +1,6 @@
 # Verix
 
-Verix is an early-stage AI software quality engineer. Version 0.4 can look up basic metadata for a public GitHub repository, as well as generate and safely run pytest tests for pasted Python code.
+Verix is an early-stage AI software quality engineer. Version 0.5 can look up a public GitHub repository's basic metadata and file structure, as well as generate and safely run pytest tests for pasted Python code.
 
 ## Requirements
 
@@ -72,7 +72,7 @@ The Gemini service reads `LLM_API_KEY` from `backend/.env`. If it is missing, `P
 }
 ```
 
-Version 0.4 returns Gemini-generated pytest code and its Docker execution result:
+Version 0.5 returns Gemini-generated pytest code and its Docker execution result:
 
 ```json
 {
@@ -115,3 +115,30 @@ It uses GitHub's public API to return basic repository details. No GitHub token 
 ```
 
 The frontend provides a **Fetch repository** action that displays these details. It does not clone, download, inspect, or test repository files yet.
+
+### Fetch repository file structure
+
+`POST /repository/tree`
+
+Accepts the same public GitHub repository URL as `POST /repository`.
+
+```json
+{
+  "url": "https://github.com/octocat/Hello-World"
+}
+```
+
+It returns file and directory paths from GitHub's recursive tree API:
+
+```json
+{
+  "entries": [
+    { "path": "README", "type": "blob" },
+    { "path": "src", "type": "tree" },
+    { "path": "src/app.py", "type": "blob" }
+  ],
+  "is_truncated": false
+}
+```
+
+The frontend displays the tree after a repository is selected. Verix shows at most 500 entries and tells you when the result is truncated. GitHub's primary-language value is shown with the repository metadata. This version does not fetch file contents, clone repositories, or execute repository code.
