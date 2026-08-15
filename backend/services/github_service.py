@@ -303,7 +303,12 @@ class GitHubRepositoryService:
             for entry in tree.entries
             if entry.type == "blob" and entry.path.endswith(".py")
         ]
-        test_paths = [path for path in python_file_paths if self._is_test_path(path)]
+        test_paths = [
+            path
+            for path in python_file_paths
+            if self._is_test_path(path)
+            and PurePosixPath(path).name not in {"__init__.py", "__main__.py"}
+        ]
         source_paths = [
             path
             for path in python_file_paths

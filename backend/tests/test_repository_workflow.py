@@ -66,6 +66,23 @@ def build_archive(
 class GitHubRepositoryContextTests(unittest.TestCase):
     """Protect the consolidated repository evidence and planning behavior."""
 
+    def test_likely_paths_exclude_test_package_initializers(self) -> None:
+        service = GitHubRepositoryService()
+        tree = RepositoryTree(
+            entries=[
+                RepositoryTreeEntry(path="src/sample.py", type="blob"),
+                RepositoryTreeEntry(path="tests/__init__.py", type="blob"),
+                RepositoryTreeEntry(path="tests/__main__.py", type="blob"),
+                RepositoryTreeEntry(path="tests/test_sample.py", type="blob"),
+            ],
+            is_truncated=False,
+        )
+
+        paths = service._identify_likely_paths(tree)
+
+        self.assertEqual(paths.source_paths, ["src/sample.py"])
+        self.assertEqual(paths.test_paths, ["tests/test_sample.py"])
+
     def test_fetch_context_reuses_shared_evidence_and_builds_plan(self) -> None:
         service = GitHubRepositoryService()
         repository_data = {
