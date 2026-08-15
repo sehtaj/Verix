@@ -90,21 +90,37 @@
 
 ## V0.7
 
-- [ ] Consolidate repository context fetching to reduce duplicate GitHub API requests
-- [ ] Prepare a selected public Python repository for isolated test execution
-- [ ] Extend the isolated Docker runner for repository test runs
-- [ ] Install declared repository dependencies inside the isolated environment
-- [ ] Run the existing repository test suite with bounded resources
-- [ ] Return repository test execution results
-- [ ] Display repository test execution results
-- [ ] Test the V0.7 flow
-- [ ] Update README
+- [x] Consolidate repository context fetching to reduce duplicate GitHub API requests
+- [x] Prepare a selected public Python repository for isolated test execution
+- [x] Extend the isolated Docker runner for repository test runs
+- [x] Install declared repository dependencies inside the isolated environment
+- [x] Run the existing repository test suite with bounded resources
+- [x] Return repository test execution results
+- [x] Display repository test execution results
+- [x] Test the V0.7 flow
+- [x] Update README during the V0.7 Review Phase
+
+---
+
+## V0.8
+
+- [ ] Add deterministic backend regression tests for the V0.7 repository workflow
+- [ ] Select a bounded repository source target and relevant context files
+- [ ] Fetch bounded source and existing-test contents for the selected target
+- [ ] Build a repository-aware test-generation prompt from verified context
+- [ ] Generate pytest tests for the selected repository target
+- [ ] Add generated tests to the disposable repository workspace without overwriting files
+- [ ] Run generated tests alongside the existing suite while preserving separate results
+- [ ] Return repository-generated tests and their execution results
+- [ ] Display repository-generated tests and execution results
+- [ ] Test the complete V0.8 flow
+- [ ] Update documentation during the V0.8 Review Phase
 
 ---
 
 ## Current Task
 
-**Consolidate repository context fetching to reduce duplicate GitHub API requests**
+**Add deterministic backend regression tests for the V0.7 repository workflow**
 
 ---
 
