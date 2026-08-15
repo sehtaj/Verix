@@ -223,6 +223,24 @@ Features:
 
 V0.6 does not retrieve arbitrary source or test-file contents, clone repositories, install dependencies, or execute repository code. GitHub access remains unauthenticated and is therefore subject to GitHub's public API rate limits.
 
+## V0.7 — Complete
+
+Goal:
+
+Safely prepare a selected public Python repository and run its existing test suite.
+
+Features:
+
+- Consolidates metadata, tree, configuration, and test-plan retrieval into one repository-context request.
+- Downloads the default branch as a bounded archive and safely extracts regular files into a temporary workspace.
+- Rejects oversized, malformed, unsafe, empty, and non-Python repository archives.
+- Installs supported root-level dependency declarations in a disposable Docker workspace.
+- Runs pytest or tox with bounded CPU, memory, processes, output, and time.
+- Disables network access and mounts the repository read-only during test execution.
+- Returns preparation, dependency-installation, runner, and test-execution results to the frontend.
+
+V0.7 supports public Python projects whose dependency and test-runner configuration is at the repository root. Nested Python projects in monorepositories are not selected automatically. Dependency installation may use the network inside its disposable container; the subsequent test run has no network access. Private repositories and authenticated GitHub access remain unsupported.
+
 ---
 
 # Roadmap

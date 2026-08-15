@@ -1,24 +1,39 @@
 # Verix
 
-Verix is an early-stage AI software quality engineer. Version 0.6 can inspect the structure and selected configuration of a public Python repository, then produce an evidence-based test plan. It can also generate and safely run pytest tests for pasted Python code.
+Verix is an early-stage AI software quality engineer. Version 0.7 can generate and safely execute pytest tests for pasted Python code. It can also inspect a public GitHub repository, explain its likely test setup, prepare a bounded Python repository archive, install supported dependencies, and run the repository's existing pytest or tox suite in Docker.
 
 ## Requirements
 
 - Python 3.10 or later
 - Node.js 20 or later
-- Docker Desktop (running)
+- Docker Desktop, running locally
+- A Gemini API key for pasted-code test generation
 
-## Build the test runner
+## 1. Build the runner image
 
-From the repository root, build the local Docker image used to execute generated tests:
+From the repository root:
 
 ```bash
 docker build --tag verix-test-runner:dev backend
 ```
 
-## Run the backend
+The image contains Python, pytest, tox, and a non-root execution user. Rebuild it after changing `backend/Dockerfile`.
 
-From the repository root:
+## 2. Configure and run the backend
+
+Create a local environment file from the example and add your Gemini key. Never commit this file or the key.
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+The file should contain:
+
+```dotenv
+LLM_API_KEY=your_gemini_api_key
+```
+
+Create the Python environment, install the backend dependencies, and start FastAPI:
 
 ```bash
 python3 -m venv backend/.venv
@@ -28,11 +43,11 @@ cd backend
 python3 -m uvicorn main:app --reload
 ```
 
-The API starts at `http://localhost:8000`.
+The API starts at `http://localhost:8000`. The Gemini key is required only for `POST /generate`; repository inspection and execution do not use it.
 
-## Run the frontend
+## 3. Run the frontend
 
-In a second terminal:
+In a second terminal, from the repository root:
 
 ```bash
 cd frontend
@@ -40,15 +55,24 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000` in a browser. Keep both the backend and frontend processes running while using the app.
+Open `http://localhost:3000`. Keep the frontend, backend, and Docker Desktop running while using Verix.
 
-To point the frontend at a different API address, set `NEXT_PUBLIC_API_URL`; it defaults to `http://localhost:8000`. The backend's local CORS configuration permits requests from `http://localhost:3000`.
+`NEXT_PUBLIC_API_URL` can point the frontend at a different backend address and defaults to `http://localhost:8000`. The backend's local CORS configuration permits `http://localhost:3000`.
 
-## Backend environment variables
+## How to use V0.7
 
-`backend/.env.example` documents the Gemini configuration. Do not commit `backend/.env` or an API key.
+### Inspect and test a repository
 
-The Gemini service reads `LLM_API_KEY` from `backend/.env`. If it is missing, `POST /generate` returns HTTP 503. Keep the key private and never expose it to the frontend.
+1. Enter a canonical public URL such as `https://github.com/owner/repository`.
+2. Select **Fetch repository** to view metadata, a bounded file tree, and the evidence-based test plan.
+3. Select **Run repository tests** to explicitly download and prepare the default branch, install supported dependencies, and run its existing test suite.
+4. Review the preparation metrics, installation status, selected runner, exit code, and output.
+
+Repository execution currently supports Python projects with dependency and runner configuration at the repository root. Nested Python projects in monorepositories are not selected automatically. Dependency installation may download packages in a disposable container. The subsequent pytest or tox run has no network access and a read-only repository mount.
+
+### Generate tests for pasted code
+
+Paste Python code and select **Generate tests**. Gemini creates pytest source, and Verix executes the submitted code and generated tests inside its local Docker runner. The page displays both the generated tests and the result.
 
 ## API
 
@@ -62,7 +86,7 @@ The Gemini service reads `LLM_API_KEY` from `backend/.env`. If it is missing, `P
 }
 ```
 
-### Generate tests
+### Generate and run pasted-code tests
 
 `POST /generate`
 
@@ -72,7 +96,7 @@ The Gemini service reads `LLM_API_KEY` from `backend/.env`. If it is missing, `P
 }
 ```
 
-Version 0.6 returns Gemini-generated pytest code and its Docker execution result:
+Successful generation returns the pytest source and Docker execution result:
 
 ```json
 {
@@ -85,141 +109,108 @@ Version 0.6 returns Gemini-generated pytest code and its Docker execution result
 }
 ```
 
-An empty `code` value is rejected by the API, and the frontend asks the user to enter code before sending a request. Gemini failures return HTTP 502 with a safe error message.
+An empty code value is rejected. A missing key returns HTTP 503, and a Gemini failure returns HTTP 502. Test failures are returned normally with a non-zero `return_code`.
 
-Generated tests run only inside the local Docker image. The runner has no network access, a read-only container filesystem, restricted resources, and a 10-second timeout. A non-zero `return_code` means the tests failed; a timeout returns `null` for `return_code` and `true` for `timed_out`.
+### Fetch consolidated repository context
 
-### Fetch repository metadata
-
-`POST /repository`
-
-Accepts a public GitHub repository URL:
+`POST /repository/context`
 
 ```json
 {
-  "url": "https://github.com/octocat/Hello-World"
+  "url": "https://github.com/owner/repository"
 }
 ```
 
-It uses GitHub's public API to return basic repository details. No GitHub token is required, and private repositories are not supported. Unauthenticated GitHub access is subject to GitHub's public rate limits.
+This is the inspection endpoint used by the frontend. It fetches shared GitHub evidence once and returns:
+
+- Basic repository metadata.
+- At most 500 recursive tree entries and an `is_truncated` flag.
+- Present allowlisted root configuration files.
+- Detected project setup, likely source and test paths, and a structured test plan.
+
+GitHub access is unauthenticated, so public API rate limits apply. Private repositories are not supported.
+
+### Prepare and run a repository
+
+`POST /repository/test-run`
 
 ```json
 {
-  "name": "Hello-World",
-  "owner": "octocat",
-  "description": "My first repository on GitHub!",
-  "language": null,
-  "stars": 0,
-  "url": "https://github.com/octocat/Hello-World"
+  "url": "https://github.com/owner/python-repository"
 }
 ```
 
-The frontend provides a **Fetch repository** action that displays these details, the file structure, and the V0.6 test plan.
-
-### Fetch repository file structure
-
-`POST /repository/tree`
-
-Accepts the same public GitHub repository URL as `POST /repository`.
+The response separates preparation, installation, and test execution:
 
 ```json
 {
-  "url": "https://github.com/octocat/Hello-World"
-}
-```
-
-It returns file and directory paths from GitHub's recursive tree API:
-
-```json
-{
-  "entries": [
-    { "path": "README", "type": "blob" },
-    { "path": "src", "type": "tree" },
-    { "path": "src/app.py", "type": "blob" }
-  ],
-  "is_truncated": false
-}
-```
-
-The frontend displays the tree after a repository is selected. Verix shows at most 500 entries and tells you when the result is truncated. GitHub's primary-language value is shown with the repository metadata.
-
-### Inspect repository configuration
-
-`POST /repository/configuration`
-
-Accepts the same public GitHub repository URL. It fetches only these root-level Python configuration files when they exist: `pyproject.toml`, `requirements.txt`, `setup.cfg`, `setup.py`, `Pipfile`, and `tox.ini`.
-
-```json
-{
-  "files": [
-    {
-      "path": "pyproject.toml",
-      "content": "[project]\nname = \"example\""
-    }
-  ]
-}
-```
-
-File content is decoded from GitHub's response. Verix does not retrieve arbitrary source-file contents.
-
-### Identify Python paths
-
-`POST /repository/paths`
-
-Accepts the same repository URL and returns likely Python source and test paths inferred from the repository tree.
-
-```json
-{
-  "source_paths": ["src/example/app.py"],
-  "test_paths": ["tests/test_app.py"],
-  "is_truncated": false
-}
-```
-
-Test candidates include common `test/` and `tests/` directories and standard pytest filename conventions. The result is a heuristic, not a guarantee that a path is executable or covered.
-
-### Detect Python project setup
-
-`POST /repository/setup`
-
-Accepts the same repository URL and identifies supported Python configuration, known project tooling, and a likely configured test runner.
-
-```json
-{
-  "is_python_project": true,
-  "project_tool": "poetry",
-  "test_runner": "pytest",
-  "configuration_files": ["pyproject.toml"]
-}
-```
-
-Recognized project tools are Poetry, PDM, Hatch, Pipenv, setuptools, and pip. Recognized test runners are pytest and tox. An unrecognized value is returned as `null` rather than guessed.
-
-### Generate a repository test plan
-
-`POST /repository/test-plan`
-
-Accepts the same repository URL and combines the available configuration and path evidence into a structured plan.
-
-```json
-{
-  "setup": {
-    "is_python_project": true,
-    "project_tool": "poetry",
-    "test_runner": "pytest",
-    "configuration_files": ["pyproject.toml"]
+  "preparation": {
+    "file_count": 24,
+    "total_bytes": 18420,
+    "skipped_entries": 0
   },
-  "source_paths": ["src/example/app.py"],
-  "test_paths": ["tests/test_app.py"],
-  "steps": [
-    {
-      "action": "prepare_environment",
-      "description": "Prepare dependencies with poetry.",
-      "command": "poetry install"
-    }
-  ],
-  "is_truncated": false
+  "installation": {
+    "return_code": 0,
+    "output": "No supported dependency declaration was found; installation was skipped.\n",
+    "timed_out": false,
+    "skipped": true
+  },
+  "test_runner": "pytest",
+  "execution": {
+    "return_code": 0,
+    "output": "... 3 passed ...",
+    "timed_out": false,
+    "skipped": false
+  }
 }
 ```
 
-The frontend displays this plan after a repository is fetched. V0.6 does not run the suggested commands, install repository dependencies, clone repositories, or execute repository code.
+A failing test suite still returns HTTP 200 with a non-zero execution return code. If dependency installation fails, execution is marked as skipped. Invalid or unsupported repositories return HTTP 422. GitHub, archive, or Docker orchestration failures return a safe HTTP 502 response.
+
+The focused repository endpoints remain available for development and inspection:
+
+- `POST /repository`
+- `POST /repository/tree`
+- `POST /repository/configuration`
+- `POST /repository/paths`
+- `POST /repository/setup`
+- `POST /repository/test-plan`
+
+Each accepts the same repository URL object. The frontend uses `/repository/context` because it avoids repeating metadata and tree requests.
+
+## Execution safety and limits
+
+Repository archives are limited to 25 MiB compressed, 100 MiB extracted regular-file content, and 10,000 entries. Unsafe paths are rejected; links and special entries are skipped; temporary workspaces are removed after each request.
+
+Repository dependency installation uses fixed backend-selected commands in a disposable container with one CPU, 512 MiB memory, 128 processes, and a 180-second timeout per step. It has network access and a writable temporary repository copy because package installation requires both. Tox environments and their declared dependencies are prepared during this stage and reused without another installation step during testing. Package build scripts are therefore untrusted code running inside this bounded container.
+
+Repository tests run in a separate container with no network, a read-only repository mount, the same CPU/memory/process bounds, and a 60-second timeout. Returned output is capped at 50,000 characters. Pasted-code tests use stricter 256 MiB memory, 64-process, and 10-second limits.
+
+Docker isolation reduces risk but is not a complete multi-tenant security boundary. V0.7 is intended for local development with the local Docker daemon treated as trusted infrastructure.
+
+## Quick verification
+
+With the backend running:
+
+```bash
+curl http://localhost:8000/
+```
+
+Check the production frontend build:
+
+```bash
+cd frontend
+npm run build
+```
+
+Check Python syntax from the repository root:
+
+```bash
+python3 -m compileall backend
+```
+
+For an end-to-end check, use a small public Python repository with a root-level `requirements.txt`, `pyproject.toml`, `setup.py`, or `tox.ini`, then run it through both repository buttons in the browser.
+
+## V0.7 boundaries
+
+V0.7 does not generate tests from repository source, calculate coverage, investigate failures, propose patches, access private repositories, select nested projects, or run an agent loop. Those capabilities belong to later versions.
