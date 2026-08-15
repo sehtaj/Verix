@@ -110,6 +110,10 @@ button:disabled {
   color: #b91c1c;
 }
 
+.execution-status.skipped {
+  color: #a16207;
+}
+
 .result {
   margin-top: 1.5rem;
 }
@@ -184,6 +188,21 @@ button:disabled {
   background: #dbeafe;
   border-radius: 0.25rem;
   color: #1e3a8a;
+}
+
+.test-run-action {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.test-run-action p {
+  margin-bottom: 0;
+}
+
+.repository-test-result h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1rem;
 }
 
 pre {

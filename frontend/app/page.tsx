@@ -39,6 +39,23 @@ type RepositoryTestPlan = {
   is_truncated: boolean;
 };
 
+type RepositoryContext = {
+  metadata: RepositoryMetadata;
+  tree: RepositoryTree;
+  test_plan: RepositoryTestPlan;
+};
+
+type RepositoryTestRun = {
+  preparation: {
+    file_count: number;
+    total_bytes: number;
+    skipped_entries: number;
+  };
+  installation: TestExecution & { skipped: boolean };
+  test_runner: string;
+  execution: TestExecution & { skipped: boolean };
+};
+
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 function isPublicGitHubRepositoryUrl(value: string): boolean {
@@ -67,6 +84,9 @@ export default function Home() {
   const [repositoryTestPlan, setRepositoryTestPlan] = useState<RepositoryTestPlan | null>(null);
   const [isRepositoryLoading, setIsRepositoryLoading] = useState(false);
   const [repositoryError, setRepositoryError] = useState<string | null>(null);
+  const [repositoryTestRun, setRepositoryTestRun] = useState<RepositoryTestRun | null>(null);
+  const [isRepositoryTestRunning, setIsRepositoryTestRunning] = useState(false);
+  const [repositoryTestError, setRepositoryTestError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [tests, setTests] = useState<string | null>(null);
   const [execution, setExecution] = useState<TestExecution | null>(null);
@@ -80,6 +100,8 @@ export default function Home() {
       setRepository(null);
       setRepositoryTree(null);
       setRepositoryTestPlan(null);
+      setRepositoryTestRun(null);
+      setRepositoryTestError(null);
       return;
     }
 
@@ -88,52 +110,64 @@ export default function Home() {
     setRepository(null);
     setRepositoryTree(null);
     setRepositoryTestPlan(null);
+    setRepositoryTestRun(null);
+    setRepositoryTestError(null);
 
     try {
-      const metadataResponse = await fetch(`${apiUrl}/repository`, {
+      const response = await fetch(`${apiUrl}/repository/context`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: repositoryUrl }),
       });
-      const metadata: RepositoryMetadata | { detail: string } = await metadataResponse.json();
+      const context: RepositoryContext | { detail: string } = await response.json();
 
-      if (!metadataResponse.ok || !("name" in metadata)) {
-        throw new Error("detail" in metadata ? metadata.detail : "The request failed.");
+      if (!response.ok || !("metadata" in context)) {
+        throw new Error("detail" in context ? context.detail : "The request failed.");
       }
 
-      const [treeResponse, testPlanResponse] = await Promise.all([
-        fetch(`${apiUrl}/repository/tree`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: repositoryUrl }),
-        }),
-        fetch(`${apiUrl}/repository/test-plan`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: repositoryUrl }),
-        }),
-      ]);
-      const [tree, testPlan]: [
-        RepositoryTree | { detail: string },
-        RepositoryTestPlan | { detail: string },
-      ] = await Promise.all([treeResponse.json(), testPlanResponse.json()]);
-
-      if (!treeResponse.ok || !("entries" in tree)) {
-        throw new Error("detail" in tree ? tree.detail : "The request failed.");
-      }
-      if (!testPlanResponse.ok || !("steps" in testPlan)) {
-        throw new Error("detail" in testPlan ? testPlan.detail : "The request failed.");
-      }
-
-      setRepository(metadata);
-      setRepositoryTree(tree);
-      setRepositoryTestPlan(testPlan);
+      setRepository(context.metadata);
+      setRepositoryTree(context.tree);
+      setRepositoryTestPlan(context.test_plan);
     } catch (error) {
       setRepositoryError(
         error instanceof Error ? error.message : "Unable to fetch repository details. Please try again.",
       );
     } finally {
       setIsRepositoryLoading(false);
+    }
+  }
+
+  async function handleRepositoryTestRun() {
+    if (repository === null) {
+      setRepositoryTestError("Fetch a public Python repository before running its tests.");
+      return;
+    }
+
+    setIsRepositoryTestRunning(true);
+    setRepositoryTestError(null);
+    setRepositoryTestRun(null);
+
+    try {
+      const response = await fetch(`${apiUrl}/repository/test-run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: repository.url }),
+      });
+      const result: RepositoryTestRun | { detail: string } = await response.json();
+
+      if (!response.ok || !("execution" in result)) {
+        throw new Error("detail" in result ? result.detail : "The test run failed.");
+      }
+
+      setRepositoryTestRun(result);
+    } catch (error) {
+      setRepositoryTestError(
+        error instanceof Error
+          ? error.message
+          : "Unable to run repository tests. Please try again.",
+      );
+    } finally {
+      setIsRepositoryTestRunning(false);
     }
   }
 
@@ -184,11 +218,11 @@ export default function Home() {
             placeholder="https://github.com/owner/repository"
             type="url"
             value={repositoryUrl}
-            disabled={isRepositoryLoading}
+            disabled={isRepositoryLoading || isRepositoryTestRunning}
             onChange={(event) => setRepositoryUrl(event.target.value)}
           />
           <p className="field-hint">Use an HTTPS URL for a public repository.</p>
-          <button disabled={isRepositoryLoading} type="submit">
+          <button disabled={isRepositoryLoading || isRepositoryTestRunning} type="submit">
             {isRepositoryLoading ? "Fetching..." : "Fetch repository"}
           </button>
           {repositoryError && <p className="error">{repositoryError}</p>}
@@ -263,6 +297,84 @@ export default function Home() {
                 </li>
               ))}
             </ol>
+            <div className="test-run-action">
+              <p>
+                Run the repository&apos;s existing tests in Docker. Dependencies may be downloaded
+                during setup; test execution itself has no network access.
+              </p>
+              <button
+                disabled={isRepositoryTestRunning || isRepositoryLoading}
+                onClick={handleRepositoryTestRun}
+                type="button"
+              >
+                {isRepositoryTestRunning ? "Running repository tests..." : "Run repository tests"}
+              </button>
+              {repositoryTestError && <p className="error">{repositoryTestError}</p>}
+            </div>
+          </section>
+        )}
+        {repositoryTestRun !== null && (
+          <section className="result repository-test-result" aria-live="polite">
+            <h2>Repository test execution</h2>
+            <dl className="plan-summary">
+              <div>
+                <dt>Test runner</dt>
+                <dd>{repositoryTestRun.test_runner}</dd>
+              </div>
+              <div>
+                <dt>Prepared files</dt>
+                <dd>{repositoryTestRun.preparation.file_count}</dd>
+              </div>
+              <div>
+                <dt>Prepared size</dt>
+                <dd>{repositoryTestRun.preparation.total_bytes} bytes</dd>
+              </div>
+              <div>
+                <dt>Skipped archive entries</dt>
+                <dd>{repositoryTestRun.preparation.skipped_entries}</dd>
+              </div>
+            </dl>
+
+            <h3>Dependency installation</h3>
+            <p
+              className={
+                repositoryTestRun.installation.skipped
+                  ? "execution-status skipped"
+                  : repositoryTestRun.installation.timed_out ||
+                      repositoryTestRun.installation.return_code !== 0
+                    ? "execution-status failed"
+                    : "execution-status passed"
+              }
+            >
+              {repositoryTestRun.installation.skipped
+                ? "No dependency installation was required."
+                : repositoryTestRun.installation.timed_out
+                  ? "Dependency installation timed out."
+                  : repositoryTestRun.installation.return_code === 0
+                    ? "Dependencies prepared successfully."
+                    : "Dependency installation failed."}
+            </p>
+            <pre>{repositoryTestRun.installation.output || "No installation output."}</pre>
+
+            <h3>Existing test suite</h3>
+            <p
+              className={
+                repositoryTestRun.execution.skipped ||
+                repositoryTestRun.execution.timed_out ||
+                repositoryTestRun.execution.return_code !== 0
+                  ? "execution-status failed"
+                  : "execution-status passed"
+              }
+            >
+              {repositoryTestRun.execution.skipped
+                ? "Test execution was skipped."
+                : repositoryTestRun.execution.timed_out
+                  ? "Repository tests timed out."
+                  : repositoryTestRun.execution.return_code === 0
+                    ? "Repository tests passed."
+                    : "Repository tests failed."}
+            </p>
+            <pre>{repositoryTestRun.execution.output || "No test output."}</pre>
           </section>
         )}
         <form className="code-generator" onSubmit={handleSubmit}>
