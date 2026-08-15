@@ -49,6 +49,16 @@ class RepositoryMetadata:
     url: str
 
 
+@dataclass(frozen=True)
+class RepositoryArchiveReference:
+    """A validated public repository archive that can be downloaded safely."""
+
+    owner: str
+    repository: str
+    default_branch: str
+    url: str
+
+
 @dataclass
 class RepositoryTreeEntry:
     """A file or directory in a repository tree."""
@@ -63,6 +73,7 @@ class RepositoryTree:
 
     entries: list[RepositoryTreeEntry]
     is_truncated: bool
+    available_configuration_paths: tuple[str, ...] = ()
 
 
 @dataclass
@@ -112,6 +123,16 @@ class RepositoryTestPlan:
     is_truncated: bool
 
 
+@dataclass
+class RepositoryContext:
+    """Repository evidence and the test plan derived from it."""
+
+    metadata: RepositoryMetadata
+    tree: RepositoryTree
+    configuration_files: list[RepositoryConfigurationFile]
+    test_plan: RepositoryTestPlan
+
+
 class GitHubRepositoryService:
     """Retrieve selected public information for a GitHub repository."""
 
@@ -120,6 +141,30 @@ class GitHubRepositoryService:
         owner, repository = self._parse_repository_url(repository_url)
         data = self._fetch_repository_data(owner, repository)
 
+        return self._build_metadata(data)
+
+    def fetch_archive_reference(
+        self, repository_url: str
+    ) -> RepositoryArchiveReference:
+        """Validate a public repository and return its default-branch archive URL."""
+        owner, repository = self._parse_repository_url(repository_url)
+        data = self._fetch_repository_data(owner, repository)
+        default_branch = str(data["default_branch"])
+
+        return RepositoryArchiveReference(
+            owner=owner,
+            repository=repository,
+            default_branch=default_branch,
+            url=(
+                f"{GITHUB_API_URL}/{quote(owner, safe='')}/"
+                f"{quote(repository, safe='')}/tarball/"
+                f"{quote(default_branch, safe='')}"
+            ),
+        )
+
+    @staticmethod
+    def _build_metadata(data: dict[str, object]) -> RepositoryMetadata:
+        """Build the public metadata model from GitHub repository data."""
         return RepositoryMetadata(
             name=data["name"],
             owner=data["owner"]["login"],
@@ -133,6 +178,12 @@ class GitHubRepositoryService:
         """Return a bounded recursive tree for a public GitHub repository."""
         owner, repository = self._parse_repository_url(repository_url)
         repository_data = self._fetch_repository_data(owner, repository)
+        return self._fetch_file_tree(owner, repository, repository_data)
+
+    def _fetch_file_tree(
+        self, owner: str, repository: str, repository_data: dict[str, object]
+    ) -> RepositoryTree:
+        """Fetch a bounded recursive tree using previously fetched repository data."""
         branch = quote(repository_data["default_branch"], safe="")
         tree_data = self._request_json(
             f"{GITHUB_API_URL}/{quote(owner, safe='')}/{quote(repository, safe='')}/git/trees/{branch}?recursive=1"
@@ -148,6 +199,12 @@ class GitHubRepositoryService:
                 for entry in tree_entries[:MAX_TREE_ENTRIES]
             ],
             is_truncated=tree_data["truncated"] or len(tree_entries) > MAX_TREE_ENTRIES,
+            available_configuration_paths=tuple(
+                entry["path"]
+                for entry in tree_entries
+                if entry["type"] == "blob"
+                and entry["path"] in CONFIGURATION_FILENAMES
+            ),
         )
 
     def fetch_configuration_files(
@@ -155,10 +212,22 @@ class GitHubRepositoryService:
     ) -> list[RepositoryConfigurationFile]:
         """Return available root-level Python configuration files from a public repository."""
         owner, repository = self._parse_repository_url(repository_url)
-        self._fetch_repository_data(owner, repository)
+        repository_data = self._fetch_repository_data(owner, repository)
+        tree = self._fetch_file_tree(owner, repository, repository_data)
+
+        return self._fetch_configuration_files(owner, repository, tree)
+
+    def _fetch_configuration_files(
+        self, owner: str, repository: str, tree: RepositoryTree
+    ) -> list[RepositoryConfigurationFile]:
+        """Fetch only allowed configuration files known to exist in the tree."""
         configuration_files = []
+        available_paths = set(tree.available_configuration_paths)
 
         for path in CONFIGURATION_FILENAMES:
+            if path not in available_paths:
+                continue
+
             file_data = self._fetch_file_data(owner, repository, path)
             if file_data is None:
                 continue
@@ -179,6 +248,11 @@ class GitHubRepositoryService:
     def fetch_likely_paths(self, repository_url: str) -> RepositoryPaths:
         """Identify likely Python source and test files from a public repository tree."""
         tree = self.fetch_file_tree(repository_url)
+
+        return self._identify_likely_paths(tree)
+
+    def _identify_likely_paths(self, tree: RepositoryTree) -> RepositoryPaths:
+        """Identify likely Python paths from an already fetched tree."""
         python_file_paths = [
             entry.path
             for entry in tree.entries
@@ -200,6 +274,13 @@ class GitHubRepositoryService:
     def detect_python_project_setup(self, repository_url: str) -> PythonProjectSetup:
         """Recognize Python tooling from the repository's available configuration files."""
         configuration_files = self.fetch_configuration_files(repository_url)
+
+        return self._detect_python_project_setup(configuration_files)
+
+    def _detect_python_project_setup(
+        self, configuration_files: list[RepositoryConfigurationFile]
+    ) -> PythonProjectSetup:
+        """Recognize Python tooling from already fetched configuration files."""
         contents_by_path = {
             file.path: file.content.lower() for file in configuration_files
         }
@@ -213,15 +294,32 @@ class GitHubRepositoryService:
 
     def generate_test_plan(self, repository_url: str) -> RepositoryTestPlan:
         """Build a test plan from available configuration and repository-path evidence."""
-        setup = self.detect_python_project_setup(repository_url)
-        paths = self.fetch_likely_paths(repository_url)
+        return self.fetch_context(repository_url).test_plan
 
-        return RepositoryTestPlan(
+    def fetch_context(self, repository_url: str) -> RepositoryContext:
+        """Fetch repository evidence once and derive its complete test-planning context."""
+        owner, repository = self._parse_repository_url(repository_url)
+        repository_data = self._fetch_repository_data(owner, repository)
+        metadata = self._build_metadata(repository_data)
+        tree = self._fetch_file_tree(owner, repository, repository_data)
+        configuration_files = self._fetch_configuration_files(
+            owner, repository, tree
+        )
+        paths = self._identify_likely_paths(tree)
+        setup = self._detect_python_project_setup(configuration_files)
+        test_plan = RepositoryTestPlan(
             setup=setup,
             source_paths=paths.source_paths,
             test_paths=paths.test_paths,
             steps=self._build_test_plan_steps(setup, paths),
             is_truncated=paths.is_truncated,
+        )
+
+        return RepositoryContext(
+            metadata=metadata,
+            tree=tree,
+            configuration_files=configuration_files,
+            test_plan=test_plan,
         )
 
     def _fetch_repository_data(self, owner: str, repository: str) -> dict[str, object]:
