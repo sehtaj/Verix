@@ -241,6 +241,25 @@ Features:
 
 V0.7 supports public Python projects whose dependency and test-runner configuration is at the repository root. Nested Python projects in monorepositories are not selected automatically. Dependency installation may use the network inside its disposable container; the subsequent test run has no network access. Private repositories and authenticated GitHub access remain unsupported.
 
+## V0.8 — Complete
+
+Goal:
+
+Generate focused repository-aware pytest tests, execute them safely, and keep their result separate from the repository's original test result.
+
+Features:
+
+- Adds deterministic backend regression tests for repository context, prompt construction, preparation, dependency setup, Docker execution, and API coordination.
+- Deterministically selects one Python source target from the bounded tree, plus at most three related test files and three configuration files.
+- Fetches only the selected UTF-8 contents, with a 64 KiB per-file limit and a 128 KiB total generation-context limit.
+- Treats repository content as untrusted evidence and asks Gemini for one focused pytest module covering justified normal, boundary, and error behavior.
+- Rejects empty, oversized, NUL-containing, or syntactically invalid generated Python before repository setup.
+- Adds generated tests only to a disposable `.verix-generated-tests` directory without overwriting repository files.
+- Runs the original suite first and the generated suite second in offline, resource-bounded Docker containers, preserving separate results. Tox repositories reuse one prepared default environment, preferring a Python-style environment name, for the focused generated run.
+- Displays the selected target, generated code, dependency status, original-suite result, and generated-suite result in the frontend.
+
+Repository source and test contents are sent to Gemini only after the user explicitly selects **Generate repository tests**. V0.8 remains limited to public default-branch Python repositories, one automatically selected target, and root-level project setup. It does not select a branch, commit, subdirectory, or target manually; persist or commit generated tests; measure coverage; investigate failures; propose fixes; retry automatically; or run an agent loop. Generated tests are evidence to review, not a guarantee of logical correctness.
+
 ---
 
 # Roadmap
@@ -256,7 +275,7 @@ V0.7 supports public Python projects whose dependency and test-runner configurat
 
 ## V0.4
 
-- Upload GitHub repositories
+- Accept public GitHub repository URLs
 
 ## V0.5
 
@@ -280,7 +299,7 @@ V0.7 supports public Python projects whose dependency and test-runner configurat
 
 - Repository-aware test generation
 - Generate tests from selected repository context and conventions
-- Run generated tests with the existing test suite
+- Run original and generated test suites separately
 
 ## V0.9
 
@@ -336,22 +355,13 @@ A feature is complete only when:
 - Code is understandable.
 - No unnecessary complexity was introduced.
 - Documentation is updated.
-- Changes are committed to Git.
+- Reviewed changes are ready to commit and are committed only after user approval.
 
 ---
 
 # Rules for AI (Codex)
 
-Before making changes:
-
-1. Read PROJECT.md.
-2. Only implement the current version.
-3. Never implement future roadmap items.
-4. Keep the architecture simple.
-5. Explain every major architectural decision.
-6. Prefer maintainability over clever solutions.
-7. Do not add dependencies unless required.
-8. If uncertain, ask instead of assuming.
+`AGENTS.md` is the authoritative workflow and safety guide for AI coding agents. The active version and Current Task are maintained in `TODO.md`.
 
 # Motto
 

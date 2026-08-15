@@ -104,23 +104,39 @@
 
 ## V0.8
 
-- [ ] Add deterministic backend regression tests for the V0.7 repository workflow
-- [ ] Select a bounded repository source target and relevant context files
-- [ ] Fetch bounded source and existing-test contents for the selected target
-- [ ] Build a repository-aware test-generation prompt from verified context
-- [ ] Generate pytest tests for the selected repository target
-- [ ] Add generated tests to the disposable repository workspace without overwriting files
-- [ ] Run generated tests alongside the existing suite while preserving separate results
-- [ ] Return repository-generated tests and their execution results
-- [ ] Display repository-generated tests and execution results
-- [ ] Test the complete V0.8 flow
-- [ ] Update documentation during the V0.8 Review Phase
+- [x] Add deterministic backend regression tests for the V0.7 repository workflow
+- [x] Select a bounded repository source target and relevant context files
+- [x] Fetch bounded source and existing-test contents for the selected target
+- [x] Build a repository-aware test-generation prompt from verified context
+- [x] Generate pytest tests for the selected repository target
+- [x] Add generated tests to the disposable repository workspace without overwriting files
+- [x] Run generated tests alongside the existing suite while preserving separate results
+- [x] Return repository-generated tests and their execution results
+- [x] Display repository-generated tests and execution results
+- [x] Test the complete V0.8 flow
+- [x] Update documentation during the V0.8 Review Phase
+
+---
+
+## V0.9
+
+- [ ] Define structured repository workflow outcomes and bounded investigation evidence
+- [ ] Pin repository context and execution archives to one commit revision
+- [ ] Classify setup failures, existing-suite failures, generated-suite failures, and timeouts
+- [ ] Build an evidence-grounded repository investigation prompt
+- [ ] Generate a bounded failure explanation with Gemini
+- [ ] Coordinate one plan-generate-execute-investigate pass without automatic retries or fixes
+- [ ] Return the structured classification and explanation
+- [ ] Display repository investigation results
+- [ ] Add deterministic regression tests for the investigation flow
+- [ ] Test the complete V0.9 flow
+- [ ] Update documentation during the V0.9 Review Phase
 
 ---
 
 ## Current Task
 
-**Add deterministic backend regression tests for the V0.7 repository workflow**
+**Define structured repository workflow outcomes and bounded investigation evidence**
 
 ---
 
