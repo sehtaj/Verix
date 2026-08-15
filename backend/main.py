@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from services.github_service import GitHubRepositoryService
 from services.llm_service import GeminiLLMService
 from services.repository_preparer import PublicRepositoryPreparer
-from services.test_runner import DockerTestRunner
+from services.docker_runner import DockerTestRunner, GeneratedTestsValidationError
 
 
 app = FastAPI(title="Verix API")
@@ -60,7 +60,13 @@ def generate_tests(request: GenerateTestsRequest) -> dict[str, object]:
             detail="Unable to generate tests. Please try again.",
         ) from None
 
-    execution = test_runner.run_tests(request.code, tests)
+    try:
+        execution = test_runner.run_tests(request.code, tests)
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to execute generated tests. Please try again.",
+        ) from None
 
     return {
         "tests": tests,
@@ -259,6 +265,12 @@ def get_repository_context(request: RepositoryRequest) -> dict[str, object]:
             ],
             "is_truncated": context.test_plan.is_truncated,
         },
+        "generation_selection": {
+            "target_path": context.generation_selection.target_path,
+            "related_test_paths": context.generation_selection.related_test_paths,
+            "configuration_paths": context.generation_selection.configuration_paths,
+            "is_truncated": context.generation_selection.is_truncated,
+        },
     }
 
 
@@ -320,4 +332,132 @@ def run_repository_test_suite(request: RepositoryRequest) -> dict[str, object]:
         },
         "test_runner": selected_runner,
         "execution": execution,
+    }
+
+
+@app.post("/repository/generate")
+def generate_repository_test_suite(
+    request: RepositoryRequest,
+) -> dict[str, object]:
+    """Generate repository-aware tests and return both isolated test results."""
+    if llm_service is None:
+        raise HTTPException(
+            status_code=503,
+            detail="LLM service is not configured.",
+        )
+
+    try:
+        generation_context = github_repository_service.fetch_generation_context(
+            request.url
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to fetch repository generation context. Please try again.",
+        ) from None
+
+    target_path = generation_context.selection.target_path
+    if target_path is None or generation_context.source_file is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Repository has no Python source file available for test generation.",
+        )
+
+    try:
+        generated_tests = llm_service.generate_repository_tests(generation_context)
+        test_runner.validate_generated_tests(generated_tests)
+    except GeneratedTestsValidationError:
+        raise HTTPException(
+            status_code=502,
+            detail="Gemini returned unusable generated tests. Please try again.",
+        ) from None
+    except Exception:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to generate repository tests. Please try again.",
+        ) from None
+
+    try:
+        with repository_preparer.prepare(request.url) as prepared_repository:
+            preparation = {
+                "file_count": prepared_repository.file_count,
+                "total_bytes": prepared_repository.total_bytes,
+                "skipped_entries": prepared_repository.skipped_entries,
+            }
+            with test_runner.repository_workspace(
+                prepared_repository.path
+            ) as workspace_path:
+                selected_runner = test_runner.select_repository_test_runner(
+                    workspace_path
+                )
+                installation = test_runner.install_repository_dependencies(
+                    workspace_path
+                )
+
+                if installation.return_code != 0 or installation.timed_out:
+                    existing_execution = {
+                        "return_code": None,
+                        "output": (
+                            "Existing repository tests were not run because dependency "
+                            "installation failed."
+                        ),
+                        "timed_out": False,
+                        "skipped": True,
+                    }
+                    generated_execution = {
+                        "return_code": None,
+                        "output": (
+                            "Generated repository tests were not run because dependency "
+                            "installation failed."
+                        ),
+                        "timed_out": False,
+                        "skipped": True,
+                    }
+                else:
+                    test_results = test_runner.run_repository_test_sets(
+                        workspace_path,
+                        target_path,
+                        generated_tests,
+                        selected_runner,
+                    )
+                    existing_execution = {
+                        "return_code": test_results.existing.return_code,
+                        "output": test_results.existing.output,
+                        "timed_out": test_results.existing.timed_out,
+                        "skipped": test_results.existing.skipped,
+                    }
+                    generated_execution = {
+                        "return_code": test_results.generated.return_code,
+                        "output": test_results.generated.output,
+                        "timed_out": test_results.generated.timed_out,
+                        "skipped": test_results.generated.skipped,
+                    }
+    except GeneratedTestsValidationError:
+        raise HTTPException(
+            status_code=502,
+            detail="Gemini returned unusable generated tests. Please try again.",
+        ) from None
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to prepare or test the repository. Please try again.",
+        ) from None
+
+    return {
+        "target_path": target_path,
+        "generated_tests": generated_tests,
+        "preparation": preparation,
+        "installation": {
+            "return_code": installation.return_code,
+            "output": installation.output,
+            "timed_out": installation.timed_out,
+            "skipped": installation.skipped,
+        },
+        "test_runner": selected_runner,
+        "existing_execution": existing_execution,
+        "generated_execution": generated_execution,
     }
