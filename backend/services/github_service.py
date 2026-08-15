@@ -1,6 +1,7 @@
 """Fetch metadata and selected configuration files for public GitHub repositories."""
 
 from base64 import b64decode
+from binascii import Error as Base64DecodeError
 from dataclasses import dataclass
 import json
 import ssl
@@ -13,6 +14,10 @@ import certifi
 
 GITHUB_API_URL = "https://api.github.com/repos"
 MAX_TREE_ENTRIES = 500
+MAX_GENERATION_TEST_PATHS = 3
+MAX_GENERATION_CONFIGURATION_PATHS = 3
+MAX_GENERATION_FILE_BYTES = 64 * 1024
+MAX_GENERATION_CONTEXT_BYTES = 128 * 1024
 CONFIGURATION_FILENAMES = (
     "pyproject.toml",
     "requirements.txt",
@@ -20,6 +25,14 @@ CONFIGURATION_FILENAMES = (
     "setup.py",
     "Pipfile",
     "tox.ini",
+)
+GENERATION_CONFIGURATION_PRIORITY = (
+    "pyproject.toml",
+    "setup.cfg",
+    "tox.ini",
+    "requirements.txt",
+    "setup.py",
+    "Pipfile",
 )
 TEST_DIRECTORY_NAMES = {"test", "tests"}
 EXCLUDED_SOURCE_DIRECTORY_NAMES = {
@@ -124,6 +137,37 @@ class RepositoryTestPlan:
 
 
 @dataclass
+class RepositoryGenerationSelection:
+    """A bounded set of repository paths for one future generation request."""
+
+    target_path: str | None
+    related_test_paths: list[str]
+    configuration_paths: list[str]
+    is_truncated: bool
+
+
+@dataclass(frozen=True)
+class RepositoryFileContent:
+    """One bounded UTF-8 repository file selected for generation context."""
+
+    path: str
+    content: str
+    byte_count: int
+
+
+@dataclass
+class RepositoryGenerationContext:
+    """Bounded source, tests, and configuration ready for prompt construction."""
+
+    selection: RepositoryGenerationSelection
+    source_file: RepositoryFileContent | None
+    test_files: list[RepositoryFileContent]
+    configuration_files: list[RepositoryConfigurationFile]
+    skipped_paths: list[str]
+    total_bytes: int
+
+
+@dataclass
 class RepositoryContext:
     """Repository evidence and the test plan derived from it."""
 
@@ -131,6 +175,7 @@ class RepositoryContext:
     tree: RepositoryTree
     configuration_files: list[RepositoryConfigurationFile]
     test_plan: RepositoryTestPlan
+    generation_selection: RepositoryGenerationSelection
 
 
 class GitHubRepositoryService:
@@ -314,13 +359,157 @@ class GitHubRepositoryService:
             steps=self._build_test_plan_steps(setup, paths),
             is_truncated=paths.is_truncated,
         )
+        generation_selection = self._select_generation_context(
+            paths, configuration_files
+        )
 
         return RepositoryContext(
             metadata=metadata,
             tree=tree,
             configuration_files=configuration_files,
             test_plan=test_plan,
+            generation_selection=generation_selection,
         )
+
+    def fetch_generation_context(
+        self, repository_url: str
+    ) -> RepositoryGenerationContext:
+        """Fetch only the bounded file contents selected for one generation request."""
+        owner, repository = self._parse_repository_url(repository_url)
+        repository_context = self.fetch_context(repository_url)
+        selection = repository_context.generation_selection
+        selected_configuration_files = {
+            file.path: file for file in repository_context.configuration_files
+        }
+        source_file: RepositoryFileContent | None = None
+        test_files: list[RepositoryFileContent] = []
+        configuration_files: list[RepositoryConfigurationFile] = []
+        skipped_paths: list[str] = []
+        total_bytes = 0
+
+        if selection.target_path is not None:
+            try:
+                source_file = self._fetch_bounded_repository_file(
+                    owner, repository, selection.target_path
+                )
+            except ValueError:
+                raise ValueError(
+                    "The selected source file is too large for test generation."
+                ) from None
+            total_bytes = source_file.byte_count
+
+            for path in selection.related_test_paths:
+                try:
+                    test_file = self._fetch_bounded_repository_file(
+                        owner, repository, path
+                    )
+                except (RuntimeError, ValueError):
+                    skipped_paths.append(path)
+                    continue
+
+                if total_bytes + test_file.byte_count > MAX_GENERATION_CONTEXT_BYTES:
+                    skipped_paths.append(path)
+                    continue
+
+                test_files.append(test_file)
+                total_bytes += test_file.byte_count
+
+        for path in selection.configuration_paths:
+            configuration_file = selected_configuration_files.get(path)
+            if configuration_file is None:
+                continue
+
+            byte_count = len(configuration_file.content.encode("utf-8"))
+            if (
+                byte_count > MAX_GENERATION_FILE_BYTES
+                or total_bytes + byte_count > MAX_GENERATION_CONTEXT_BYTES
+            ):
+                skipped_paths.append(path)
+                continue
+
+            configuration_files.append(configuration_file)
+            total_bytes += byte_count
+
+        return RepositoryGenerationContext(
+            selection=selection,
+            source_file=source_file,
+            test_files=test_files,
+            configuration_files=configuration_files,
+            skipped_paths=skipped_paths,
+            total_bytes=total_bytes,
+        )
+
+    @staticmethod
+    def _select_generation_context(
+        paths: RepositoryPaths,
+        configuration_files: list[RepositoryConfigurationFile],
+    ) -> RepositoryGenerationSelection:
+        """Select one source target and a small, deterministic context set."""
+        preferred_targets = [
+            path
+            for path in paths.source_paths
+            if PurePosixPath(path).name not in {"__init__.py", "__main__.py"}
+        ]
+        target_candidates = preferred_targets or paths.source_paths
+        target_path = (
+            min(
+                target_candidates,
+                key=lambda path: (
+                    not any(
+                        GitHubRepositoryService._is_direct_test_for_source(
+                            test_path, path
+                        )
+                        for test_path in paths.test_paths
+                    ),
+                    len(PurePosixPath(path).parts),
+                    path.lower(),
+                ),
+            )
+            if target_candidates
+            else None
+        )
+
+        related_test_paths: list[str] = []
+        if target_path is not None:
+            related_test_paths = sorted(
+                paths.test_paths,
+                key=lambda path: (
+                    not GitHubRepositoryService._is_direct_test_for_source(
+                        path, target_path
+                    ),
+                    len(PurePosixPath(path).parts),
+                    path.lower(),
+                ),
+            )[:MAX_GENERATION_TEST_PATHS]
+
+        available_configuration_paths = {
+            file.path for file in configuration_files
+        }
+        ordered_configuration_paths = [
+            path
+            for path in GENERATION_CONFIGURATION_PRIORITY
+            if path in available_configuration_paths
+        ]
+        configuration_paths = ordered_configuration_paths[
+            :MAX_GENERATION_CONFIGURATION_PATHS
+        ]
+
+        return RepositoryGenerationSelection(
+            target_path=target_path,
+            related_test_paths=related_test_paths,
+            configuration_paths=configuration_paths,
+            is_truncated=paths.is_truncated,
+        )
+
+    @staticmethod
+    def _is_direct_test_for_source(test_path: str, source_path: str) -> bool:
+        """Match standard test filenames to a Python source filename."""
+        source_stem = PurePosixPath(source_path).stem.lower()
+        test_filename = PurePosixPath(test_path).name.lower()
+        return test_filename in {
+            f"test_{source_stem}.py",
+            f"{source_stem}_test.py",
+        }
 
     def _fetch_repository_data(self, owner: str, repository: str) -> dict[str, object]:
         """Fetch repository data and reject private repositories."""
@@ -345,9 +534,49 @@ class GitHubRepositoryService:
             return None
 
         if data.get("type") != "file" or data.get("encoding") != "base64":
-            raise RuntimeError("GitHub could not return repository configuration files.")
+            raise RuntimeError("GitHub could not return repository file contents.")
 
         return data
+
+    def _fetch_bounded_repository_file(
+        self, owner: str, repository: str, path: str
+    ) -> RepositoryFileContent:
+        """Fetch one selected UTF-8 file without exceeding the per-file limit."""
+        file_data = self._fetch_file_data(owner, repository, path)
+        if file_data is None:
+            raise RuntimeError("GitHub could not return selected repository files.")
+
+        declared_size = file_data.get("size")
+        if isinstance(declared_size, int) and declared_size > MAX_GENERATION_FILE_BYTES:
+            raise ValueError("Selected repository file is too large.")
+
+        encoded_content = file_data.get("content")
+        if not isinstance(encoded_content, str):
+            raise RuntimeError(
+                "GitHub could not return selected repository files."
+            )
+
+        compact_content = "".join(encoded_content.split())
+        maximum_encoded_characters = 4 * ((MAX_GENERATION_FILE_BYTES + 2) // 3)
+        if len(compact_content) > maximum_encoded_characters:
+            raise ValueError("Selected repository file is too large.")
+
+        try:
+            raw_content = b64decode(compact_content, validate=True)
+            content = raw_content.decode("utf-8")
+        except (Base64DecodeError, UnicodeDecodeError):
+            raise RuntimeError(
+                "GitHub could not return selected repository files."
+            ) from None
+
+        if len(raw_content) > MAX_GENERATION_FILE_BYTES:
+            raise ValueError("Selected repository file is too large.")
+
+        return RepositoryFileContent(
+            path=path,
+            content=content,
+            byte_count=len(raw_content),
+        )
 
     @staticmethod
     def _is_test_path(path: str) -> bool:
