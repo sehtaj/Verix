@@ -45,16 +45,40 @@ type RepositoryContext = {
   test_plan: RepositoryTestPlan;
 };
 
-type RepositoryTestRun = {
-  preparation: {
-    file_count: number;
-    total_bytes: number;
-    skipped_entries: number;
-  };
-  installation: TestExecution & { skipped: boolean };
-  test_runner: string;
-  execution: TestExecution & { skipped: boolean };
+type RepositoryPreparation = {
+  file_count: number;
+  total_bytes: number;
+  skipped_entries: number;
 };
+
+type RepositoryExecution = TestExecution & { skipped: boolean };
+
+type RepositoryTestRun = {
+  preparation: RepositoryPreparation;
+  installation: RepositoryExecution;
+  test_runner: string;
+  execution: RepositoryExecution;
+};
+
+type RepositoryGenerationRun = {
+  target_path: string;
+  generated_tests: string;
+  preparation: RepositoryPreparation;
+  installation: RepositoryExecution;
+  test_runner: string;
+  existing_execution: RepositoryExecution;
+  generated_execution: RepositoryExecution;
+};
+
+function executionStatusClass(execution: RepositoryExecution): string {
+  if (execution.skipped) {
+    return "execution-status skipped";
+  }
+  if (execution.timed_out || execution.return_code !== 0) {
+    return "execution-status failed";
+  }
+  return "execution-status passed";
+}
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -87,6 +111,10 @@ export default function Home() {
   const [repositoryTestRun, setRepositoryTestRun] = useState<RepositoryTestRun | null>(null);
   const [isRepositoryTestRunning, setIsRepositoryTestRunning] = useState(false);
   const [repositoryTestError, setRepositoryTestError] = useState<string | null>(null);
+  const [repositoryGenerationRun, setRepositoryGenerationRun] =
+    useState<RepositoryGenerationRun | null>(null);
+  const [isRepositoryGenerationRunning, setIsRepositoryGenerationRunning] = useState(false);
+  const [repositoryGenerationError, setRepositoryGenerationError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [tests, setTests] = useState<string | null>(null);
   const [execution, setExecution] = useState<TestExecution | null>(null);
@@ -102,6 +130,8 @@ export default function Home() {
       setRepositoryTestPlan(null);
       setRepositoryTestRun(null);
       setRepositoryTestError(null);
+      setRepositoryGenerationRun(null);
+      setRepositoryGenerationError(null);
       return;
     }
 
@@ -112,6 +142,8 @@ export default function Home() {
     setRepositoryTestPlan(null);
     setRepositoryTestRun(null);
     setRepositoryTestError(null);
+    setRepositoryGenerationRun(null);
+    setRepositoryGenerationError(null);
 
     try {
       const response = await fetch(`${apiUrl}/repository/context`, {
@@ -146,6 +178,8 @@ export default function Home() {
     setIsRepositoryTestRunning(true);
     setRepositoryTestError(null);
     setRepositoryTestRun(null);
+    setRepositoryGenerationError(null);
+    setRepositoryGenerationRun(null);
 
     try {
       const response = await fetch(`${apiUrl}/repository/test-run`, {
@@ -168,6 +202,44 @@ export default function Home() {
       );
     } finally {
       setIsRepositoryTestRunning(false);
+    }
+  }
+
+  async function handleRepositoryGeneration() {
+    if (repository === null) {
+      setRepositoryGenerationError(
+        "Fetch a public Python repository before generating its tests.",
+      );
+      return;
+    }
+
+    setIsRepositoryGenerationRunning(true);
+    setRepositoryGenerationError(null);
+    setRepositoryGenerationRun(null);
+    setRepositoryTestError(null);
+    setRepositoryTestRun(null);
+
+    try {
+      const response = await fetch(`${apiUrl}/repository/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: repository.url }),
+      });
+      const result: RepositoryGenerationRun | { detail: string } = await response.json();
+
+      if (!response.ok || !("generated_execution" in result)) {
+        throw new Error("detail" in result ? result.detail : "Test generation failed.");
+      }
+
+      setRepositoryGenerationRun(result);
+    } catch (error) {
+      setRepositoryGenerationError(
+        error instanceof Error
+          ? error.message
+          : "Unable to generate repository tests. Please try again.",
+      );
+    } finally {
+      setIsRepositoryGenerationRunning(false);
     }
   }
 
@@ -218,14 +290,29 @@ export default function Home() {
             placeholder="https://github.com/owner/repository"
             type="url"
             value={repositoryUrl}
-            disabled={isRepositoryLoading || isRepositoryTestRunning}
+            disabled={
+              isRepositoryLoading ||
+              isRepositoryTestRunning ||
+              isRepositoryGenerationRunning
+            }
             onChange={(event) => setRepositoryUrl(event.target.value)}
           />
           <p className="field-hint">Use an HTTPS URL for a public repository.</p>
-          <button disabled={isRepositoryLoading || isRepositoryTestRunning} type="submit">
+          <button
+            disabled={
+              isRepositoryLoading ||
+              isRepositoryTestRunning ||
+              isRepositoryGenerationRunning
+            }
+            type="submit"
+          >
             {isRepositoryLoading ? "Fetching..." : "Fetch repository"}
           </button>
-          {repositoryError && <p className="error">{repositoryError}</p>}
+          {repositoryError && (
+            <p className="error" role="alert">
+              {repositoryError}
+            </p>
+          )}
         </form>
         {repository !== null && (
           <section className="result">
@@ -303,13 +390,45 @@ export default function Home() {
                 during setup; test execution itself has no network access.
               </p>
               <button
-                disabled={isRepositoryTestRunning || isRepositoryLoading}
+                disabled={
+                  isRepositoryTestRunning ||
+                  isRepositoryLoading ||
+                  isRepositoryGenerationRunning
+                }
                 onClick={handleRepositoryTestRun}
                 type="button"
               >
                 {isRepositoryTestRunning ? "Running repository tests..." : "Run repository tests"}
               </button>
-              {repositoryTestError && <p className="error">{repositoryTestError}</p>}
+              {repositoryTestError && (
+                <p className="error" role="alert">
+                  {repositoryTestError}
+                </p>
+              )}
+            </div>
+            <div className="test-run-action">
+              <p>
+                Ask Gemini to create focused pytest tests for one selected source file, then run
+                the original and generated tests separately in Docker.
+              </p>
+              <button
+                disabled={
+                  isRepositoryGenerationRunning ||
+                  isRepositoryLoading ||
+                  isRepositoryTestRunning
+                }
+                onClick={handleRepositoryGeneration}
+                type="button"
+              >
+                {isRepositoryGenerationRunning
+                  ? "Generating and running tests..."
+                  : "Generate repository tests"}
+              </button>
+              {repositoryGenerationError && (
+                <p className="error" role="alert">
+                  {repositoryGenerationError}
+                </p>
+              )}
             </div>
           </section>
         )}
@@ -337,14 +456,8 @@ export default function Home() {
 
             <h3>Dependency installation</h3>
             <p
-              className={
-                repositoryTestRun.installation.skipped
-                  ? "execution-status skipped"
-                  : repositoryTestRun.installation.timed_out ||
-                      repositoryTestRun.installation.return_code !== 0
-                    ? "execution-status failed"
-                    : "execution-status passed"
-              }
+              className={executionStatusClass(repositoryTestRun.installation)}
+              role="status"
             >
               {repositoryTestRun.installation.skipped
                 ? "No dependency installation was required."
@@ -358,13 +471,8 @@ export default function Home() {
 
             <h3>Existing test suite</h3>
             <p
-              className={
-                repositoryTestRun.execution.skipped ||
-                repositoryTestRun.execution.timed_out ||
-                repositoryTestRun.execution.return_code !== 0
-                  ? "execution-status failed"
-                  : "execution-status passed"
-              }
+              className={executionStatusClass(repositoryTestRun.execution)}
+              role="status"
             >
               {repositoryTestRun.execution.skipped
                 ? "Test execution was skipped."
@@ -375,6 +483,86 @@ export default function Home() {
                     : "Repository tests failed."}
             </p>
             <pre>{repositoryTestRun.execution.output || "No test output."}</pre>
+          </section>
+        )}
+        {repositoryGenerationRun !== null && (
+          <section className="result repository-test-result" aria-live="polite">
+            <h2>Generated repository tests</h2>
+            <p>
+              Selected source: <code>{repositoryGenerationRun.target_path}</code>
+            </p>
+            <dl className="plan-summary">
+              <div>
+                <dt>Existing test runner</dt>
+                <dd>{repositoryGenerationRun.test_runner}</dd>
+              </div>
+              <div>
+                <dt>Prepared files</dt>
+                <dd>{repositoryGenerationRun.preparation.file_count}</dd>
+              </div>
+              <div>
+                <dt>Prepared size</dt>
+                <dd>{repositoryGenerationRun.preparation.total_bytes} bytes</dd>
+              </div>
+              <div>
+                <dt>Skipped archive entries</dt>
+                <dd>{repositoryGenerationRun.preparation.skipped_entries}</dd>
+              </div>
+            </dl>
+
+            <h3>Generated pytest code</h3>
+            <pre>{repositoryGenerationRun.generated_tests}</pre>
+
+            <h3>Dependency installation</h3>
+            <p
+              className={executionStatusClass(repositoryGenerationRun.installation)}
+              role="status"
+            >
+              {repositoryGenerationRun.installation.skipped
+                ? "No dependency installation was required."
+                : repositoryGenerationRun.installation.timed_out
+                  ? "Dependency installation timed out."
+                  : repositoryGenerationRun.installation.return_code === 0
+                    ? "Dependencies prepared successfully."
+                    : "Dependency installation failed."}
+            </p>
+            <pre>{repositoryGenerationRun.installation.output || "No installation output."}</pre>
+
+            <h3>Original repository test suite</h3>
+            <p
+              className={executionStatusClass(repositoryGenerationRun.existing_execution)}
+              role="status"
+            >
+              {repositoryGenerationRun.existing_execution.skipped
+                ? "Original repository tests were skipped."
+                : repositoryGenerationRun.existing_execution.timed_out
+                  ? "Original repository tests timed out."
+                  : repositoryGenerationRun.existing_execution.return_code === 0
+                    ? "Original repository tests passed."
+                    : "Original repository tests failed."}
+            </p>
+            <pre>
+              {repositoryGenerationRun.existing_execution.output ||
+                "No original test output."}
+            </pre>
+
+            <h3>Verix-generated test suite</h3>
+            <p
+              className={executionStatusClass(repositoryGenerationRun.generated_execution)}
+              role="status"
+            >
+              {repositoryGenerationRun.generated_execution.skipped
+                ? "Generated tests were skipped."
+                : repositoryGenerationRun.generated_execution.timed_out
+                  ? "Generated tests timed out."
+                  : repositoryGenerationRun.generated_execution.return_code === 0
+                    ? "Generated tests passed."
+                    : "Generated tests failed."}
+            </p>
+            <pre>
+              {repositoryGenerationRun.generated_execution.output ||
+                "No generated test output."}
+            </pre>
           </section>
         )}
         <form className="code-generator" onSubmit={handleSubmit}>
@@ -390,7 +578,11 @@ export default function Home() {
           <button disabled={isLoading} type="submit">
             {isLoading ? "Generating..." : "Generate tests"}
           </button>
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
           {tests !== null && (
             <section className="result">
               <h2>Generated tests</h2>
@@ -406,6 +598,7 @@ export default function Home() {
                     ? "execution-status failed"
                     : "execution-status passed"
                 }
+                role="status"
               >
                 {execution.timed_out
                   ? "Test execution timed out."
