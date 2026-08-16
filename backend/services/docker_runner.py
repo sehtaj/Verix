@@ -1,16 +1,21 @@
 """Run generated and repository Python commands in isolated Docker containers."""
 
-import ast
-from contextlib import contextmanager
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import re
-import shutil
 import subprocess
 import tempfile
-from typing import Iterator
 from uuid import uuid4
+
+from services.repository_workspace import (
+    GENERATED_TEST_DIRECTORY,
+    GENERATED_TEST_FILENAME,
+    MAX_GENERATED_TEST_BYTES,
+    GeneratedTestsValidationError,
+    RepositoryWorkspaceManager,
+)
 
 
 RUNNER_IMAGE = "verix-test-runner:dev"
@@ -21,9 +26,6 @@ REPOSITORY_TEST_TIMEOUT_SECONDS = 60
 MAX_CAPTURED_OUTPUT_CHARACTERS = 50_000
 REPOSITORY_VENV_DIRECTORY = ".verix-venv"
 REPOSITORY_TOX_DIRECTORY = ".verix-tox"
-GENERATED_TEST_DIRECTORY = ".verix-generated-tests"
-GENERATED_TEST_FILENAME = "test_verix_generated.py"
-MAX_GENERATED_TEST_BYTES = 128 * 1024
 REQUIREMENTS_FILENAMES = (
     "requirements.txt",
     "requirements-dev.txt",
@@ -54,15 +56,20 @@ class RepositoryTestResults:
     generated: TestExecutionResult
 
 
-class GeneratedTestsValidationError(ValueError):
-    """Raised when LLM output cannot safely become a Python test module."""
-
-
 class DockerTestRunner:
     """Execute Python commands without running untrusted code on the host."""
 
-    def __init__(self, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> None:
+    def __init__(
+        self,
+        timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+        workspace_manager: RepositoryWorkspaceManager | None = None,
+    ) -> None:
         self.timeout_seconds = timeout_seconds
+        self.workspace_manager = (
+            workspace_manager
+            if workspace_manager is not None
+            else RepositoryWorkspaceManager()
+        )
 
     def run_tests(self, code: str, tests: str) -> TestExecutionResult:
         """Run pytest against code and tests written to a temporary workspace."""
@@ -80,19 +87,11 @@ class DockerTestRunner:
                 timeout_message="Test execution timed out.",
             )
 
-    @contextmanager
-    def repository_workspace(self, repository_path: Path) -> Iterator[Path]:
+    def repository_workspace(
+        self, repository_path: Path
+    ) -> AbstractContextManager[Path]:
         """Yield an isolated writable copy of a prepared repository, then remove it."""
-        if not repository_path.is_dir():
-            raise ValueError("Prepared repository directory does not exist.")
-
-        with tempfile.TemporaryDirectory(
-            prefix="verix-repository-runner-"
-        ) as workspace:
-            workspace_path = Path(workspace) / "repository"
-            shutil.copytree(repository_path, workspace_path, symlinks=True)
-            self._make_workspace_writable(workspace_path)
-            yield workspace_path
+        return self.workspace_manager.create(repository_path)
 
     def write_repository_generated_tests(
         self,
@@ -101,62 +100,20 @@ class DockerTestRunner:
         generated_tests: str,
     ) -> Path:
         """Safely add one generated pytest module to a disposable repository copy."""
-        if not workspace_path.is_dir():
-            raise ValueError("Repository workspace directory does not exist.")
-
-        relative_target = PurePosixPath(target_path)
-        if (
-            not target_path
-            or "\\" in target_path
-            or relative_target.is_absolute()
-            or ".." in relative_target.parts
-            or relative_target.suffix != ".py"
-        ):
-            raise ValueError("Repository generation target path is invalid.")
-
-        target_file = workspace_path.joinpath(*relative_target.parts)
-        current_path = workspace_path
-        for part in relative_target.parts:
-            current_path /= part
-            if current_path.is_symlink():
-                raise ValueError("Repository generation target cannot use symlinks.")
-        if not target_file.is_file():
-            raise ValueError("Repository generation target does not exist.")
-
-        self.validate_generated_tests(generated_tests)
-
-        generated_directory = workspace_path / GENERATED_TEST_DIRECTORY
-        if generated_directory.exists() or generated_directory.is_symlink():
-            raise ValueError(
-                f"Repository contains the reserved {GENERATED_TEST_DIRECTORY} path."
-            )
-
-        generated_directory.mkdir(mode=0o755)
-        generated_test_path = generated_directory / GENERATED_TEST_FILENAME
-        with generated_test_path.open("x", encoding="utf-8") as generated_file:
-            generated_file.write(generated_tests)
-        os.chmod(generated_test_path, 0o644)
-        return generated_test_path
+        return self.workspace_manager.write_generated_tests(
+            workspace_path,
+            target_path,
+            generated_tests,
+            maximum_bytes=MAX_GENERATED_TEST_BYTES,
+        )
 
     @staticmethod
     def validate_generated_tests(generated_tests: str) -> None:
         """Reject unusable generated code before repository setup or execution."""
-        if not isinstance(generated_tests, str) or not generated_tests.strip():
-            raise GeneratedTestsValidationError("Generated tests cannot be empty.")
-        if "\x00" in generated_tests:
-            raise GeneratedTestsValidationError(
-                "Generated tests contain invalid characters."
-            )
-        if len(generated_tests.encode("utf-8")) > MAX_GENERATED_TEST_BYTES:
-            raise GeneratedTestsValidationError(
-                "Generated tests exceed the allowed size."
-            )
-        try:
-            ast.parse(generated_tests)
-        except SyntaxError:
-            raise GeneratedTestsValidationError(
-                "Generated tests are not valid Python."
-            ) from None
+        RepositoryWorkspaceManager.validate_generated_tests(
+            generated_tests,
+            maximum_bytes=MAX_GENERATED_TEST_BYTES,
+        )
 
     def run_repository_test_sets(
         self,
@@ -726,17 +683,3 @@ class DockerTestRunner:
     def _write_file(path: Path, content: str) -> None:
         path.write_text(content)
         os.chmod(path, 0o644)
-
-    @staticmethod
-    def _make_workspace_writable(workspace_path: Path) -> None:
-        """Allow the non-root container user to modify only the temporary copy."""
-        os.chmod(workspace_path, 0o777)
-        for path in workspace_path.rglob("*"):
-            if path.is_symlink():
-                continue
-            if path.is_dir():
-                os.chmod(path, 0o777)
-                continue
-
-            executable = bool(path.stat().st_mode & 0o111)
-            os.chmod(path, 0o777 if executable else 0o666)
