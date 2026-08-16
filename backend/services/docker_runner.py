@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from models.execution import RepositoryTestResults, TestExecutionResult
 from services.docker_commands import DockerCommandBuilder
+from services.docker_executor import DockerProcessExecutor
 from services.repository_dependencies import (
     PROJECT_CONFIGURATION_READ_LIMIT,
     REQUIREMENTS_FILENAMES,
@@ -406,33 +407,13 @@ class DockerTestRunner:
         timeout_message: str,
     ) -> TestExecutionResult:
         """Run a Docker command and consistently capture output and timeouts."""
-        try:
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                check=False,
-                text=True,
-                timeout=timeout_seconds,
-            )
-        except subprocess.TimeoutExpired as error:
-            DockerTestRunner._remove_container(container_name)
-            output = f"{error.stdout or ''}{error.stderr or ''}{timeout_message}"
-            return TestExecutionResult(
-                return_code=None,
-                output=DockerTestRunner._limit_output(output),
-                timed_out=True,
-            )
-        except OSError:
-            raise RuntimeError("Docker could not start the test container.") from None
-
-        if result.returncode == 125:
-            raise RuntimeError("Docker could not start the test container.")
-
-        return TestExecutionResult(
-            return_code=result.returncode,
-            output=DockerTestRunner._limit_output(
-                f"{result.stdout}{result.stderr}"
-            ),
+        return DockerProcessExecutor.execute(
+            command,
+            container_name,
+            timeout_seconds,
+            timeout_message,
+            process_runner=subprocess.run,
+            maximum_output_characters=MAX_CAPTURED_OUTPUT_CHARACTERS,
         )
 
     @staticmethod
@@ -487,26 +468,15 @@ class DockerTestRunner:
     @staticmethod
     def _limit_output(output: str) -> str:
         """Bound returned container output while retaining its beginning and summary."""
-        if len(output) <= MAX_CAPTURED_OUTPUT_CHARACTERS:
-            return output
-
-        marker = "\n... container output truncated by Verix ...\n"
-        retained_characters = MAX_CAPTURED_OUTPUT_CHARACTERS - len(marker)
-        beginning_characters = retained_characters // 2
-        ending_characters = retained_characters - beginning_characters
-        return (
-            output[:beginning_characters]
-            + marker
-            + output[-ending_characters:]
+        return DockerProcessExecutor.limit_output(
+            output, MAX_CAPTURED_OUTPUT_CHARACTERS
         )
 
     @staticmethod
     def _remove_container(container_name: str) -> None:
-        subprocess.run(
-            ["docker", "rm", "--force", container_name],
-            capture_output=True,
-            check=False,
-            text=True,
+        DockerProcessExecutor.remove_container(
+            container_name,
+            process_runner=subprocess.run,
         )
 
     @staticmethod
