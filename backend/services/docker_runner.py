@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 from uuid import uuid4
 
+from services.docker_commands import DockerCommandBuilder
 from services.repository_dependencies import (
     PROJECT_CONFIGURATION_READ_LIMIT,
     REQUIREMENTS_FILENAMES,
@@ -454,33 +455,11 @@ class DockerTestRunner:
 
     @staticmethod
     def _docker_command(workspace_path: Path, container_name: str) -> list[str]:
-        return [
-            "docker",
-            "run",
-            "--rm",
-            "--name",
+        return DockerCommandBuilder.build_pasted_code_command(
+            workspace_path,
             container_name,
-            "--network",
-            "none",
-            "--read-only",
-            "--cap-drop",
-            "ALL",
-            "--security-opt",
-            "no-new-privileges:true",
-            "--pids-limit",
-            "64",
-            "--memory",
-            "256m",
-            "--tmpfs",
-            "/tmp:rw,noexec,nosuid,size=64m",
-            "--mount",
-            f"type=bind,source={workspace_path},target=/workspace,readonly",
-            "--env",
-            "PYTHONDONTWRITEBYTECODE=1",
-            RUNNER_IMAGE,
-            "-p",
-            "no:cacheprovider",
-        ]
+            runner_image=RUNNER_IMAGE,
+        )
 
     @staticmethod
     def _repository_docker_command(
@@ -493,60 +472,16 @@ class DockerTestRunner:
         workspace_read_only: bool = False,
     ) -> list[str]:
         """Build a resource-bounded command for a repository workspace."""
-        environment_options = [
-            option
-            for name, value in sorted((environment or {}).items())
-            for option in ("--env", f"{name}={value}")
-        ]
-        workspace_mount = (
-            f"type=bind,source={workspace_path.resolve()},target=/workspace"
-            + (",readonly" if workspace_read_only else "")
-        )
-        tox_work_path = workspace_path / REPOSITORY_TOX_DIRECTORY
-        if tox_work_path.is_symlink() or (
-            tox_work_path.exists() and not tox_work_path.is_dir()
-        ):
-            raise ValueError(
-                f"Repository contains an invalid {REPOSITORY_TOX_DIRECTORY} path."
-            )
-        tox_work_path.mkdir(exist_ok=True)
-        os.chmod(tox_work_path, 0o777)
-
-        return [
-            "docker",
-            "run",
-            "--rm",
-            "--name",
+        return DockerCommandBuilder.build_repository_command(
+            workspace_path,
             container_name,
-            "--network",
-            "bridge" if allow_network else "none",
-            "--read-only",
-            "--cap-drop",
-            "ALL",
-            "--security-opt",
-            "no-new-privileges:true",
-            "--pids-limit",
-            "128",
-            "--memory",
-            "512m",
-            "--cpus",
-            "1",
-            "--tmpfs",
-            "/tmp:rw,noexec,nosuid,size=128m",
-            "--tmpfs",
-            "/home/runner:rw,nosuid,size=64m,uid=1000,gid=1000,mode=700",
-            "--mount",
-            workspace_mount,
-            "--mount",
-            f"type=bind,source={tox_work_path.resolve()},target=/tox-work",
-            "--env",
-            "PYTHONDONTWRITEBYTECODE=1",
-            *environment_options,
-            "--entrypoint",
-            command[0],
-            RUNNER_IMAGE,
-            *command[1:],
-        ]
+            command,
+            allow_network=allow_network,
+            environment=environment,
+            workspace_read_only=workspace_read_only,
+            runner_image=RUNNER_IMAGE,
+            tox_directory=REPOSITORY_TOX_DIRECTORY,
+        )
 
     def _dependency_install_commands(
         self, workspace_path: Path
