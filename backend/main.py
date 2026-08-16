@@ -2,8 +2,17 @@
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
 
+from api.presenters import (
+    present_configuration_files,
+    present_python_project_setup,
+    present_repository_context,
+    present_repository_metadata,
+    present_repository_paths,
+    present_repository_test_plan,
+    present_repository_tree,
+)
+from api.schemas import GenerateTestsRequest, RepositoryRequest
 from services.github_service import GitHubRepositoryService
 from services.llm_service import GeminiLLMService
 from services.repository_preparer import PublicRepositoryPreparer
@@ -28,14 +37,6 @@ app.add_middleware(
     allow_methods=["POST"],
     allow_headers=["Content-Type"],
 )
-
-
-class GenerateTestsRequest(BaseModel):
-    code: str = Field(min_length=1)
-
-
-class RepositoryRequest(BaseModel):
-    url: str = Field(min_length=1)
 
 
 @app.get("/")
@@ -92,14 +93,7 @@ def get_repository_metadata(request: RepositoryRequest) -> dict[str, object]:
             detail="Unable to fetch repository metadata. Please try again.",
         ) from None
 
-    return {
-        "name": repository.name,
-        "owner": repository.owner,
-        "description": repository.description,
-        "language": repository.language,
-        "stars": repository.stars,
-        "url": repository.url,
-    }
+    return present_repository_metadata(repository)
 
 
 @app.post("/repository/tree")
@@ -115,10 +109,7 @@ def get_repository_tree(request: RepositoryRequest) -> dict[str, object]:
             detail="Unable to fetch repository file structure. Please try again.",
         ) from None
 
-    return {
-        "entries": [{"path": entry.path, "type": entry.type} for entry in tree.entries],
-        "is_truncated": tree.is_truncated,
-    }
+    return present_repository_tree(tree)
 
 
 @app.post("/repository/configuration")
@@ -134,9 +125,7 @@ def get_repository_configuration(request: RepositoryRequest) -> dict[str, object
             detail="Unable to fetch repository configuration files. Please try again.",
         ) from None
 
-    return {
-        "files": [{"path": file.path, "content": file.content} for file in files]
-    }
+    return {"files": present_configuration_files(files)}
 
 
 @app.post("/repository/paths")
@@ -152,11 +141,7 @@ def get_repository_paths(request: RepositoryRequest) -> dict[str, object]:
             detail="Unable to identify repository paths. Please try again.",
         ) from None
 
-    return {
-        "source_paths": paths.source_paths,
-        "test_paths": paths.test_paths,
-        "is_truncated": paths.is_truncated,
-    }
+    return present_repository_paths(paths)
 
 
 @app.post("/repository/setup")
@@ -172,12 +157,7 @@ def get_repository_setup(request: RepositoryRequest) -> dict[str, object]:
             detail="Unable to detect repository setup. Please try again.",
         ) from None
 
-    return {
-        "is_python_project": setup.is_python_project,
-        "project_tool": setup.project_tool,
-        "test_runner": setup.test_runner,
-        "configuration_files": setup.configuration_files,
-    }
+    return present_python_project_setup(setup)
 
 
 @app.post("/repository/test-plan")
@@ -193,25 +173,7 @@ def get_repository_test_plan(request: RepositoryRequest) -> dict[str, object]:
             detail="Unable to generate a repository test plan. Please try again.",
         ) from None
 
-    return {
-        "setup": {
-            "is_python_project": plan.setup.is_python_project,
-            "project_tool": plan.setup.project_tool,
-            "test_runner": plan.setup.test_runner,
-            "configuration_files": plan.setup.configuration_files,
-        },
-        "source_paths": plan.source_paths,
-        "test_paths": plan.test_paths,
-        "steps": [
-            {
-                "action": step.action,
-                "description": step.description,
-                "command": step.command,
-            }
-            for step in plan.steps
-        ],
-        "is_truncated": plan.is_truncated,
-    }
+    return present_repository_test_plan(plan)
 
 
 @app.post("/repository/context")
@@ -227,52 +189,7 @@ def get_repository_context(request: RepositoryRequest) -> dict[str, object]:
             detail="Unable to fetch repository context. Please try again.",
         ) from None
 
-    return {
-        "metadata": {
-            "name": context.metadata.name,
-            "owner": context.metadata.owner,
-            "description": context.metadata.description,
-            "language": context.metadata.language,
-            "stars": context.metadata.stars,
-            "url": context.metadata.url,
-        },
-        "tree": {
-            "entries": [
-                {"path": entry.path, "type": entry.type}
-                for entry in context.tree.entries
-            ],
-            "is_truncated": context.tree.is_truncated,
-        },
-        "configuration_files": [
-            {"path": file.path, "content": file.content}
-            for file in context.configuration_files
-        ],
-        "test_plan": {
-            "setup": {
-                "is_python_project": context.test_plan.setup.is_python_project,
-                "project_tool": context.test_plan.setup.project_tool,
-                "test_runner": context.test_plan.setup.test_runner,
-                "configuration_files": context.test_plan.setup.configuration_files,
-            },
-            "source_paths": context.test_plan.source_paths,
-            "test_paths": context.test_plan.test_paths,
-            "steps": [
-                {
-                    "action": step.action,
-                    "description": step.description,
-                    "command": step.command,
-                }
-                for step in context.test_plan.steps
-            ],
-            "is_truncated": context.test_plan.is_truncated,
-        },
-        "generation_selection": {
-            "target_path": context.generation_selection.target_path,
-            "related_test_paths": context.generation_selection.related_test_paths,
-            "configuration_paths": context.generation_selection.configuration_paths,
-            "is_truncated": context.generation_selection.is_truncated,
-        },
-    }
+    return present_repository_context(context)
 
 
 @app.post("/repository/test-run")
