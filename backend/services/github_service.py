@@ -2,7 +2,6 @@
 
 from base64 import b64decode
 from binascii import Error as Base64DecodeError
-from pathlib import PurePosixPath
 from urllib.parse import quote, urlparse
 
 from models.repository import (
@@ -21,42 +20,20 @@ from models.repository import (
     RepositoryTreeEntry,
 )
 from services.github_client import GitHubApiClient, SSL_CONTEXT
+from services.repository_analyzer import (
+    CONFIGURATION_FILENAMES,
+    EXCLUDED_SOURCE_DIRECTORY_NAMES,
+    GENERATION_CONFIGURATION_PRIORITY,
+    MAX_GENERATION_CONFIGURATION_PATHS,
+    MAX_GENERATION_TEST_PATHS,
+    RepositoryAnalyzer,
+    TEST_DIRECTORY_NAMES,
+)
 
 GITHUB_API_URL = "https://api.github.com/repos"
 MAX_TREE_ENTRIES = 500
-MAX_GENERATION_TEST_PATHS = 3
-MAX_GENERATION_CONFIGURATION_PATHS = 3
 MAX_GENERATION_FILE_BYTES = 64 * 1024
 MAX_GENERATION_CONTEXT_BYTES = 128 * 1024
-CONFIGURATION_FILENAMES = (
-    "pyproject.toml",
-    "requirements.txt",
-    "setup.cfg",
-    "setup.py",
-    "Pipfile",
-    "tox.ini",
-)
-GENERATION_CONFIGURATION_PRIORITY = (
-    "pyproject.toml",
-    "setup.cfg",
-    "tox.ini",
-    "requirements.txt",
-    "setup.py",
-    "Pipfile",
-)
-TEST_DIRECTORY_NAMES = {"test", "tests"}
-EXCLUDED_SOURCE_DIRECTORY_NAMES = {
-    ".venv",
-    "build",
-    "dist",
-    "docs",
-    "env",
-    "example",
-    "examples",
-    "samples",
-    "site-packages",
-    "venv",
-}
 
 
 class GitHubRepositoryService:
@@ -182,28 +159,7 @@ class GitHubRepositoryService:
 
     def _identify_likely_paths(self, tree: RepositoryTree) -> RepositoryPaths:
         """Identify likely Python paths from an already fetched tree."""
-        python_file_paths = [
-            entry.path
-            for entry in tree.entries
-            if entry.type == "blob" and entry.path.endswith(".py")
-        ]
-        test_paths = [
-            path
-            for path in python_file_paths
-            if self._is_test_path(path)
-            and PurePosixPath(path).name not in {"__init__.py", "__main__.py"}
-        ]
-        source_paths = [
-            path
-            for path in python_file_paths
-            if not self._is_test_path(path) and self._is_source_path(path)
-        ]
-
-        return RepositoryPaths(
-            source_paths=source_paths,
-            test_paths=test_paths,
-            is_truncated=tree.is_truncated,
-        )
+        return RepositoryAnalyzer.identify_likely_paths(tree)
 
     def detect_python_project_setup(self, repository_url: str) -> PythonProjectSetup:
         """Recognize Python tooling from the repository's available configuration files."""
@@ -215,16 +171,7 @@ class GitHubRepositoryService:
         self, configuration_files: list[RepositoryConfigurationFile]
     ) -> PythonProjectSetup:
         """Recognize Python tooling from already fetched configuration files."""
-        contents_by_path = {
-            file.path: file.content.lower() for file in configuration_files
-        }
-
-        return PythonProjectSetup(
-            is_python_project=bool(configuration_files),
-            project_tool=self._detect_project_tool(contents_by_path),
-            test_runner=self._detect_test_runner(contents_by_path),
-            configuration_files=[file.path for file in configuration_files],
-        )
+        return RepositoryAnalyzer.detect_python_project_setup(configuration_files)
 
     def generate_test_plan(self, repository_url: str) -> RepositoryTestPlan:
         """Build a test plan from available configuration and repository-path evidence."""
@@ -334,71 +281,14 @@ class GitHubRepositoryService:
         configuration_files: list[RepositoryConfigurationFile],
     ) -> RepositoryGenerationSelection:
         """Select one source target and a small, deterministic context set."""
-        preferred_targets = [
-            path
-            for path in paths.source_paths
-            if PurePosixPath(path).name not in {"__init__.py", "__main__.py"}
-        ]
-        target_candidates = preferred_targets or paths.source_paths
-        target_path = (
-            min(
-                target_candidates,
-                key=lambda path: (
-                    not any(
-                        GitHubRepositoryService._is_direct_test_for_source(
-                            test_path, path
-                        )
-                        for test_path in paths.test_paths
-                    ),
-                    len(PurePosixPath(path).parts),
-                    path.lower(),
-                ),
-            )
-            if target_candidates
-            else None
-        )
-
-        related_test_paths: list[str] = []
-        if target_path is not None:
-            related_test_paths = sorted(
-                paths.test_paths,
-                key=lambda path: (
-                    not GitHubRepositoryService._is_direct_test_for_source(
-                        path, target_path
-                    ),
-                    len(PurePosixPath(path).parts),
-                    path.lower(),
-                ),
-            )[:MAX_GENERATION_TEST_PATHS]
-
-        available_configuration_paths = {
-            file.path for file in configuration_files
-        }
-        ordered_configuration_paths = [
-            path
-            for path in GENERATION_CONFIGURATION_PRIORITY
-            if path in available_configuration_paths
-        ]
-        configuration_paths = ordered_configuration_paths[
-            :MAX_GENERATION_CONFIGURATION_PATHS
-        ]
-
-        return RepositoryGenerationSelection(
-            target_path=target_path,
-            related_test_paths=related_test_paths,
-            configuration_paths=configuration_paths,
-            is_truncated=paths.is_truncated,
+        return RepositoryAnalyzer.select_generation_context(
+            paths, configuration_files
         )
 
     @staticmethod
     def _is_direct_test_for_source(test_path: str, source_path: str) -> bool:
         """Match standard test filenames to a Python source filename."""
-        source_stem = PurePosixPath(source_path).stem.lower()
-        test_filename = PurePosixPath(test_path).name.lower()
-        return test_filename in {
-            f"test_{source_stem}.py",
-            f"{source_stem}_test.py",
-        }
+        return RepositoryAnalyzer.is_direct_test_for_source(test_path, source_path)
 
     def _fetch_repository_data(self, owner: str, repository: str) -> dict[str, object]:
         """Fetch repository data and reject private repositories."""
@@ -470,158 +360,39 @@ class GitHubRepositoryService:
     @staticmethod
     def _is_test_path(path: str) -> bool:
         """Recognize common Python test file and directory conventions."""
-        path_parts = PurePosixPath(path).parts
-        filename = path_parts[-1]
-
-        return (
-            bool(TEST_DIRECTORY_NAMES.intersection(path_parts[:-1]))
-            or filename.startswith("test_")
-            or filename.endswith("_test.py")
-            or filename in {"test.py", "tests.py"}
-        )
+        return RepositoryAnalyzer.is_test_path(path)
 
     @staticmethod
     def _is_source_path(path: str) -> bool:
         """Exclude generated environments and Python configuration files from source paths."""
-        path_parts = PurePosixPath(path).parts
-
-        return (
-            not EXCLUDED_SOURCE_DIRECTORY_NAMES.intersection(path_parts[:-1])
-            and (len(path_parts) > 1 or path_parts[-1] not in CONFIGURATION_FILENAMES)
-        )
+        return RepositoryAnalyzer.is_source_path(path)
 
     @staticmethod
     def _detect_project_tool(contents_by_path: dict[str, str]) -> str | None:
         """Recognize common Python dependency and build tools from configuration."""
-        pyproject_content = contents_by_path.get("pyproject.toml", "")
-
-        if "[tool.poetry]" in pyproject_content or "poetry-core" in pyproject_content:
-            return "poetry"
-        if "[tool.pdm]" in pyproject_content:
-            return "pdm"
-        if "[tool.hatch" in pyproject_content:
-            return "hatch"
-        if "Pipfile" in contents_by_path:
-            return "pipenv"
-        if (
-            "setup.cfg" in contents_by_path
-            or "setup.py" in contents_by_path
-            or "setuptools" in pyproject_content
-        ):
-            return "setuptools"
-        if "requirements.txt" in contents_by_path:
-            return "pip"
-
-        return None
+        return RepositoryAnalyzer.detect_project_tool(contents_by_path)
 
     @staticmethod
     def _detect_test_runner(contents_by_path: dict[str, str]) -> str | None:
         """Recognize configured Python test runners."""
-        configuration_contents = "\n".join(contents_by_path.values())
-
-        if "tox.ini" in contents_by_path:
-            return "tox"
-        if (
-            "[tool.pytest" in configuration_contents
-            or "[pytest]" in configuration_contents
-            or "pytest" in configuration_contents
-        ):
-            return "pytest"
-
-        return None
+        return RepositoryAnalyzer.detect_test_runner(contents_by_path)
 
     @staticmethod
     def _build_test_plan_steps(
         setup: PythonProjectSetup, paths: RepositoryPaths
     ) -> list[RepositoryTestPlanStep]:
         """Create concise next steps without running repository code."""
-        if not setup.is_python_project:
-            return [
-                RepositoryTestPlanStep(
-                    action="confirm_project_type",
-                    description="No supported Python configuration files were found.",
-                    command=None,
-                )
-            ]
-
-        steps = [
-            RepositoryTestPlanStep(
-                action="prepare_environment",
-                description=(
-                    f"Prepare dependencies with {setup.project_tool}."
-                    if setup.project_tool
-                    else "Review the configuration files before preparing dependencies."
-                ),
-                command=GitHubRepositoryService._installation_command(
-                    setup.project_tool
-                ),
-            )
-        ]
-
-        if setup.test_runner:
-            steps.append(
-                RepositoryTestPlanStep(
-                    action="run_existing_tests",
-                    description=f"Run the existing {setup.test_runner} test suite.",
-                    command=GitHubRepositoryService._test_command(
-                        setup.project_tool, setup.test_runner
-                    ),
-                )
-            )
-        elif paths.test_paths:
-            steps.append(
-                RepositoryTestPlanStep(
-                    action="confirm_test_runner",
-                    description="Review the existing test files to determine their runner.",
-                    command=None,
-                )
-            )
-
-        if paths.source_paths:
-            steps.append(
-                RepositoryTestPlanStep(
-                    action="review_source_coverage",
-                    description=(
-                        f"Review {len(paths.source_paths)} likely source files against "
-                        f"{len(paths.test_paths)} existing test files."
-                    ),
-                    command=None,
-                )
-            )
-
-        if paths.is_truncated:
-            steps.append(
-                RepositoryTestPlanStep(
-                    action="expand_repository_context",
-                    description="The repository tree is incomplete; inspect additional paths before testing.",
-                    command=None,
-                )
-            )
-
-        return steps
+        return RepositoryAnalyzer.build_test_plan_steps(setup, paths)
 
     @staticmethod
     def _installation_command(project_tool: str | None) -> str | None:
         """Return a conservative dependency-install command for a recognized tool."""
-        return {
-            "poetry": "poetry install",
-            "pdm": "pdm install",
-            "pipenv": "pipenv install --dev",
-            "pip": "pip install -r requirements.txt",
-            "setuptools": "pip install -e .",
-        }.get(project_tool)
+        return RepositoryAnalyzer.installation_command(project_tool)
 
     @staticmethod
     def _test_command(project_tool: str | None, test_runner: str) -> str:
         """Return a test command that uses a managed environment when needed."""
-        environment_commands = {
-            "poetry": "poetry run",
-            "pdm": "pdm run",
-            "pipenv": "pipenv run",
-        }
-        prefix = environment_commands.get(project_tool)
-
-        return f"{prefix} {test_runner}" if prefix else test_runner
+        return RepositoryAnalyzer.test_command(project_tool, test_runner)
 
     def _request_json(self, url: str) -> dict[str, object]:
         """Delegate a GitHub JSON request to the transport client."""
