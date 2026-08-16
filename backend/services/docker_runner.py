@@ -1,7 +1,6 @@
 """Run generated and repository Python commands in isolated Docker containers."""
 
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
 import os
 from pathlib import Path
 import re
@@ -9,6 +8,7 @@ import subprocess
 import tempfile
 from uuid import uuid4
 
+from models.execution import RepositoryTestResults, TestExecutionResult
 from services.docker_commands import DockerCommandBuilder
 from services.repository_dependencies import (
     PROJECT_CONFIGURATION_READ_LIMIT,
@@ -34,24 +34,6 @@ MAX_CAPTURED_OUTPUT_CHARACTERS = 50_000
 REPOSITORY_TOX_DIRECTORY = ".verix-tox"
 TOX_ENVIRONMENT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 TOX_PYTHON_ENVIRONMENT_PATTERN = re.compile(r"^(?:py(?:\d|$)|pypy\d)")
-
-
-@dataclass
-class TestExecutionResult:
-    """The captured result of an isolated container command."""
-
-    return_code: int | None
-    output: str
-    timed_out: bool = False
-    skipped: bool = False
-
-
-@dataclass
-class RepositoryTestResults:
-    """Keep original repository results separate from Verix-generated results."""
-
-    existing: TestExecutionResult
-    generated: TestExecutionResult
 
 
 class DockerTestRunner:
