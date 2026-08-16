@@ -267,4 +267,6 @@ The frontend uses `NEXT_PUBLIC_API_URL` and defaults to `http://localhost:8000`.
 
 ## Next evolution
 
-V0.9 will classify repository workflow outcomes and use bounded execution evidence to explain failures. It will not automatically modify code, retry, or apply fixes. Approval-based patches and verification remain V1.0 work.
+V0.9 will classify repository workflow outcomes, including the case where no existing tests are found, and use bounded execution evidence to explain failures. It will pin repository evidence and execution to one commit revision, but will not automatically modify code, retry, or apply fixes.
+
+V0.10 will add validated user control over the repository commit, subdirectory, and Python source target, while keeping the selected context and executed archive on the same revision. Approval-based patches and verification remain V1.0 work.

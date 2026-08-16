@@ -305,7 +305,16 @@ Repository source and test contents are sent to Gemini only after the user expli
 
 - Agentic investigation and explanation
 - Plan, generate, execute, and investigate using structured evidence
-- Explain failures and distinguish setup issues from code bugs
+- Classify setup failures, no-existing-tests results, existing-test failures, generated-test failures, and timeouts
+- Explain failures and distinguish setup issues from code bugs without proposing fixes yet
+- Pin repository evidence and execution to one commit revision
+
+## V0.10
+
+- Repository targeting and user control
+- Select a branch or commit, a repository subdirectory, and a Python source target
+- Preview the bounded context that will be sent to Gemini
+- Keep selected context, downloaded archive, generated tests, and execution results on the same repository revision
 
 ## V1.0
 

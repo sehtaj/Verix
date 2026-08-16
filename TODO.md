@@ -120,9 +120,9 @@
 
 ## V0.9
 
-- [ ] Define structured repository workflow outcomes and bounded investigation evidence
+- [ ] Define structured repository workflow outcomes and bounded investigation evidence, including no-existing-tests results
 - [ ] Pin repository context and execution archives to one commit revision
-- [ ] Classify setup failures, existing-suite failures, generated-suite failures, and timeouts
+- [ ] Classify setup failures, no-existing-tests results, existing-suite failures, generated-suite failures, and timeouts
 - [ ] Build an evidence-grounded repository investigation prompt
 - [ ] Generate a bounded failure explanation with Gemini
 - [ ] Coordinate one plan-generate-execute-investigate pass without automatic retries or fixes
@@ -134,9 +134,23 @@
 
 ---
 
+## V0.10
+
+- [ ] Define safe repository reference, subdirectory, and source-target selection inputs
+- [ ] Fetch GitHub context and archives from the selected commit revision
+- [ ] Support validated repository subdirectory selection
+- [ ] Support validated manual Python source-target selection
+- [ ] Preview the selected repository target and bounded Gemini context in the frontend
+- [ ] Propagate the selected target through generation and isolated execution
+- [ ] Add deterministic regression tests for repository targeting
+- [ ] Test the complete V0.10 flow
+- [ ] Update documentation during the V0.10 Review Phase
+
+---
+
 ## Current Task
 
-**Define structured repository workflow outcomes and bounded investigation evidence**
+**Define structured repository workflow outcomes and bounded investigation evidence, including no-existing-tests results**
 
 ---
 
