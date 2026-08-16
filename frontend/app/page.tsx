@@ -2,73 +2,21 @@
 
 import { FormEvent, useState } from "react";
 
-type TestExecution = {
-  return_code: number | null;
-  output: string;
-  timed_out: boolean;
-};
-
-type RepositoryMetadata = {
-  name: string;
-  owner: string;
-  description: string | null;
-  language: string | null;
-  stars: number;
-  url: string;
-};
-
-type RepositoryTree = {
-  entries: Array<{ path: string; type: string }>;
-  is_truncated: boolean;
-};
-
-type RepositoryTestPlan = {
-  setup: {
-    is_python_project: boolean;
-    project_tool: string | null;
-    test_runner: string | null;
-    configuration_files: string[];
-  };
-  source_paths: string[];
-  test_paths: string[];
-  steps: Array<{
-    action: string;
-    description: string;
-    command: string | null;
-  }>;
-  is_truncated: boolean;
-};
-
-type RepositoryContext = {
-  metadata: RepositoryMetadata;
-  tree: RepositoryTree;
-  test_plan: RepositoryTestPlan;
-};
-
-type RepositoryPreparation = {
-  file_count: number;
-  total_bytes: number;
-  skipped_entries: number;
-};
-
-type RepositoryExecution = TestExecution & { skipped: boolean };
-
-type RepositoryTestRun = {
-  preparation: RepositoryPreparation;
-  installation: RepositoryExecution;
-  test_runner: string;
-  execution: RepositoryExecution;
-};
-
-type RepositoryGenerationRun = {
-  target_path: string;
-  generated_tests: string;
-  preparation: RepositoryPreparation;
-  installation: RepositoryExecution;
-  test_runner: string;
-  existing_execution: RepositoryExecution;
-  generated_execution: RepositoryExecution;
-};
+import {
+  fetchRepositoryContext,
+  generatePastedCodeTests,
+  generateRepositoryTests,
+  runRepositoryTests,
+} from "../lib/api";
+import type {
+  RepositoryExecution,
+  RepositoryGenerationRun,
+  RepositoryMetadata,
+  RepositoryTestPlan,
+  RepositoryTestRun,
+  RepositoryTree,
+  TestExecution,
+} from "../types/api";
 
 function executionStatusClass(execution: RepositoryExecution): string {
   if (execution.skipped) {
@@ -79,8 +27,6 @@ function executionStatusClass(execution: RepositoryExecution): string {
   }
   return "execution-status passed";
 }
-
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 function isPublicGitHubRepositoryUrl(value: string): boolean {
   try {
@@ -146,16 +92,7 @@ export default function Home() {
     setRepositoryGenerationError(null);
 
     try {
-      const response = await fetch(`${apiUrl}/repository/context`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: repositoryUrl }),
-      });
-      const context: RepositoryContext | { detail: string } = await response.json();
-
-      if (!response.ok || !("metadata" in context)) {
-        throw new Error("detail" in context ? context.detail : "The request failed.");
-      }
+      const context = await fetchRepositoryContext(repositoryUrl);
 
       setRepository(context.metadata);
       setRepositoryTree(context.tree);
@@ -182,16 +119,7 @@ export default function Home() {
     setRepositoryGenerationRun(null);
 
     try {
-      const response = await fetch(`${apiUrl}/repository/test-run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: repository.url }),
-      });
-      const result: RepositoryTestRun | { detail: string } = await response.json();
-
-      if (!response.ok || !("execution" in result)) {
-        throw new Error("detail" in result ? result.detail : "The test run failed.");
-      }
+      const result = await runRepositoryTests(repository.url);
 
       setRepositoryTestRun(result);
     } catch (error) {
@@ -220,16 +148,7 @@ export default function Home() {
     setRepositoryTestRun(null);
 
     try {
-      const response = await fetch(`${apiUrl}/repository/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: repository.url }),
-      });
-      const result: RepositoryGenerationRun | { detail: string } = await response.json();
-
-      if (!response.ok || !("generated_execution" in result)) {
-        throw new Error("detail" in result ? result.detail : "Test generation failed.");
-      }
+      const result = await generateRepositoryTests(repository.url);
 
       setRepositoryGenerationRun(result);
     } catch (error) {
@@ -257,17 +176,7 @@ export default function Home() {
     setExecution(null);
 
     try {
-      const response = await fetch(`${apiUrl}/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
-
-      if (!response.ok) {
-        throw new Error("The request failed.");
-      }
-
-      const result: { tests: string; execution: TestExecution } = await response.json();
+      const result = await generatePastedCodeTests(code);
       setTests(result.tests);
       setExecution(result.execution);
     } catch {
