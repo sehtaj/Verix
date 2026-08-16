@@ -3,13 +3,16 @@
 import { FormEvent, useState } from "react";
 
 import {
+  RepositoryGenerationResult,
+  RepositoryTestRunResult,
+} from "../components/repository-execution-results";
+import {
   fetchRepositoryContext,
   generatePastedCodeTests,
   generateRepositoryTests,
   runRepositoryTests,
 } from "../lib/api";
 import type {
-  RepositoryExecution,
   RepositoryGenerationRun,
   RepositoryMetadata,
   RepositoryTestPlan,
@@ -17,16 +20,6 @@ import type {
   RepositoryTree,
   TestExecution,
 } from "../types/api";
-
-function executionStatusClass(execution: RepositoryExecution): string {
-  if (execution.skipped) {
-    return "execution-status skipped";
-  }
-  if (execution.timed_out || execution.return_code !== 0) {
-    return "execution-status failed";
-  }
-  return "execution-status passed";
-}
 
 function isPublicGitHubRepositoryUrl(value: string): boolean {
   try {
@@ -342,137 +335,10 @@ export default function Home() {
           </section>
         )}
         {repositoryTestRun !== null && (
-          <section className="result repository-test-result" aria-live="polite">
-            <h2>Repository test execution</h2>
-            <dl className="plan-summary">
-              <div>
-                <dt>Test runner</dt>
-                <dd>{repositoryTestRun.test_runner}</dd>
-              </div>
-              <div>
-                <dt>Prepared files</dt>
-                <dd>{repositoryTestRun.preparation.file_count}</dd>
-              </div>
-              <div>
-                <dt>Prepared size</dt>
-                <dd>{repositoryTestRun.preparation.total_bytes} bytes</dd>
-              </div>
-              <div>
-                <dt>Skipped archive entries</dt>
-                <dd>{repositoryTestRun.preparation.skipped_entries}</dd>
-              </div>
-            </dl>
-
-            <h3>Dependency installation</h3>
-            <p
-              className={executionStatusClass(repositoryTestRun.installation)}
-              role="status"
-            >
-              {repositoryTestRun.installation.skipped
-                ? "No dependency installation was required."
-                : repositoryTestRun.installation.timed_out
-                  ? "Dependency installation timed out."
-                  : repositoryTestRun.installation.return_code === 0
-                    ? "Dependencies prepared successfully."
-                    : "Dependency installation failed."}
-            </p>
-            <pre>{repositoryTestRun.installation.output || "No installation output."}</pre>
-
-            <h3>Existing test suite</h3>
-            <p
-              className={executionStatusClass(repositoryTestRun.execution)}
-              role="status"
-            >
-              {repositoryTestRun.execution.skipped
-                ? "Test execution was skipped."
-                : repositoryTestRun.execution.timed_out
-                  ? "Repository tests timed out."
-                  : repositoryTestRun.execution.return_code === 0
-                    ? "Repository tests passed."
-                    : "Repository tests failed."}
-            </p>
-            <pre>{repositoryTestRun.execution.output || "No test output."}</pre>
-          </section>
+          <RepositoryTestRunResult result={repositoryTestRun} />
         )}
         {repositoryGenerationRun !== null && (
-          <section className="result repository-test-result" aria-live="polite">
-            <h2>Generated repository tests</h2>
-            <p>
-              Selected source: <code>{repositoryGenerationRun.target_path}</code>
-            </p>
-            <dl className="plan-summary">
-              <div>
-                <dt>Existing test runner</dt>
-                <dd>{repositoryGenerationRun.test_runner}</dd>
-              </div>
-              <div>
-                <dt>Prepared files</dt>
-                <dd>{repositoryGenerationRun.preparation.file_count}</dd>
-              </div>
-              <div>
-                <dt>Prepared size</dt>
-                <dd>{repositoryGenerationRun.preparation.total_bytes} bytes</dd>
-              </div>
-              <div>
-                <dt>Skipped archive entries</dt>
-                <dd>{repositoryGenerationRun.preparation.skipped_entries}</dd>
-              </div>
-            </dl>
-
-            <h3>Generated pytest code</h3>
-            <pre>{repositoryGenerationRun.generated_tests}</pre>
-
-            <h3>Dependency installation</h3>
-            <p
-              className={executionStatusClass(repositoryGenerationRun.installation)}
-              role="status"
-            >
-              {repositoryGenerationRun.installation.skipped
-                ? "No dependency installation was required."
-                : repositoryGenerationRun.installation.timed_out
-                  ? "Dependency installation timed out."
-                  : repositoryGenerationRun.installation.return_code === 0
-                    ? "Dependencies prepared successfully."
-                    : "Dependency installation failed."}
-            </p>
-            <pre>{repositoryGenerationRun.installation.output || "No installation output."}</pre>
-
-            <h3>Original repository test suite</h3>
-            <p
-              className={executionStatusClass(repositoryGenerationRun.existing_execution)}
-              role="status"
-            >
-              {repositoryGenerationRun.existing_execution.skipped
-                ? "Original repository tests were skipped."
-                : repositoryGenerationRun.existing_execution.timed_out
-                  ? "Original repository tests timed out."
-                  : repositoryGenerationRun.existing_execution.return_code === 0
-                    ? "Original repository tests passed."
-                    : "Original repository tests failed."}
-            </p>
-            <pre>
-              {repositoryGenerationRun.existing_execution.output ||
-                "No original test output."}
-            </pre>
-
-            <h3>Verix-generated test suite</h3>
-            <p
-              className={executionStatusClass(repositoryGenerationRun.generated_execution)}
-              role="status"
-            >
-              {repositoryGenerationRun.generated_execution.skipped
-                ? "Generated tests were skipped."
-                : repositoryGenerationRun.generated_execution.timed_out
-                  ? "Generated tests timed out."
-                  : repositoryGenerationRun.generated_execution.return_code === 0
-                    ? "Generated tests passed."
-                    : "Generated tests failed."}
-            </p>
-            <pre>
-              {repositoryGenerationRun.generated_execution.output ||
-                "No generated test output."}
-            </pre>
-          </section>
+          <RepositoryGenerationResult result={repositoryGenerationRun} />
         )}
         <form className="code-generator" onSubmit={handleSubmit}>
           <label htmlFor="code">Python code</label>
