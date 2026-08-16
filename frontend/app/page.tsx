@@ -7,6 +7,11 @@ import {
   RepositoryTestRunResult,
 } from "../components/repository-execution-results";
 import {
+  RepositorySummary,
+  RepositoryTestPlanPanel,
+  RepositoryTreeView,
+} from "../components/repository-inspection";
+import {
   fetchRepositoryContext,
   generatePastedCodeTests,
   generateRepositoryTests,
@@ -217,122 +222,22 @@ export default function Home() {
           )}
         </form>
         {repository !== null && (
-          <section className="result">
-            <h2>Selected repository</h2>
-            <p>
-              <a href={repository.url} rel="noreferrer" target="_blank">
-                {repository.owner}/{repository.name}
-              </a>
-            </p>
-            <p>{repository.description ?? "No description provided."}</p>
-            <p>Primary language: {repository.language ?? "Not specified"}</p>
-            <p>Stars: {repository.stars}</p>
-          </section>
+          <RepositorySummary repository={repository} />
         )}
         {repositoryTree !== null && (
-          <section className="result">
-            <h2>Repository file structure</h2>
-            <p className="field-hint">
-              {repositoryTree.is_truncated
-                ? `Showing the first ${repositoryTree.entries.length} entries.`
-                : `${repositoryTree.entries.length} entries.`}
-            </p>
-            <ul className="file-tree">
-              {repositoryTree.entries.map((entry) => (
-                <li
-                  key={`${entry.type}-${entry.path}`}
-                  style={{ paddingLeft: `${entry.path.split("/").length - 1}rem` }}
-                >
-                  <span aria-hidden="true">{entry.type === "tree" ? "📁" : "📄"}</span> {entry.path}
-                </li>
-              ))}
-            </ul>
-          </section>
+          <RepositoryTreeView tree={repositoryTree} />
         )}
         {repositoryTestPlan !== null && (
-          <section className="result">
-            <h2>Repository test plan</h2>
-            <dl className="plan-summary">
-              <div>
-                <dt>Python project</dt>
-                <dd>{repositoryTestPlan.setup.is_python_project ? "Yes" : "Not detected"}</dd>
-              </div>
-              <div>
-                <dt>Project tool</dt>
-                <dd>{repositoryTestPlan.setup.project_tool ?? "Not detected"}</dd>
-              </div>
-              <div>
-                <dt>Test runner</dt>
-                <dd>{repositoryTestPlan.setup.test_runner ?? "Not detected"}</dd>
-              </div>
-              <div>
-                <dt>Likely source files</dt>
-                <dd>{repositoryTestPlan.source_paths.length}</dd>
-              </div>
-              <div>
-                <dt>Existing test files</dt>
-                <dd>{repositoryTestPlan.test_paths.length}</dd>
-              </div>
-            </dl>
-            {repositoryTestPlan.is_truncated && (
-              <p className="warning">The repository tree is incomplete, so this plan may miss files.</p>
-            )}
-            <ol className="test-plan">
-              {repositoryTestPlan.steps.map((step) => (
-                <li key={step.action}>
-                  <strong>{step.action.replaceAll("_", " ")}</strong>
-                  <p>{step.description}</p>
-                  {step.command && <code>{step.command}</code>}
-                </li>
-              ))}
-            </ol>
-            <div className="test-run-action">
-              <p>
-                Run the repository&apos;s existing tests in Docker. Dependencies may be downloaded
-                during setup; test execution itself has no network access.
-              </p>
-              <button
-                disabled={
-                  isRepositoryTestRunning ||
-                  isRepositoryLoading ||
-                  isRepositoryGenerationRunning
-                }
-                onClick={handleRepositoryTestRun}
-                type="button"
-              >
-                {isRepositoryTestRunning ? "Running repository tests..." : "Run repository tests"}
-              </button>
-              {repositoryTestError && (
-                <p className="error" role="alert">
-                  {repositoryTestError}
-                </p>
-              )}
-            </div>
-            <div className="test-run-action">
-              <p>
-                Ask Gemini to create focused pytest tests for one selected source file, then run
-                the original and generated tests separately in Docker.
-              </p>
-              <button
-                disabled={
-                  isRepositoryGenerationRunning ||
-                  isRepositoryLoading ||
-                  isRepositoryTestRunning
-                }
-                onClick={handleRepositoryGeneration}
-                type="button"
-              >
-                {isRepositoryGenerationRunning
-                  ? "Generating and running tests..."
-                  : "Generate repository tests"}
-              </button>
-              {repositoryGenerationError && (
-                <p className="error" role="alert">
-                  {repositoryGenerationError}
-                </p>
-              )}
-            </div>
-          </section>
+          <RepositoryTestPlanPanel
+            plan={repositoryTestPlan}
+            isRepositoryLoading={isRepositoryLoading}
+            isRepositoryTestRunning={isRepositoryTestRunning}
+            isRepositoryGenerationRunning={isRepositoryGenerationRunning}
+            repositoryTestError={repositoryTestError}
+            repositoryGenerationError={repositoryGenerationError}
+            onRunRepositoryTests={handleRepositoryTestRun}
+            onGenerateRepositoryTests={handleRepositoryGeneration}
+          />
         )}
         {repositoryTestRun !== null && (
           <RepositoryTestRunResult result={repositoryTestRun} />
