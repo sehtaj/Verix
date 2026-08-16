@@ -8,6 +8,7 @@ from services.github_service import GitHubRepositoryService
 from services.llm_service import GeminiLLMService
 from services.repository_preparer import PublicRepositoryPreparer
 from services.docker_runner import DockerTestRunner, GeneratedTestsValidationError
+from workflows.repository_execution import RepositoryExecutionWorkflow
 
 
 app = FastAPI(title="Verix API")
@@ -278,42 +279,8 @@ def get_repository_context(request: RepositoryRequest) -> dict[str, object]:
 def run_repository_test_suite(request: RepositoryRequest) -> dict[str, object]:
     """Prepare a public Python repository and return its isolated test results."""
     try:
-        with repository_preparer.prepare(request.url) as prepared_repository:
-            preparation = {
-                "file_count": prepared_repository.file_count,
-                "total_bytes": prepared_repository.total_bytes,
-                "skipped_entries": prepared_repository.skipped_entries,
-            }
-            with test_runner.repository_workspace(
-                prepared_repository.path
-            ) as workspace_path:
-                selected_runner = test_runner.select_repository_test_runner(
-                    workspace_path
-                )
-                installation = test_runner.install_repository_dependencies(
-                    workspace_path
-                )
-
-                if installation.return_code != 0 or installation.timed_out:
-                    execution = {
-                        "return_code": None,
-                        "output": (
-                            "Repository tests were not run because dependency "
-                            "installation failed."
-                        ),
-                        "timed_out": False,
-                        "skipped": True,
-                    }
-                else:
-                    test_execution = test_runner.run_repository_tests(
-                        workspace_path, selected_runner
-                    )
-                    execution = {
-                        "return_code": test_execution.return_code,
-                        "output": test_execution.output,
-                        "timed_out": test_execution.timed_out,
-                        "skipped": False,
-                    }
+        workflow = RepositoryExecutionWorkflow(repository_preparer, test_runner)
+        return workflow.run_existing_tests(request.url)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
     except RuntimeError:
@@ -321,18 +288,6 @@ def run_repository_test_suite(request: RepositoryRequest) -> dict[str, object]:
             status_code=502,
             detail="Unable to prepare or test the repository. Please try again.",
         ) from None
-
-    return {
-        "preparation": preparation,
-        "installation": {
-            "return_code": installation.return_code,
-            "output": installation.output,
-            "timed_out": installation.timed_out,
-            "skipped": installation.skipped,
-        },
-        "test_runner": selected_runner,
-        "execution": execution,
-    }
 
 
 @app.post("/repository/generate")
@@ -380,60 +335,12 @@ def generate_repository_test_suite(
         ) from None
 
     try:
-        with repository_preparer.prepare(request.url) as prepared_repository:
-            preparation = {
-                "file_count": prepared_repository.file_count,
-                "total_bytes": prepared_repository.total_bytes,
-                "skipped_entries": prepared_repository.skipped_entries,
-            }
-            with test_runner.repository_workspace(
-                prepared_repository.path
-            ) as workspace_path:
-                selected_runner = test_runner.select_repository_test_runner(
-                    workspace_path
-                )
-                installation = test_runner.install_repository_dependencies(
-                    workspace_path
-                )
-
-                if installation.return_code != 0 or installation.timed_out:
-                    existing_execution = {
-                        "return_code": None,
-                        "output": (
-                            "Existing repository tests were not run because dependency "
-                            "installation failed."
-                        ),
-                        "timed_out": False,
-                        "skipped": True,
-                    }
-                    generated_execution = {
-                        "return_code": None,
-                        "output": (
-                            "Generated repository tests were not run because dependency "
-                            "installation failed."
-                        ),
-                        "timed_out": False,
-                        "skipped": True,
-                    }
-                else:
-                    test_results = test_runner.run_repository_test_sets(
-                        workspace_path,
-                        target_path,
-                        generated_tests,
-                        selected_runner,
-                    )
-                    existing_execution = {
-                        "return_code": test_results.existing.return_code,
-                        "output": test_results.existing.output,
-                        "timed_out": test_results.existing.timed_out,
-                        "skipped": test_results.existing.skipped,
-                    }
-                    generated_execution = {
-                        "return_code": test_results.generated.return_code,
-                        "output": test_results.generated.output,
-                        "timed_out": test_results.generated.timed_out,
-                        "skipped": test_results.generated.skipped,
-                    }
+        workflow = RepositoryExecutionWorkflow(repository_preparer, test_runner)
+        execution_results = workflow.run_existing_and_generated_tests(
+            request.url,
+            target_path,
+            generated_tests,
+        )
     except GeneratedTestsValidationError:
         raise HTTPException(
             status_code=502,
@@ -450,14 +357,5 @@ def generate_repository_test_suite(
     return {
         "target_path": target_path,
         "generated_tests": generated_tests,
-        "preparation": preparation,
-        "installation": {
-            "return_code": installation.return_code,
-            "output": installation.output,
-            "timed_out": installation.timed_out,
-            "skipped": installation.skipped,
-        },
-        "test_runner": selected_runner,
-        "existing_execution": existing_execution,
-        "generated_execution": generated_execution,
+        **execution_results,
     }
