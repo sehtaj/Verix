@@ -6,7 +6,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
 
-from services.github_service import RepositoryGenerationContext
+from models.repository import RepositoryGenerationContext
 from services.repository_prompt import build_repository_test_prompt
 
 
