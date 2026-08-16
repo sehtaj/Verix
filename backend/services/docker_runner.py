@@ -3,7 +3,6 @@
 from contextlib import AbstractContextManager
 import os
 from pathlib import Path
-import re
 import subprocess
 import tempfile
 from uuid import uuid4
@@ -16,6 +15,11 @@ from services.repository_dependencies import (
     REQUIREMENTS_FILENAMES,
     REPOSITORY_VENV_DIRECTORY,
     RepositoryDependencyPlanner,
+)
+from services.repository_test_commands import (
+    TOX_ENVIRONMENT_NAME_PATTERN,
+    TOX_PYTHON_ENVIRONMENT_PATTERN,
+    RepositoryTestCommandPlanner,
 )
 from services.repository_workspace import (
     GENERATED_TEST_DIRECTORY,
@@ -33,8 +37,6 @@ DEPENDENCY_INSTALL_TIMEOUT_SECONDS = 180
 REPOSITORY_TEST_TIMEOUT_SECONDS = 60
 MAX_CAPTURED_OUTPUT_CHARACTERS = 50_000
 REPOSITORY_TOX_DIRECTORY = ".verix-tox"
-TOX_ENVIRONMENT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
-TOX_PYTHON_ENVIRONMENT_PATTERN = re.compile(r"^(?:py(?:\d|$)|pypy\d)")
 
 
 class DockerTestRunner:
@@ -45,6 +47,7 @@ class DockerTestRunner:
         timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
         workspace_manager: RepositoryWorkspaceManager | None = None,
         dependency_planner: RepositoryDependencyPlanner | None = None,
+        test_command_planner: RepositoryTestCommandPlanner | None = None,
     ) -> None:
         self.timeout_seconds = timeout_seconds
         self.workspace_manager = (
@@ -56,6 +59,11 @@ class DockerTestRunner:
             dependency_planner
             if dependency_planner is not None
             else RepositoryDependencyPlanner()
+        )
+        self.test_command_planner = (
+            test_command_planner
+            if test_command_planner is not None
+            else RepositoryTestCommandPlanner()
         )
 
     def run_tests(self, code: str, tests: str) -> TestExecutionResult:
@@ -148,22 +156,13 @@ class DockerTestRunner:
         python_command, environment = self._repository_python_environment(
             workspace_path
         )
-        generated_test_argument = (
-            f"/workspace/{GENERATED_TEST_DIRECTORY}/{GENERATED_TEST_FILENAME}"
-        )
+        tox_environment: str | None = None
         if selected_runner == "tox":
             list_result = self.run_repository_command(
                 workspace_path,
-                [
-                    python_command,
-                    "-m",
-                    "tox",
-                    "list",
-                    "--workdir",
-                    "/tox-work",
-                    "--no-desc",
-                    "-d",
-                ],
+                self.test_command_planner.build_tox_environment_list_command(
+                    python_command
+                ),
                 allow_network=False,
                 environment=environment,
                 workspace_read_only=True,
@@ -172,51 +171,20 @@ class DockerTestRunner:
             if list_result.return_code != 0 or list_result.timed_out:
                 return list_result
 
-            tox_environments = [
-                line.strip()
-                for line in list_result.output.splitlines()
-                if TOX_ENVIRONMENT_NAME_PATTERN.fullmatch(line.strip())
-            ]
-            if not tox_environments:
+            tox_environment = self.test_command_planner.select_tox_environment(
+                list_result.output
+            )
+            if tox_environment is None:
                 return TestExecutionResult(
                     return_code=2,
                     output="Tox did not report a default test environment.",
                 )
-            tox_environment = next(
-                (
-                    name
-                    for name in tox_environments
-                    if TOX_PYTHON_ENVIRONMENT_PATTERN.match(name.lower())
-                ),
-                tox_environments[0],
-            )
-            command = [
-                python_command,
-                "-m",
-                "tox",
-                "exec",
-                "--workdir",
-                "/tox-work",
-                "--skip-env-install",
-                "-e",
-                tox_environment,
-                "--",
-                "python",
-                "-m",
-                "pytest",
-                "-p",
-                "no:cacheprovider",
-                generated_test_argument,
-            ]
-        else:
-            command = [
-                python_command,
-                "-m",
-                "pytest",
-                "-p",
-                "no:cacheprovider",
-                generated_test_argument,
-            ]
+
+        command = self.test_command_planner.build_generated_test_command(
+            python_command,
+            selected_runner,
+            tox_environment=tox_environment,
+        )
 
         return self.run_repository_command(
             workspace_path,
@@ -362,13 +330,9 @@ class DockerTestRunner:
             workspace_path
         )
 
-        command = [python_command, "-m", selected_runner]
-        if selected_runner == "pytest":
-            command.extend(["-p", "no:cacheprovider"])
-        else:
-            command.extend(
-                ["run", "--workdir", "/tox-work", "--skip-env-install"]
-            )
+        command = self.test_command_planner.build_existing_test_command(
+            python_command, selected_runner
+        )
 
         return self.run_repository_command(
             workspace_path,
@@ -382,22 +346,14 @@ class DockerTestRunner:
     @staticmethod
     def select_repository_test_runner(workspace_path: Path) -> str:
         """Select tox when configured and otherwise use pytest discovery."""
-        if not workspace_path.is_dir():
-            raise ValueError("Repository workspace directory does not exist.")
-        return "tox" if (workspace_path / "tox.ini").is_file() else "pytest"
+        return RepositoryTestCommandPlanner.select_test_runner(workspace_path)
 
     @staticmethod
     def _repository_python_environment(
         workspace_path: Path,
     ) -> tuple[str, dict[str, str]]:
         """Use the prepared repository environment when one is available."""
-        virtual_environment = workspace_path / REPOSITORY_VENV_DIRECTORY
-        if not virtual_environment.is_dir():
-            return "python", {}
-        return (
-            f"{REPOSITORY_VENV_DIRECTORY}/bin/python",
-            {"VIRTUAL_ENV": f"/workspace/{REPOSITORY_VENV_DIRECTORY}"},
-        )
+        return RepositoryTestCommandPlanner.python_environment(workspace_path)
 
     @staticmethod
     def _run_container(
