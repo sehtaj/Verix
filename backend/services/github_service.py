@@ -3,14 +3,10 @@
 from base64 import b64decode
 from binascii import Error as Base64DecodeError
 from dataclasses import dataclass
-import json
-import ssl
 from pathlib import PurePosixPath
-from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlparse
-from urllib.request import Request, urlopen
 
-import certifi
+from services.github_client import GitHubApiClient, SSL_CONTEXT
 
 GITHUB_API_URL = "https://api.github.com/repos"
 MAX_TREE_ENTRIES = 500
@@ -47,7 +43,6 @@ EXCLUDED_SOURCE_DIRECTORY_NAMES = {
     "site-packages",
     "venv",
 }
-SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
 
 @dataclass
@@ -180,6 +175,9 @@ class RepositoryContext:
 
 class GitHubRepositoryService:
     """Retrieve selected public information for a GitHub repository."""
+
+    def __init__(self, client: GitHubApiClient | None = None) -> None:
+        self.client = client if client is not None else GitHubApiClient()
 
     def fetch_metadata(self, repository_url: str) -> RepositoryMetadata:
         """Validate a GitHub URL and return its public repository metadata."""
@@ -739,19 +737,9 @@ class GitHubRepositoryService:
 
         return f"{prefix} {test_runner}" if prefix else test_runner
 
-    @staticmethod
-    def _request_json(url: str) -> dict[str, object]:
-        """Request JSON from GitHub's public API with safe error messages."""
-        request = Request(url, headers={"Accept": "application/vnd.github+json"})
-        try:
-            with urlopen(request, context=SSL_CONTEXT, timeout=10) as response:
-                return json.load(response)
-        except HTTPError as error:
-            if error.code == 404:
-                raise ValueError("Repository was not found or is not public.") from None
-            raise RuntimeError("GitHub could not return repository metadata.") from None
-        except URLError:
-            raise RuntimeError("GitHub could not return repository metadata.") from None
+    def _request_json(self, url: str) -> dict[str, object]:
+        """Delegate a GitHub JSON request to the transport client."""
+        return self.client.request_json(url)
 
     @staticmethod
     def _parse_repository_url(repository_url: str) -> tuple[str, str]:
