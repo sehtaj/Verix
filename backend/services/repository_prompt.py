@@ -2,7 +2,7 @@
 
 import json
 
-from services.github_service import RepositoryGenerationContext
+from models.repository import RepositoryGenerationContext
 
 
 def build_repository_test_prompt(context: RepositoryGenerationContext) -> str:

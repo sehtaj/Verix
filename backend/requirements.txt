@@ -1,6 +1,6 @@
-fastapi
-pydantic
-uvicorn
-google-genai
-python-dotenv
-certifi
+fastapi==0.141.1
+pydantic==2.13.4
+uvicorn==0.52.3
+google-genai==2.18.1
+python-dotenv==1.2.3
+certifi==2026.7.22
