@@ -2,6 +2,7 @@
 
 from base64 import b64decode
 from binascii import Error as Base64DecodeError
+import re
 from urllib.parse import quote, urlparse
 
 from models.repository import (
@@ -50,21 +51,24 @@ class GitHubRepositoryService:
         return self._build_metadata(data)
 
     def fetch_archive_reference(
-        self, repository_url: str
+        self, repository_url: str, revision: str | None = None
     ) -> RepositoryArchiveReference:
-        """Validate a public repository and return its default-branch archive URL."""
+        """Return an archive URL pinned to one validated repository revision."""
         owner, repository = self._parse_repository_url(repository_url)
-        data = self._fetch_repository_data(owner, repository)
-        default_branch = str(data["default_branch"])
+        if revision is None:
+            data = self._fetch_repository_data(owner, repository)
+            revision = self._resolve_default_branch_revision(owner, repository, data)
+        else:
+            self._validate_revision(revision)
 
         return RepositoryArchiveReference(
             owner=owner,
             repository=repository,
-            default_branch=default_branch,
+            revision=revision,
             url=(
                 f"{GITHUB_API_URL}/{quote(owner, safe='')}/"
                 f"{quote(repository, safe='')}/tarball/"
-                f"{quote(default_branch, safe='')}"
+                f"{quote(revision, safe='')}"
             ),
         )
 
@@ -84,15 +88,17 @@ class GitHubRepositoryService:
         """Return a bounded recursive tree for a public GitHub repository."""
         owner, repository = self._parse_repository_url(repository_url)
         repository_data = self._fetch_repository_data(owner, repository)
-        return self._fetch_file_tree(owner, repository, repository_data)
+        revision = self._resolve_default_branch_revision(
+            owner, repository, repository_data
+        )
+        return self._fetch_file_tree(owner, repository, revision)
 
     def _fetch_file_tree(
-        self, owner: str, repository: str, repository_data: dict[str, object]
+        self, owner: str, repository: str, revision: str
     ) -> RepositoryTree:
         """Fetch a bounded recursive tree using previously fetched repository data."""
-        branch = quote(repository_data["default_branch"], safe="")
         tree_data = self._request_json(
-            f"{GITHUB_API_URL}/{quote(owner, safe='')}/{quote(repository, safe='')}/git/trees/{branch}?recursive=1"
+            f"{GITHUB_API_URL}/{quote(owner, safe='')}/{quote(repository, safe='')}/git/trees/{quote(revision, safe='')}?recursive=1"
         )
         tree_entries = sorted(
             tree_data["tree"],
@@ -119,12 +125,15 @@ class GitHubRepositoryService:
         """Return available root-level Python configuration files from a public repository."""
         owner, repository = self._parse_repository_url(repository_url)
         repository_data = self._fetch_repository_data(owner, repository)
-        tree = self._fetch_file_tree(owner, repository, repository_data)
+        revision = self._resolve_default_branch_revision(
+            owner, repository, repository_data
+        )
+        tree = self._fetch_file_tree(owner, repository, revision)
 
-        return self._fetch_configuration_files(owner, repository, tree)
+        return self._fetch_configuration_files(owner, repository, revision, tree)
 
     def _fetch_configuration_files(
-        self, owner: str, repository: str, tree: RepositoryTree
+        self, owner: str, repository: str, revision: str, tree: RepositoryTree
     ) -> list[RepositoryConfigurationFile]:
         """Fetch only allowed configuration files known to exist in the tree."""
         configuration_files = []
@@ -134,7 +143,7 @@ class GitHubRepositoryService:
             if path not in available_paths:
                 continue
 
-            file_data = self._fetch_file_data(owner, repository, path)
+            file_data = self._fetch_file_data(owner, repository, path, revision)
             if file_data is None:
                 continue
 
@@ -182,9 +191,12 @@ class GitHubRepositoryService:
         owner, repository = self._parse_repository_url(repository_url)
         repository_data = self._fetch_repository_data(owner, repository)
         metadata = self._build_metadata(repository_data)
-        tree = self._fetch_file_tree(owner, repository, repository_data)
+        revision = self._resolve_default_branch_revision(
+            owner, repository, repository_data
+        )
+        tree = self._fetch_file_tree(owner, repository, revision)
         configuration_files = self._fetch_configuration_files(
-            owner, repository, tree
+            owner, repository, revision, tree
         )
         paths = self._identify_likely_paths(tree)
         setup = self._detect_python_project_setup(configuration_files)
@@ -205,6 +217,7 @@ class GitHubRepositoryService:
             configuration_files=configuration_files,
             test_plan=test_plan,
             generation_selection=generation_selection,
+            revision=revision,
         )
 
     def fetch_generation_context(
@@ -213,6 +226,7 @@ class GitHubRepositoryService:
         """Fetch only the bounded file contents selected for one generation request."""
         owner, repository = self._parse_repository_url(repository_url)
         repository_context = self.fetch_context(repository_url)
+        revision = getattr(repository_context, "revision", None)
         selection = repository_context.generation_selection
         selected_configuration_files = {
             file.path: file for file in repository_context.configuration_files
@@ -226,7 +240,7 @@ class GitHubRepositoryService:
         if selection.target_path is not None:
             try:
                 source_file = self._fetch_bounded_repository_file(
-                    owner, repository, selection.target_path
+                    owner, repository, selection.target_path, revision
                 )
             except ValueError:
                 raise ValueError(
@@ -237,7 +251,7 @@ class GitHubRepositoryService:
             for path in selection.related_test_paths:
                 try:
                     test_file = self._fetch_bounded_repository_file(
-                        owner, repository, path
+                    owner, repository, path, revision
                     )
                 except (RuntimeError, ValueError):
                     skipped_paths.append(path)
@@ -273,6 +287,8 @@ class GitHubRepositoryService:
             configuration_files=configuration_files,
             skipped_paths=skipped_paths,
             total_bytes=total_bytes,
+            revision=revision,
+            test_plan=getattr(repository_context, "test_plan", None),
         )
 
     @staticmethod
@@ -301,14 +317,46 @@ class GitHubRepositoryService:
 
         return data
 
+    def _resolve_default_branch_revision(
+        self, owner: str, repository: str, repository_data: dict[str, object]
+    ) -> str:
+        """Resolve the default branch once to an immutable commit SHA."""
+        default_branch = repository_data.get("default_branch")
+        if not isinstance(default_branch, str) or not default_branch:
+            raise RuntimeError("GitHub could not resolve the repository revision.")
+
+        reference_data = self._request_json(
+            f"{GITHUB_API_URL}/{quote(owner, safe='')}/{quote(repository, safe='')}/git/ref/heads/{quote(default_branch, safe='')}"
+        )
+        try:
+            revision = reference_data["object"]["sha"]
+        except (KeyError, TypeError):
+            raise RuntimeError("GitHub could not resolve the repository revision.") from None
+
+        if not isinstance(revision, str):
+            raise RuntimeError("GitHub could not resolve the repository revision.")
+        self._validate_revision(revision)
+        return revision
+
+    @staticmethod
+    def _validate_revision(revision: str) -> None:
+        """Accept only full Git object SHAs in trusted GitHub request paths."""
+        if not re.fullmatch(r"[0-9a-f]{40}", revision):
+            raise RuntimeError("GitHub could not resolve the repository revision.")
+
     def _fetch_file_data(
-        self, owner: str, repository: str, path: str
+        self, owner: str, repository: str, path: str, revision: str | None = None
     ) -> dict[str, object] | None:
         """Fetch one file, returning None when the allowed file does not exist."""
         try:
-            data = self._request_json(
-                f"{GITHUB_API_URL}/{quote(owner, safe='')}/{quote(repository, safe='')}/contents/{quote(path, safe='')}"
+            url = (
+                f"{GITHUB_API_URL}/{quote(owner, safe='')}/"
+                f"{quote(repository, safe='')}/contents/{quote(path, safe='')}"
             )
+            if revision is not None:
+                self._validate_revision(revision)
+                url = f"{url}?ref={quote(revision, safe='')}"
+            data = self._request_json(url)
         except ValueError:
             return None
 
@@ -318,10 +366,13 @@ class GitHubRepositoryService:
         return data
 
     def _fetch_bounded_repository_file(
-        self, owner: str, repository: str, path: str
+        self, owner: str, repository: str, path: str, revision: str | None = None
     ) -> RepositoryFileContent:
         """Fetch one selected UTF-8 file without exceeding the per-file limit."""
-        file_data = self._fetch_file_data(owner, repository, path)
+        if revision is None:
+            file_data = self._fetch_file_data(owner, repository, path)
+        else:
+            file_data = self._fetch_file_data(owner, repository, path, revision)
         if file_data is None:
             raise RuntimeError("GitHub could not return selected repository files.")
 

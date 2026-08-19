@@ -21,7 +21,7 @@ class RepositoryArchiveReference:
 
     owner: str
     repository: str
-    default_branch: str
+    revision: str
     url: str
 
 
@@ -118,6 +118,8 @@ class RepositoryGenerationContext:
     configuration_files: list[RepositoryConfigurationFile]
     skipped_paths: list[str]
     total_bytes: int
+    revision: str | None = None
+    test_plan: RepositoryTestPlan | None = None
 
 
 @dataclass
@@ -129,3 +131,4 @@ class RepositoryContext:
     configuration_files: list[RepositoryConfigurationFile]
     test_plan: RepositoryTestPlan
     generation_selection: RepositoryGenerationSelection
+    revision: str | None = None

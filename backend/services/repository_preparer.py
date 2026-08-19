@@ -44,9 +44,13 @@ class PublicRepositoryPreparer:
         self.github_service = github_service or GitHubRepositoryService()
 
     @contextmanager
-    def prepare(self, repository_url: str) -> Iterator[PreparedRepository]:
+    def prepare(
+        self, repository_url: str, revision: str | None = None
+    ) -> Iterator[PreparedRepository]:
         """Yield a temporary repository directory and remove it after use."""
-        archive_reference = self.github_service.fetch_archive_reference(repository_url)
+        archive_reference = self.github_service.fetch_archive_reference(
+            repository_url, revision
+        )
         archive_data = self._download_archive(archive_reference.url)
 
         with tempfile.TemporaryDirectory(prefix="verix-repository-") as workspace:

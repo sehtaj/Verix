@@ -15,9 +15,16 @@ class RepositoryExecutionWorkflow:
         self.repository_preparer = repository_preparer
         self.test_runner = test_runner
 
-    def run_existing_tests(self, repository_url: str) -> dict[str, object]:
+    def run_existing_tests(
+        self, repository_url: str, revision: str | None = None
+    ) -> dict[str, object]:
         """Run a repository's existing tests in an isolated workspace."""
-        with self.repository_preparer.prepare(repository_url) as prepared_repository:
+        preparation = (
+            self.repository_preparer.prepare(repository_url, revision)
+            if revision is not None
+            else self.repository_preparer.prepare(repository_url)
+        )
+        with preparation as prepared_repository:
             preparation = {
                 "file_count": prepared_repository.file_count,
                 "total_bytes": prepared_repository.total_bytes,
@@ -66,14 +73,24 @@ class RepositoryExecutionWorkflow:
             "execution": execution,
         }
 
+    def validate_generated_tests(self, generated_tests: str) -> None:
+        """Reject invalid generated tests before repository preparation begins."""
+        self.test_runner.validate_generated_tests(generated_tests)
+
     def run_existing_and_generated_tests(
         self,
         repository_url: str,
         target_path: str,
         generated_tests: str,
+        revision: str | None = None,
     ) -> dict[str, object]:
         """Run existing and generated tests after one shared preparation step."""
-        with self.repository_preparer.prepare(repository_url) as prepared_repository:
+        preparation = (
+            self.repository_preparer.prepare(repository_url, revision)
+            if revision is not None
+            else self.repository_preparer.prepare(repository_url)
+        )
+        with preparation as prepared_repository:
             preparation = {
                 "file_count": prepared_repository.file_count,
                 "total_bytes": prepared_repository.total_bytes,
