@@ -7,6 +7,7 @@ from api.presenters import (
     present_configuration_files,
     present_python_project_setup,
     present_repository_context,
+    present_repository_investigation,
     present_repository_metadata,
     present_repository_paths,
     present_repository_test_plan,
@@ -18,6 +19,7 @@ from services.llm_service import GeminiLLMService
 from services.repository_preparer import PublicRepositoryPreparer
 from services.docker_runner import DockerTestRunner, GeneratedTestsValidationError
 from workflows.repository_execution import RepositoryExecutionWorkflow
+from workflows.repository_investigation import RepositoryInvestigationWorkflow
 
 
 app = FastAPI(title="Verix API")
@@ -253,10 +255,20 @@ def generate_repository_test_suite(
 
     try:
         workflow = RepositoryExecutionWorkflow(repository_preparer, test_runner)
-        execution_results = workflow.run_existing_and_generated_tests(
-            request.url,
-            target_path,
-            generated_tests,
+        revision = getattr(generation_context, "revision", None)
+        execution_results = (
+            workflow.run_existing_and_generated_tests(
+                request.url,
+                target_path,
+                generated_tests,
+                revision,
+            )
+            if revision is not None
+            else workflow.run_existing_and_generated_tests(
+                request.url,
+                target_path,
+                generated_tests,
+            )
         )
     except GeneratedTestsValidationError:
         raise HTTPException(
@@ -276,3 +288,37 @@ def generate_repository_test_suite(
         "generated_tests": generated_tests,
         **execution_results,
     }
+
+
+@app.post("/repository/investigate")
+def investigate_repository(request: RepositoryRequest) -> dict[str, object]:
+    """Run one repository investigation and return its result and explanation."""
+    if llm_service is None:
+        raise HTTPException(
+            status_code=503,
+            detail="LLM service is not configured.",
+        )
+
+    try:
+        execution_workflow = RepositoryExecutionWorkflow(
+            repository_preparer,
+            test_runner,
+        )
+        investigation = RepositoryInvestigationWorkflow(
+            github_repository_service,
+            llm_service,
+            execution_workflow,
+        ).run(request.url)
+        return present_repository_investigation(investigation)
+    except GeneratedTestsValidationError:
+        raise HTTPException(
+            status_code=502,
+            detail="Gemini returned unusable generated tests. Please try again.",
+        ) from None
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to investigate the repository. Please try again.",
+        ) from None

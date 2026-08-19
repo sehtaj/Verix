@@ -27,6 +27,12 @@ from services.github_service import (
     RepositoryTree,
     RepositoryTreeEntry,
 )
+from models.investigation import RepositoryOutcomeKind
+from models.repository import (
+    PythonProjectSetup,
+    RepositoryTestPlan,
+    RepositoryTestPlanStep,
+)
 from services.repository_preparer import PreparedRepository, PublicRepositoryPreparer
 from services.docker_runner import (
     DEPENDENCY_INSTALL_TIMEOUT_SECONDS,
@@ -41,6 +47,7 @@ from services.docker_runner import (
 
 
 REPOSITORY_URL = "https://github.com/example/sample"
+REPOSITORY_REVISION = "a" * 40
 
 
 def build_archive(
@@ -118,6 +125,11 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             patch.object(service, "_fetch_file_tree", return_value=tree) as fetch_tree,
             patch.object(
                 service,
+                "_resolve_default_branch_revision",
+                return_value=REPOSITORY_REVISION,
+            ) as resolve_revision,
+            patch.object(
+                service,
                 "_fetch_configuration_files",
                 return_value=configuration,
             ) as fetch_configuration,
@@ -125,8 +137,12 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             context = service.fetch_context(REPOSITORY_URL)
 
         fetch_repository_data.assert_called_once_with("example", "sample")
-        fetch_tree.assert_called_once_with("example", "sample", repository_data)
-        fetch_configuration.assert_called_once_with("example", "sample", tree)
+        resolve_revision.assert_called_once_with("example", "sample", repository_data)
+        fetch_tree.assert_called_once_with("example", "sample", REPOSITORY_REVISION)
+        fetch_configuration.assert_called_once_with(
+            "example", "sample", REPOSITORY_REVISION, tree
+        )
+        self.assertEqual(context.revision, REPOSITORY_REVISION)
         self.assertEqual(context.metadata.name, "sample")
         self.assertEqual(context.test_plan.source_paths, ["src/sample.py"])
         self.assertEqual(context.test_plan.test_paths, ["tests/test_sample.py"])
@@ -227,6 +243,18 @@ class GitHubRepositoryContextTests(unittest.TestCase):
         self.assertEqual(selection.configuration_paths, ["pyproject.toml"])
         self.assertFalse(selection.is_truncated)
 
+    def test_archive_reference_uses_a_provided_immutable_revision(self) -> None:
+        service = GitHubRepositoryService()
+
+        with patch.object(service, "_fetch_repository_data") as fetch_repository_data:
+            reference = service.fetch_archive_reference(
+                REPOSITORY_URL, REPOSITORY_REVISION
+            )
+
+        fetch_repository_data.assert_not_called()
+        self.assertEqual(reference.revision, REPOSITORY_REVISION)
+        self.assertTrue(reference.url.endswith(f"/tarball/{REPOSITORY_REVISION}"))
+
     def test_generation_context_fetches_only_selected_file_contents(self) -> None:
         service = GitHubRepositoryService()
         selection = RepositoryGenerationSelection(
@@ -237,6 +265,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
         )
         repository_context = SimpleNamespace(
             generation_selection=selection,
+            revision=REPOSITORY_REVISION,
             configuration_files=[
                 RepositoryConfigurationFile(
                     "pyproject.toml", "[tool.pytest.ini_options]\n"
@@ -249,8 +278,11 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             "tests/test_other.py": b"def test_other():\n    assert True\n",
         }
 
-        def file_data(owner: str, repository: str, path: str) -> dict[str, object]:
+        def file_data(
+            owner: str, repository: str, path: str, revision: str
+        ) -> dict[str, object]:
             self.assertEqual((owner, repository), ("example", "sample"))
+            self.assertEqual(revision, REPOSITORY_REVISION)
             content = contents[path]
             return {
                 "type": "file",
@@ -273,6 +305,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             ["src/sample.py", "tests/test_sample.py", "tests/test_other.py"],
         )
         self.assertEqual(context.source_file.path, "src/sample.py")
+        self.assertEqual(context.revision, REPOSITORY_REVISION)
         self.assertIn("return a + b", context.source_file.content)
         self.assertEqual(
             [file.path for file in context.test_files],
@@ -389,9 +422,13 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             "_fetch_file_data",
             return_value={"content": encoded_content},
         ) as fetch_file:
-            files = service._fetch_configuration_files("example", "sample", tree)
+            files = service._fetch_configuration_files(
+                "example", "sample", REPOSITORY_REVISION, tree
+            )
 
-        fetch_file.assert_called_once_with("example", "sample", "pyproject.toml")
+        fetch_file.assert_called_once_with(
+            "example", "sample", "pyproject.toml", REPOSITORY_REVISION
+        )
         self.assertEqual(
             files,
             [
@@ -413,7 +450,7 @@ class RepositoryPreparationTests(unittest.TestCase):
             RepositoryArchiveReference(
                 owner="example",
                 repository="sample",
-                default_branch="main",
+                revision=REPOSITORY_REVISION,
                 url="https://api.github.test/archive",
             )
         )
@@ -1103,6 +1140,7 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
         generation_context = SimpleNamespace(
             selection=SimpleNamespace(target_path="src/sample.py"),
             source_file=object(),
+            revision=REPOSITORY_REVISION,
         )
         github_service = Mock()
         github_service.fetch_generation_context.return_value = generation_context
@@ -1147,6 +1185,7 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
             REPOSITORY_URL
         )
         llm.generate_repository_tests.assert_called_once_with(generation_context)
+        preparer.prepare.assert_called_once_with(REPOSITORY_URL, REPOSITORY_REVISION)
         runner.run_repository_test_sets.assert_called_once_with(
             self.workspace_path,
             "src/sample.py",
@@ -1232,6 +1271,76 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
         with patch.object(main_module, "llm_service", None):
             with self.assertRaises(HTTPException) as error:
                 main_module.generate_repository_test_suite(
+                    main_module.RepositoryRequest(url=REPOSITORY_URL)
+                )
+
+        self.assertEqual(error.exception.status_code, 503)
+
+    def test_repository_investigation_returns_classification_and_explanation(self) -> None:
+        llm = Mock()
+        test_plan = RepositoryTestPlan(
+            setup=PythonProjectSetup(
+                is_python_project=True,
+                project_tool="pip",
+                test_runner="pytest",
+                configuration_files=["requirements.txt"],
+            ),
+            source_paths=["src/sample.py"],
+            test_paths=["tests/test_sample.py"],
+            steps=[
+                RepositoryTestPlanStep(
+                    action="run_existing_tests",
+                    description="Run pytest.",
+                    command="pytest",
+                )
+            ],
+            is_truncated=False,
+        )
+        investigation = SimpleNamespace(
+            test_plan=test_plan,
+            target_path="src/sample.py",
+            generated_tests="def test_generated(): pass\n",
+            execution_results={
+                "preparation": {"file_count": 2},
+                "installation": {"return_code": 0},
+                "test_runner": "pytest",
+                "existing_execution": {"return_code": 1},
+                "generated_execution": {"return_code": 0},
+            },
+            outcome=RepositoryOutcomeKind.EXISTING_TESTS_FAILED,
+            explanation="One existing test failed.",
+        )
+        workflow = Mock()
+        workflow.run.return_value = investigation
+
+        with (
+            patch.object(main_module, "llm_service", llm),
+            patch.object(
+                main_module,
+                "RepositoryInvestigationWorkflow",
+                return_value=workflow,
+            ),
+        ):
+            response = main_module.investigate_repository(
+                main_module.RepositoryRequest(url=REPOSITORY_URL)
+            )
+
+        self.assertEqual(response["target_path"], "src/sample.py")
+        self.assertEqual(
+            response["investigation"],
+            {
+                "outcome": "existing_tests_failed",
+                "explanation": "One existing test failed.",
+            },
+        )
+        self.assertEqual(response["test_plan"]["setup"]["test_runner"], "pytest")
+        self.assertEqual(response["existing_execution"]["return_code"], 1)
+        workflow.run.assert_called_once_with(REPOSITORY_URL)
+
+    def test_repository_investigation_requires_the_llm_service(self) -> None:
+        with patch.object(main_module, "llm_service", None):
+            with self.assertRaises(HTTPException) as error:
+                main_module.investigate_repository(
                     main_module.RepositoryRequest(url=REPOSITORY_URL)
                 )
 

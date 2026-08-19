@@ -1,5 +1,7 @@
 """Convert repository domain models into the existing JSON response shapes."""
 
+from models.investigation import RepositoryInvestigationRun
+
 from models.repository import (
     PythonProjectSetup,
     RepositoryConfigurationFile,
@@ -100,4 +102,20 @@ def present_repository_context(context: RepositoryContext) -> dict[str, object]:
         "generation_selection": present_generation_selection(
             context.generation_selection
         ),
+    }
+
+
+def present_repository_investigation(
+    investigation: RepositoryInvestigationRun,
+) -> dict[str, object]:
+    """Return one completed repository investigation without its raw evidence."""
+    return {
+        "test_plan": present_repository_test_plan(investigation.test_plan),
+        "target_path": investigation.target_path,
+        "generated_tests": investigation.generated_tests,
+        **investigation.execution_results,
+        "investigation": {
+            "outcome": investigation.outcome.value,
+            "explanation": investigation.explanation,
+        },
     }
