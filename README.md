@@ -1,6 +1,6 @@
 # Verix
 
-Verix is an early-stage AI software quality engineer. Version 0.9 can generate and safely execute pytest tests for pasted Python code. For a public Python repository, it can inspect the project, build a test plan, generate focused tests, run original and generated suites separately in Docker, and explain one classified result using bounded evidence.
+Verix is an early-stage AI software quality engineer. Version 0.10 can generate and safely execute pytest tests for pasted Python code. For a public Python repository, it can select a branch, tag, or commit; choose a nested project folder and verified source target; preview bounded Gemini context; run original and generated suites separately in Docker; and explain one classified result using bounded evidence.
 
 ## Requirements
 
@@ -59,22 +59,23 @@ Open `http://localhost:3000`. Keep the frontend, backend, and Docker Desktop run
 
 `NEXT_PUBLIC_API_URL` can point the frontend at a different backend address and defaults to `http://localhost:8000`. The backend's local CORS configuration permits `http://localhost:3000`.
 
-## How to use V0.9
+## How to use V0.10
 
 ### Inspect and test a repository
 
 1. Enter a canonical public URL such as `https://github.com/owner/repository`.
-2. Select **Fetch repository** to view metadata, a bounded file tree, and the evidence-based test plan. This inspection does not send source code to Gemini.
-3. Select **Run repository tests** to download and prepare the current default branch, install supported dependencies, and run its original test suite.
-4. Select **Generate repository tests** to let Verix automatically choose one source file, send only focused source/test/configuration evidence to Gemini, and run the original and generated suites separately.
-5. Review the selected target, generated pytest code, installation status, and both execution results.
-6. Select **Investigate repository** to perform one complete V0.9 pass: plan, generate, execute, classify, and explain. The frontend shows the fixed outcome label, Gemini explanation, generated code, and both suite results.
+2. Optionally enter a branch, tag, or full commit SHA. Leave it empty to use the default branch.
+3. Optionally enter a repository-relative Python project folder, such as `packages/payments`, for a nested project.
+4. Select **Fetch repository** to view metadata, the bounded selected tree, and the test plan. Verix resolves the request to one commit SHA. This inspection does not send source code to Gemini.
+5. Keep Verix's automatic source target or choose another verified Python file, then select **Preview Gemini context** to inspect the exact bounded source, test, and configuration content that could be sent to Gemini. Previewing does not call Gemini or run code.
+6. Select **Run repository tests**, **Generate repository tests**, or **Investigate repository**. Each action keeps the selected commit, project folder, and target consistent through execution.
+7. Review the selected target, generated pytest code, installation status, original/generated results, and—when investigating—the outcome and explanation.
 
 Repository execution supports Python projects with dependency and runner configuration at the repository root. Nested projects in monorepositories are not selected automatically. Dependency installation may download packages in a disposable container. Original and generated tests run afterward without network access and with a read-only repository mount.
 
 Generated tests are temporary and disappear with the disposable workspace. Verix does not commit them to the repository, and LLM-generated tests still require developer judgment.
 
-For an investigation, Verix resolves the repository's current default branch to one commit SHA and uses that same SHA for the selected context and Docker archive. This prevents a branch update from mixing repository versions within that one request. Gemini receives only bounded execution evidence and explains the backend's already-selected outcome; it does not retry tests, change code, or propose a patch.
+For repository generation and investigation, Verix resolves the requested reference to one commit SHA and uses that same SHA for the selected context and Docker archive. This prevents a branch update from mixing repository versions within one request. When a project folder is selected, Docker runs from that folder and Gemini receives the project-relative target path needed to choose imports correctly. Gemini receives only bounded execution evidence for investigation and explains the backend's already-selected outcome; it does not retry tests, change code, or propose a patch.
 
 ### Generate tests for pasted code
 
@@ -127,7 +128,7 @@ An empty code value is rejected. A missing key returns HTTP 503, and a Gemini fa
 }
 ```
 
-This is the inspection endpoint used by the frontend. It fetches shared GitHub evidence and returns:
+Optional request fields are `reference`, `subdirectory`, and `target_path`. This is the inspection endpoint used by the frontend. It resolves the selected reference to one commit SHA and returns:
 
 - Basic repository metadata.
 - At most 500 recursive tree entries and an `is_truncated` flag.
@@ -135,7 +136,13 @@ This is the inspection endpoint used by the frontend. It fetches shared GitHub e
 - Detected project setup, likely source and test paths, and a structured test plan.
 - A `generation_selection` containing one `target_path`, up to three `related_test_paths`, up to three `configuration_paths`, and `is_truncated`.
 
+The response also contains the resolved `revision` and selected `subdirectory`. A selected subdirectory must be a safe repository-relative directory, and a selected target must be a verified Python source file inside it.
+
 The selection contains paths only; source and test contents are not fetched for Gemini until the explicit generation action. GitHub access is unauthenticated, so public API rate limits apply. Private repositories are not supported.
+
+### Preview bounded Gemini context
+
+`POST /repository/context/preview` accepts the same targeting fields, but requires `target_path`. It returns only the exact bounded source, selected existing-test files, configuration files, skipped paths, and total byte count that would be available for repository test generation. It does not call Gemini, install dependencies, or run repository code.
 
 ### Prepare and run a repository
 
@@ -147,7 +154,7 @@ The selection contains paths only; source and test contents are not fetched for 
 }
 ```
 
-The response separates preparation, installation, and test execution:
+You may include optional `reference` and `subdirectory` fields. The response separates preparation, installation, and test execution:
 
 ```json
 {
@@ -182,7 +189,7 @@ The response separates preparation, installation, and test execution:
 }
 ```
 
-The response preserves the original and generated outcomes separately:
+You may include optional `reference`, `subdirectory`, and `target_path` fields. The response preserves the original and generated outcomes separately:
 
 ```json
 {
@@ -227,7 +234,7 @@ Ordinary failing tests return HTTP 200 with a non-zero execution return code. If
 }
 ```
 
-This endpoint runs one complete repository investigation. It returns the same generated-test execution fields, the test plan, and a small investigation result:
+This endpoint accepts optional `reference`, `subdirectory`, and `target_path` fields. It runs one complete repository investigation and returns the same generated-test execution fields, the test plan, and a small investigation result:
 
 ```json
 {
@@ -306,10 +313,10 @@ cd frontend
 npm run build
 ```
 
-For an end-to-end V0.9 check, use a small public Python repository with root-level project configuration, select **Investigate repository**, and verify the outcome, explanation, generated code, and separate original/generated panels. During the V0.9 review, `https://github.com/sehtaj/competitive-programming` selected `python/arraysAndHashing/duplicate_integers.py`; it reported `no_existing_tests` (pytest exit code 5), while the generated suite passed.
+For an end-to-end V0.10 check, use a small public Python repository with a nested project folder, select its branch or commit, folder, and target, preview the context, then select **Investigate repository**. Verify the resolved commit, previewed content, outcome, explanation, generated code, and separate original/generated panels. During the V0.10 review, `https://github.com/sehtaj/competitive-programming` with reference `main`, subdirectory `python/arraysAndHashing`, and target `python/arraysAndHashing/duplicate_integers.py` reported `no_existing_tests` (pytest exit code 5), while the generated suite passed.
 
-## V0.9 boundaries
+## V0.10 boundaries
 
-V0.9 supports public default-branch Python repositories and one automatically selected source target. An investigation pins its context and archive to one resolved commit SHA, but it does not support private repositories, authenticated GitHub access, arbitrary user-selected branches or commits, nested-project selection, manual targets, coverage, fix proposals, automatic retries, patch application, or a multi-step agent loop. Generated tests are not committed back and are not guaranteed to be logically correct. Investigation explanations are evidence-grounded summaries, not guaranteed root-cause diagnoses.
+V0.10 supports public Python repositories, one validated branch/tag/full-commit reference, one validated project subdirectory, and one verified Python source target. It does not support private repositories, authenticated GitHub access, arbitrary local filesystem paths, multiple targets, coverage, fix proposals, automatic retries, patch application, or a multi-step agent loop. Generated tests are not committed back and are not guaranteed to be logically correct. Investigation explanations are evidence-grounded summaries, not guaranteed root-cause diagnoses.
 
-The older inspection and execution endpoints still resolve the default branch separately. Commit pinning applies to the single `/repository/investigate` flow, where it prevents a snapshot mismatch.
+The selected target must come from the commit-pinned tree and remain inside the selected project directory. This prevents a user-supplied path from escaping the disposable Docker workspace.

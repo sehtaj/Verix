@@ -278,6 +278,23 @@ Features:
 
 V0.9 does not diagnose a root cause beyond the available evidence, modify repository code, retry a failed action, select a branch or target manually, measure coverage, or propose a fix. Gemini explains the backend's already-determined outcome; it does not decide that outcome itself.
 
+## V0.10 — Complete
+
+Goal:
+
+Give the developer safe control over the exact public Python project and source file that Verix examines.
+
+Features:
+
+- Accepts a validated branch, tag, or commit reference and resolves it to one immutable commit SHA.
+- Accepts a validated repository-relative project subdirectory for nested Python projects.
+- Lets the developer choose a verified Python source file from the selected project instead of always using Verix's automatic choice.
+- Shows the exact bounded source, existing-test, and configuration-file context that would be sent to Gemini before generation.
+- Preserves the chosen revision, subdirectory, and target through test generation, Docker execution, and investigation.
+- Runs Docker from the selected project folder while giving Gemini the project-relative source path needed for correct imports.
+
+V0.10 still supports public GitHub Python repositories only. It does not allow arbitrary local paths, private repositories, unauthenticated file access, patch application, automatic retries, or automatic fixes.
+
 ---
 
 # Roadmap
@@ -327,10 +344,9 @@ V0.9 does not diagnose a root cause beyond the available evidence, modify reposi
 
 ## V0.10
 
-- Repository targeting and user control
-- Select a branch or commit, a repository subdirectory, and a Python source target
-- Preview the bounded context that will be sent to Gemini
-- Keep selected context, downloaded archive, generated tests, and execution results on the same repository revision
+- Complete: safe repository targeting and user control
+- Complete: branch/tag/commit, subdirectory, and Python source-target selection
+- Complete: bounded Gemini-context preview and pinned execution
 
 ## V1.0
 

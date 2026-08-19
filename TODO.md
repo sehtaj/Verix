@@ -136,21 +136,33 @@
 
 ## V0.10
 
-- [ ] Define safe repository reference, subdirectory, and source-target selection inputs
-- [ ] Fetch GitHub context and archives from the selected commit revision
-- [ ] Support validated repository subdirectory selection
-- [ ] Support validated manual Python source-target selection
-- [ ] Preview the selected repository target and bounded Gemini context in the frontend
-- [ ] Propagate the selected target through generation and isolated execution
-- [ ] Add deterministic regression tests for repository targeting
-- [ ] Test the complete V0.10 flow
-- [ ] Update documentation during the V0.10 Review Phase
+- [x] Define safe repository reference, subdirectory, and source-target selection inputs
+- [x] Fetch GitHub context and archives from the selected commit revision
+- [x] Support validated repository subdirectory selection
+- [x] Support validated manual Python source-target selection
+- [x] Preview the selected repository target and bounded Gemini context in the frontend
+- [x] Propagate the selected target through generation and isolated execution
+- [x] Add deterministic regression tests for repository targeting
+- [x] Test the complete V0.10 flow
+- [x] Update documentation during the V0.10 Review Phase
+
+---
+
+## V0.11
+
+- [ ] Define an approval-based fix-proposal contract and safety boundary
+- [ ] Select bounded failure-focused repository context for a proposed fix
+- [ ] Generate one minimal proposed patch without applying it
+- [ ] Validate and display a proposed patch for explicit user review
+- [ ] Add deterministic regression tests for fix proposals
+- [ ] Test the complete V0.11 flow
+- [ ] Update documentation during the V0.11 Review Phase
 
 ---
 
 ## Current Task
 
-**Define safe repository reference, subdirectory, and source-target selection inputs**
+**Define an approval-based fix-proposal contract and safety boundary**
 
 ---
 
