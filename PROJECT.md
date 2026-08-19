@@ -260,6 +260,24 @@ Features:
 
 Repository source and test contents are sent to Gemini only after the user explicitly selects **Generate repository tests**. V0.8 remains limited to public default-branch Python repositories, one automatically selected target, and root-level project setup. It does not select a branch, commit, subdirectory, or target manually; persist or commit generated tests; measure coverage; investigate failures; propose fixes; retry automatically; or run an agent loop. Generated tests are evidence to review, not a guarantee of logical correctness.
 
+## V0.9 — Complete
+
+Goal:
+
+Turn one repository test run into a bounded, evidence-grounded investigation without automatically changing code.
+
+Features:
+
+- Resolves the selected repository's default branch to one immutable Git commit SHA before fetching context or downloading its archive.
+- Preserves that SHA through source-context retrieval and isolated execution, preventing a branch update from mixing two repository versions in one investigation.
+- Classifies the completed run deterministically as setup failed, no existing tests, existing-suite timeout or failure, generated-suite timeout or failure, or tests passed.
+- Treats pytest exit code 5 as **no existing tests**, rather than as a Verix failure.
+- Sends Gemini only the fixed classification and bounded command evidence (at most 2,000 characters per command) for a concise explanation capped at 4,000 characters.
+- Adds `POST /repository/investigate`, which performs one plan-generate-execute-investigate pass with no automatic retries, patches, or fixes.
+- Displays the outcome, explanation, generated tests, and separate original/generated suite results in the frontend.
+
+V0.9 does not diagnose a root cause beyond the available evidence, modify repository code, retry a failed action, select a branch or target manually, measure coverage, or propose a fix. Gemini explains the backend's already-determined outcome; it does not decide that outcome itself.
+
 ---
 
 # Roadmap
@@ -303,11 +321,9 @@ Repository source and test contents are sent to Gemini only after the user expli
 
 ## V0.9
 
-- Agentic investigation and explanation
-- Plan, generate, execute, and investigate using structured evidence
-- Classify setup failures, no-existing-tests results, existing-test failures, generated-test failures, and timeouts
-- Explain failures and distinguish setup issues from code bugs without proposing fixes yet
-- Pin repository evidence and execution to one commit revision
+- Complete: bounded agentic investigation and explanation
+- Complete: one plan, generate, execute, classify, and explain pass using structured evidence
+- Complete: commit-pinned repository context and execution
 
 ## V0.10
 

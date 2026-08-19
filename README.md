@@ -1,13 +1,13 @@
 # Verix
 
-Verix is an early-stage AI software quality engineer. Version 0.8 can generate and safely execute pytest tests for pasted Python code. It can also inspect a public GitHub repository, explain its likely test setup, run its existing pytest or tox suite, generate focused repository-aware tests with Gemini, and show the original and generated results separately.
+Verix is an early-stage AI software quality engineer. Version 0.9 can generate and safely execute pytest tests for pasted Python code. For a public Python repository, it can inspect the project, build a test plan, generate focused tests, run original and generated suites separately in Docker, and explain one classified result using bounded evidence.
 
 ## Requirements
 
 - Python 3.10 or later.
 - Node.js 20.9 or later.
 - Docker Desktop, running locally.
-- A Gemini API key for pasted-code and repository-aware test generation.
+- A Gemini API key for pasted-code generation, repository-aware generation, and repository investigation.
 
 ## 1. Build the runner image
 
@@ -43,7 +43,7 @@ cd backend
 python3 -m uvicorn main:app --reload
 ```
 
-The API starts at `http://localhost:8000`. The Gemini key is required by `POST /generate` and `POST /repository/generate`. Repository inspection and `POST /repository/test-run` do not use it.
+The API starts at `http://localhost:8000`. The Gemini key is required by `POST /generate`, `POST /repository/generate`, and `POST /repository/investigate`. Repository inspection and `POST /repository/test-run` do not use it.
 
 ## 3. Run the frontend
 
@@ -59,7 +59,7 @@ Open `http://localhost:3000`. Keep the frontend, backend, and Docker Desktop run
 
 `NEXT_PUBLIC_API_URL` can point the frontend at a different backend address and defaults to `http://localhost:8000`. The backend's local CORS configuration permits `http://localhost:3000`.
 
-## How to use V0.8
+## How to use V0.9
 
 ### Inspect and test a repository
 
@@ -68,10 +68,13 @@ Open `http://localhost:3000`. Keep the frontend, backend, and Docker Desktop run
 3. Select **Run repository tests** to download and prepare the current default branch, install supported dependencies, and run its original test suite.
 4. Select **Generate repository tests** to let Verix automatically choose one source file, send only focused source/test/configuration evidence to Gemini, and run the original and generated suites separately.
 5. Review the selected target, generated pytest code, installation status, and both execution results.
+6. Select **Investigate repository** to perform one complete V0.9 pass: plan, generate, execute, classify, and explain. The frontend shows the fixed outcome label, Gemini explanation, generated code, and both suite results.
 
 Repository execution supports Python projects with dependency and runner configuration at the repository root. Nested projects in monorepositories are not selected automatically. Dependency installation may download packages in a disposable container. Original and generated tests run afterward without network access and with a read-only repository mount.
 
 Generated tests are temporary and disappear with the disposable workspace. Verix does not commit them to the repository, and LLM-generated tests still require developer judgment.
+
+For an investigation, Verix resolves the repository's current default branch to one commit SHA and uses that same SHA for the selected context and Docker archive. This prevents a branch update from mixing repository versions within that one request. Gemini receives only bounded execution evidence and explains the backend's already-selected outcome; it does not retry tests, change code, or propose a patch.
 
 ### Generate tests for pasted code
 
@@ -214,6 +217,39 @@ The response preserves the original and generated outcomes separately:
 
 Ordinary failing tests return HTTP 200 with a non-zero execution return code. If dependency installation fails, the affected execution is marked as skipped. Invalid or unsupported repository input returns HTTP 422. GitHub, archive, Gemini, invalid generated output, or Docker infrastructure failures return a safe HTTP 502. Missing Gemini configuration returns HTTP 503 for generation endpoints.
 
+### Investigate a repository
+
+`POST /repository/investigate`
+
+```json
+{
+  "url": "https://github.com/owner/python-repository"
+}
+```
+
+This endpoint runs one complete repository investigation. It returns the same generated-test execution fields, the test plan, and a small investigation result:
+
+```json
+{
+  "investigation": {
+    "outcome": "existing_tests_failed",
+    "explanation": "The existing repository suite reported a failure."
+  }
+}
+```
+
+The possible outcomes are:
+
+- `setup_failed`
+- `no_existing_tests`
+- `existing_tests_timed_out`
+- `existing_tests_failed`
+- `generated_tests_timed_out`
+- `generated_tests_failed`
+- `tests_passed`
+
+The outcome is selected by fixed backend rules. Gemini receives bounded command evidence only to explain that outcome. A normal test failure or no-existing-tests result returns HTTP 200; invalid input returns HTTP 422; external, validation, or Docker failures return HTTP 502; and a missing Gemini key returns HTTP 503.
+
 The focused repository endpoints remain available for development and inspection:
 
 - `POST /repository`
@@ -244,7 +280,9 @@ Repository dependency installation uses fixed backend-selected commands in a dis
 
 Original and generated repository tests run separately with no network, a read-only repository mount, the same CPU/memory/process bounds, and a 60-second timeout per container command. For generated tests, tox repositories first use a separate bounded environment-discovery command, then reuse only one prepared default environment, preferring a Python-style name such as `py313` and otherwise using the first valid default. This avoids running the generated pytest command across every configured lint or documentation environment. Returned output is capped at 50,000 characters. Pasted-code tests use stricter 256 MiB memory, 64-process, and 10-second limits.
 
-Docker isolation reduces risk but is not a complete multi-tenant security boundary. V0.8 is intended for local development with the local Docker daemon treated as trusted infrastructure.
+Repository investigation evidence includes at most 2,000 characters each from dependency installation, the existing suite, and the generated suite. Gemini's explanation is capped at 4,000 characters. The investigation still runs synchronously and does not retry commands or modify repository files.
+
+Docker isolation reduces risk but is not a complete multi-tenant security boundary. V0.9 is intended for local development with the local Docker daemon treated as trusted infrastructure.
 
 ## Quick verification
 
@@ -268,10 +306,10 @@ cd frontend
 npm run build
 ```
 
-For an end-to-end check, use a small public Python repository with root-level project configuration, select **Generate repository tests**, and verify that the original and generated results appear in separate panels. During the V0.8 review, `https://github.com/pypa/sampleproject` completed with its original suite passing and the generated suite passing.
+For an end-to-end V0.9 check, use a small public Python repository with root-level project configuration, select **Investigate repository**, and verify the outcome, explanation, generated code, and separate original/generated panels. During the V0.9 review, `https://github.com/sehtaj/competitive-programming` selected `python/arraysAndHashing/duplicate_integers.py`; it reported `no_existing_tests` (pytest exit code 5), while the generated suite passed.
 
-## V0.8 boundaries
+## V0.9 boundaries
 
-V0.8 supports public default-branch Python repositories and one automatically selected source target. It does not support private repositories, authenticated GitHub access, arbitrary branches or commits, nested-project selection, manual targets, coverage, failure investigation, fix proposals, automatic retries, or an agent loop. Generated tests are not committed back and are not guaranteed to be logically correct.
+V0.9 supports public default-branch Python repositories and one automatically selected source target. An investigation pins its context and archive to one resolved commit SHA, but it does not support private repositories, authenticated GitHub access, arbitrary user-selected branches or commits, nested-project selection, manual targets, coverage, fix proposals, automatic retries, patch application, or a multi-step agent loop. Generated tests are not committed back and are not guaranteed to be logically correct. Investigation explanations are evidence-grounded summaries, not guaranteed root-cause diagnoses.
 
-GitHub context and the archive are fetched separately from the current default branch rather than pinned to one commit. A repository update between those operations can therefore create a snapshot mismatch.
+The older inspection and execution endpoints still resolve the default branch separately. Commit pinning applies to the single `/repository/investigate` flow, where it prevents a snapshot mismatch.

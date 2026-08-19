@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Verix is a small client-server application. Version 0.8 can generate and safely run pytest tests for pasted Python code. It can also inspect a public GitHub repository, build a transparent test plan, run the repository's existing pytest or tox suite, generate focused repository-aware tests with Gemini, and execute the original and generated suites separately in Docker.
+Verix is a small client-server application. Version 0.9 can generate and safely run pytest tests for pasted Python code. It can also inspect a public GitHub repository, build a transparent test plan, generate focused repository-aware tests with Gemini, execute the original and generated suites separately in Docker, and return a bounded explanation of one classified repository run.
 
 ## Current architecture
 
@@ -18,6 +18,7 @@ repository workflow hook -> typed API client
   | POST /repository/context             | POST /generate
   | POST /repository/test-run            v
   | POST /repository/generate         Gemini API
+  | POST /repository/investigate      |
   v                                      |
 FastAPI backend                          | generated pytest code
   |                                      v
@@ -38,6 +39,9 @@ safe temporary repository copy
   | generated pytest run in Docker (offline)
   v
 separate original and generated results
+  |
+  v
+bounded evidence -> deterministic outcome -> Gemini explanation
 ```
 
 The frontend owns form state and rendering. The backend API owns HTTP validation and response translation, workflows coordinate use cases, services handle external systems and execution policies, and domain models carry internal data between those boundaries. Submitted, generated, repository, dependency-build, and test code are never executed directly by a host Python process.
@@ -58,6 +62,7 @@ verix/
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── execution.py
+│   │   ├── investigation.py
 │   │   └── repository.py
 │   ├── services/
 │   │   ├── docker_commands.py
@@ -68,6 +73,8 @@ verix/
 │   │   ├── llm_service.py
 │   │   ├── repository_analyzer.py
 │   │   ├── repository_dependencies.py
+│   │   ├── repository_investigation.py
+│   │   ├── repository_investigation_prompt.py
 │   │   ├── repository_preparer.py
 │   │   ├── repository_prompt.py
 │   │   ├── repository_test_commands.py
@@ -79,13 +86,15 @@ verix/
 │   │   ├── test_github_client.py
 │   │   ├── test_llm_service.py
 │   │   ├── test_repository_dependencies.py
+│   │   ├── test_repository_investigation.py
 │   │   ├── test_repository_prompt.py
 │   │   ├── test_repository_test_commands.py
 │   │   ├── test_repository_workflow.py
 │   │   └── test_repository_workspace.py
 │   ├── workflows/
 │   │   ├── __init__.py
-│   │   └── repository_execution.py
+│   │   ├── repository_execution.py
+│   │   └── repository_investigation.py
 │   ├── requirements.txt
 │   ├── .env.example
 │   └── .gitignore
@@ -124,7 +133,7 @@ The route declarations remain together in `backend/main.py`, and the browser sti
 
 `backend/main.py` creates the FastAPI application, permits the local frontend through CORS, declares the routes, and translates expected failures into HTTP responses. `backend/api/schemas.py` owns Pydantic request models, and `backend/api/presenters.py` converts internal repository models into JSON-ready response dictionaries. Invalid repository input becomes HTTP 422. Safe GitHub, Gemini, archive, preparation, or Docker infrastructure failures become HTTP 502. A missing Gemini key produces HTTP 503 on generation routes.
 
-`backend/workflows/repository_execution.py` coordinates repository preparation, dependency installation, and existing/generated test execution. It contains the use-case order and skipped-result behavior without knowing HTTP details. `backend/models/repository.py` and `backend/models/execution.py` contain the internal data structures shared by routes, workflows, and services.
+`backend/workflows/repository_execution.py` coordinates repository preparation, dependency installation, and existing/generated test execution. `backend/workflows/repository_investigation.py` coordinates one plan-generate-execute-classify-explain pass without retrying or modifying code. `backend/models/repository.py`, `backend/models/execution.py`, and `backend/models/investigation.py` carry internal data between those boundaries.
 
 ### GitHub evidence, planning, and generation context
 
@@ -143,6 +152,7 @@ Together, these modules provide a repository flow that:
 - Infers likely Python source and test paths and excludes test-package initializer files from the test count.
 - Recognizes Poetry, PDM, Hatch, Pipenv, setuptools, pip, pytest, and tox evidence.
 - Builds a transparent test plan with setup-aware commands.
+- Resolves the default branch once to a validated immutable commit SHA, then uses that SHA for the tree, configuration files, selected source/test contents, and archive URL in `/repository/investigate`.
 - Reuses metadata, tree, and configuration evidence in `/repository/context`.
 - Selects one source target from the bounded tree. A non-`__init__.py` and non-`__main__.py` file with a directly named test is preferred, followed by the shallowest deterministic path.
 - Selects at most three related test paths and three root configuration paths.
@@ -154,9 +164,11 @@ GitHub access uses `certifi` for its CA bundle. It remains unauthenticated and s
 
 `backend/services/repository_prompt.py` converts the bounded selection into deterministic JSON and clearly labels it as untrusted evidence rather than instructions. It escapes prompt-delimiter characters and asks for one pytest module covering source-justified normal, boundary, and error behavior without inventing dependencies or returning a patch.
 
+`backend/services/repository_investigation.py` turns completed installation and test facts into bounded evidence and one deterministic outcome. `backend/services/repository_investigation_prompt.py` sends that outcome and no more than 2,000 characters of output per command to Gemini. Repository data and command output are marked as untrusted evidence, not instructions.
+
 ### Repository preparation
 
-`backend/services/repository_preparer.py` obtains the default-branch archive URL from GitHub, downloads the archive, and extracts it into a temporary directory as data only. `backend/services/repository_workspace.py` owns the second disposable repository copy, generated-test validation, and the reserved generated-test path. Preparation enforces these limits:
+`backend/services/repository_preparer.py` obtains a validated archive URL for a resolved commit SHA, downloads the archive, and extracts it into a temporary directory as data only. `backend/services/repository_workspace.py` owns the second disposable repository copy, generated-test validation, and the reserved generated-test path. Preparation enforces these limits:
 
 - 25 MiB compressed archive.
 - 100 MiB total extracted regular-file data.
@@ -187,13 +199,13 @@ Dependency installation is intentionally less restrictive because package downlo
 
 ### LLM generation
 
-`backend/services/llm_service.py` reads `LLM_API_KEY` from the ignored local environment file. It sends either pasted Python code or the bounded repository prompt to Gemini and requires a non-empty response. The key never reaches the frontend. Repository-generated output is validated before repository setup begins.
+`backend/services/llm_service.py` reads `LLM_API_KEY` from the ignored local environment file. It sends either pasted Python code, the bounded repository test prompt, or bounded investigation evidence to Gemini and requires a non-empty response. SDK request failures are normalized to safe backend errors. Investigation explanations are capped at 4,000 characters. The key never reaches the frontend. Repository-generated output is validated before repository setup begins.
 
 `backend/Dockerfile` supplies Python, pytest, tox, and the non-root `runner` user used by both execution flows.
 
 ## Frontend responsibilities
 
-`frontend/app/page.tsx` composes the two V0.8 interface workflows. Its supporting modules are:
+`frontend/app/page.tsx` composes the pasted-code, repository execution, repository generation, and V0.9 investigation workflows. Its supporting modules are:
 
 - `frontend/hooks/use-repository-workflow.ts`, which owns repository form state and user actions.
 - `frontend/lib/api.ts`, which owns typed backend HTTP calls and API-error extraction.
@@ -208,6 +220,7 @@ Together they provide:
 - Metadata, bounded file-tree, and test-plan rendering.
 - An explicit action to prepare and run the repository's existing tests.
 - An explicit action to send focused repository contents to Gemini, then prepare and run original and generated tests separately.
+- An explicit **Investigate repository** action that performs one full V0.9 pass and displays a classified outcome with its Gemini explanation.
 - Preparation, dependency installation, skipped, failure, timeout, generated-code, and test-output states.
 - Pasted Python input with Gemini generation and Docker execution results.
 - Requests to `NEXT_PUBLIC_API_URL`, defaulting to `http://localhost:8000`.
@@ -251,6 +264,18 @@ The older focused repository endpoints remain available, but the frontend uses t
 10. All temporary repository copies and generated files are removed.
 
 Ordinary test assertion failures return HTTP 200 with a non-zero return code. Installation failure also returns HTTP 200 and skips both suites. Repository validation failures return HTTP 422. GitHub, Gemini, archive, Docker, or invalid generated-output failures return HTTP 502. Missing Gemini configuration returns HTTP 503.
+
+### Repository investigation
+
+1. The user explicitly selects **Investigate repository**.
+2. `POST /repository/investigate` fetches the planned generation context, resolving the default branch to one immutable commit SHA.
+3. Gemini generates one focused pytest module; Verix validates it before any repository setup.
+4. The archive for that same SHA is safely prepared and both suites run separately in Docker.
+5. The backend converts the installation and execution facts into bounded evidence, then selects one fixed outcome category.
+6. Gemini receives the fixed outcome and bounded evidence to produce a concise explanation; it cannot change the outcome or request a retry.
+7. The API returns the plan, generated tests, separate execution results, outcome, and explanation. The frontend displays them.
+
+The workflow has no automatic retry, patch, or fix step. An ordinary test failure or no-existing-tests result remains an HTTP 200 result with an outcome label. Invalid repository input returns HTTP 422. Gemini, GitHub, archive, validation, or Docker infrastructure failures return HTTP 502; a missing Gemini key returns HTTP 503.
 
 ### Pasted-code generation
 
@@ -306,27 +331,41 @@ Returns:
 - `existing_execution`: return code, output, timeout state, and skipped state for the original suite.
 - `generated_execution`: the same fields for the focused generated suite.
 
+### `POST /repository/investigate`
+
+Accepts the same repository URL object and returns the generated-test response fields plus `test_plan` and:
+
+```json
+{
+  "investigation": {
+    "outcome": "no_existing_tests",
+    "explanation": "The repository did not have an existing pytest suite to run."
+  }
+}
+```
+
+Possible outcomes are `setup_failed`, `no_existing_tests`, `existing_tests_timed_out`, `existing_tests_failed`, `generated_tests_timed_out`, `generated_tests_failed`, and `tests_passed`.
+
 ## Configuration
 
 The frontend uses `NEXT_PUBLIC_API_URL` and defaults to `http://localhost:8000`. The backend permits `http://localhost:3000` through CORS.
 
-`backend/.env.example` documents `LLM_API_KEY`; the ignored `backend/.env` holds the local Gemini key. The key is required by `/generate` and `/repository/generate`, but not by repository inspection or `/repository/test-run`. The Docker image must exist locally as `verix-test-runner:dev`, and Docker Desktop must be running.
+`backend/.env.example` documents `LLM_API_KEY`; the ignored `backend/.env` holds the local Gemini key. The key is required by `/generate`, `/repository/generate`, and `/repository/investigate`, but not by repository inspection or `/repository/test-run`. The Docker image must exist locally as `verix-test-runner:dev`, and Docker Desktop must be running.
 
-## V0.8 boundaries
+## V0.9 boundaries
 
 - Public GitHub repositories only; no token, private repository, or pull-request integration.
 - Python projects only, with dependency declarations and runner configuration at the repository root.
-- One automatically selected source target; no manual target, branch, commit, or nested-project selection.
+- One automatically selected source target on the current default branch; no manual target, branch, commit, or nested-project selection.
 - The bounded 500-entry tree can make selection incomplete in large repositories.
-- Repository context and the archive are fetched separately from the current default branch rather than pinned to one commit, so a branch update between the two operations can create a snapshot mismatch.
+- An investigation pins its context and archive to one commit SHA. Separate older inspection and execution endpoints still resolve the default branch independently.
 - Generated tests are temporary, are not committed back, and are not guaranteed to be logically correct.
-- No coverage measurement, failure investigation, fix proposal, retries, or agent loop.
+- Investigation explanations are limited to the collected evidence; they are not guaranteed root-cause diagnoses.
+- No coverage measurement, fix proposal, automatic retry, patch application, or multi-step agent loop.
 - No database, Redis, queue, authentication, or background job system.
 - Requests are synchronous, and one backend process coordinates the local Docker daemon directly.
 - Docker isolation is intended for local development, not as a production-grade multi-tenant security boundary.
 
 ## Next evolution
 
-V0.9 will classify repository workflow outcomes, including the case where no existing tests are found, and use bounded execution evidence to explain failures. It will pin repository evidence and execution to one commit revision, but will not automatically modify code, retry, or apply fixes.
-
-V0.10 will add validated user control over the repository commit, subdirectory, and Python source target, while keeping the selected context and executed archive on the same revision. Approval-based patches and verification remain V1.0 work.
+V0.10 will add validated user control over the repository reference, subdirectory, and Python source target, while keeping the selected context and executed archive on the same revision. Approval-based patches and verification remain V1.0 work.

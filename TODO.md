@@ -120,17 +120,17 @@
 
 ## V0.9
 
-- [ ] Define structured repository workflow outcomes and bounded investigation evidence, including no-existing-tests results
-- [ ] Pin repository context and execution archives to one commit revision
-- [ ] Classify setup failures, no-existing-tests results, existing-suite failures, generated-suite failures, and timeouts
-- [ ] Build an evidence-grounded repository investigation prompt
-- [ ] Generate a bounded failure explanation with Gemini
-- [ ] Coordinate one plan-generate-execute-investigate pass without automatic retries or fixes
-- [ ] Return the structured classification and explanation
-- [ ] Display repository investigation results
-- [ ] Add deterministic regression tests for the investigation flow
-- [ ] Test the complete V0.9 flow
-- [ ] Update documentation during the V0.9 Review Phase
+- [x] Define structured repository workflow outcomes and bounded investigation evidence, including no-existing-tests results
+- [x] Pin repository context and execution archives to one commit revision
+- [x] Classify setup failures, no-existing-tests results, existing-suite failures, generated-suite failures, and timeouts
+- [x] Build an evidence-grounded repository investigation prompt
+- [x] Generate a bounded failure explanation with Gemini
+- [x] Coordinate one plan-generate-execute-investigate pass without automatic retries or fixes
+- [x] Return the structured classification and explanation
+- [x] Display repository investigation results
+- [x] Add deterministic regression tests for the investigation flow
+- [x] Test the complete V0.9 flow
+- [x] Update documentation during the V0.9 Review Phase
 
 ---
 
@@ -150,7 +150,7 @@
 
 ## Current Task
 
-**Define structured repository workflow outcomes and bounded investigation evidence, including no-existing-tests results**
+**Define safe repository reference, subdirectory, and source-target selection inputs**
 
 ---
 
