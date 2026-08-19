@@ -34,6 +34,7 @@ p {
 
 label,
 input,
+select,
 textarea,
 button {
   display: block;
@@ -55,11 +56,13 @@ textarea {
   line-height: 1.5;
 }
 
-input {
+input,
+select {
   margin-bottom: 1rem;
   padding: 0.75rem;
   border: 1px solid #94a3b8;
   border-radius: 0.5rem;
+  background: #ffffff;
   font: inherit;
 }
 
@@ -219,6 +222,72 @@ button:disabled {
 
 .test-run-action p {
   margin-bottom: 0;
+}
+
+.context-preview select:disabled {
+  background: #f1f5f9;
+}
+
+.context-preview-result {
+  margin-top: 1.5rem;
+}
+
+.context-preview-result h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1rem;
+}
+
+.revision-value {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  text-transform: none !important;
+}
+
+.context-file {
+  margin-top: 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+}
+
+.context-file summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+  cursor: pointer;
+}
+
+.context-file summary code {
+  overflow-wrap: anywhere;
+}
+
+.context-file summary span {
+  flex: none;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.context-file pre {
+  margin: 0;
+  border-radius: 0 0 0.5rem 0.5rem;
+}
+
+.context-skipped {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: #fefce8;
+}
+
+.context-skipped p {
+  margin-top: 0;
+}
+
+.context-skipped ul {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
 }
 
 .repository-test-result h3 {

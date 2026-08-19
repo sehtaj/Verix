@@ -1,6 +1,7 @@
 import type {
   PastedCodeGenerationRun,
   RepositoryContext,
+  RepositoryGenerationContextPreview,
   RepositoryGenerationRun,
   RepositoryInvestigationRun,
   RepositoryTestRun,
@@ -10,13 +11,32 @@ type ApiError = { detail: string };
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+type RepositoryTargeting = {
+  reference?: string;
+  subdirectory?: string;
+  targetPath?: string;
+};
+
+function repositoryRequestBody(
+  repositoryUrl: string,
+  targeting: RepositoryTargeting = {},
+) {
+  return {
+    url: repositoryUrl,
+    ...(targeting.reference ? { reference: targeting.reference } : {}),
+    ...(targeting.subdirectory ? { subdirectory: targeting.subdirectory } : {}),
+    ...(targeting.targetPath ? { target_path: targeting.targetPath } : {}),
+  };
+}
+
 export async function fetchRepositoryContext(
   repositoryUrl: string,
+  targeting: RepositoryTargeting = {},
 ): Promise<RepositoryContext> {
   const response = await fetch(`${apiUrl}/repository/context`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url: repositoryUrl }),
+    body: JSON.stringify(repositoryRequestBody(repositoryUrl, targeting)),
   });
   const context: RepositoryContext | ApiError = await response.json();
 
@@ -27,13 +47,32 @@ export async function fetchRepositoryContext(
   return context;
 }
 
+export async function previewRepositoryGenerationContext(
+  repositoryUrl: string,
+  targeting: RepositoryTargeting,
+): Promise<RepositoryGenerationContextPreview> {
+  const response = await fetch(`${apiUrl}/repository/context/preview`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(repositoryRequestBody(repositoryUrl, targeting)),
+  });
+  const context: RepositoryGenerationContextPreview | ApiError = await response.json();
+
+  if (!response.ok || !("selection" in context)) {
+    throw new Error("detail" in context ? context.detail : "The preview request failed.");
+  }
+
+  return context;
+}
+
 export async function runRepositoryTests(
   repositoryUrl: string,
+  targeting: RepositoryTargeting = {},
 ): Promise<RepositoryTestRun> {
   const response = await fetch(`${apiUrl}/repository/test-run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url: repositoryUrl }),
+    body: JSON.stringify(repositoryRequestBody(repositoryUrl, targeting)),
   });
   const result: RepositoryTestRun | ApiError = await response.json();
 
@@ -46,11 +85,12 @@ export async function runRepositoryTests(
 
 export async function generateRepositoryTests(
   repositoryUrl: string,
+  targeting: RepositoryTargeting = {},
 ): Promise<RepositoryGenerationRun> {
   const response = await fetch(`${apiUrl}/repository/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url: repositoryUrl }),
+    body: JSON.stringify(repositoryRequestBody(repositoryUrl, targeting)),
   });
   const result: RepositoryGenerationRun | ApiError = await response.json();
 
@@ -63,11 +103,12 @@ export async function generateRepositoryTests(
 
 export async function investigateRepository(
   repositoryUrl: string,
+  targeting: RepositoryTargeting = {},
 ): Promise<RepositoryInvestigationRun> {
   const response = await fetch(`${apiUrl}/repository/investigate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url: repositoryUrl }),
+    body: JSON.stringify(repositoryRequestBody(repositoryUrl, targeting)),
   });
   const result: RepositoryInvestigationRun | ApiError = await response.json();
 

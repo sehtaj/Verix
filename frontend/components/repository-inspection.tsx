@@ -1,8 +1,31 @@
 import type {
+  RepositoryGenerationContextPreview,
   RepositoryMetadata,
   RepositoryTestPlan,
   RepositoryTree,
 } from "../types/api";
+
+function BoundedFilePreview({
+  path,
+  content,
+  byteCount,
+  open = false,
+}: {
+  path: string;
+  content: string;
+  byteCount?: number;
+  open?: boolean;
+}) {
+  return (
+    <details className="context-file" open={open}>
+      <summary>
+        <code>{path}</code>
+        {byteCount !== undefined && <span>{byteCount} bytes</span>}
+      </summary>
+      <pre>{content || "Empty file."}</pre>
+    </details>
+  );
+}
 
 export function RepositorySummary({
   repository,
@@ -44,6 +67,134 @@ export function RepositoryTreeView({ tree }: { tree: RepositoryTree }) {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+type RepositoryContextPreviewProps = {
+  sourcePaths: string[];
+  selectedTargetPath: string;
+  preview: RepositoryGenerationContextPreview | null;
+  isLoading: boolean;
+  isDisabled: boolean;
+  error: string | null;
+  onTargetChange: (targetPath: string) => void;
+  onPreview: () => void;
+};
+
+export function RepositoryContextPreview({
+  sourcePaths,
+  selectedTargetPath,
+  preview,
+  isLoading,
+  isDisabled,
+  error,
+  onTargetChange,
+  onPreview,
+}: RepositoryContextPreviewProps) {
+  return (
+    <section className="result context-preview">
+      <h2>Gemini context preview</h2>
+      <p>
+        Choose one verified Python source file, then inspect the bounded evidence Verix could send
+        to Gemini. Previewing does not call Gemini or run repository code.
+      </p>
+      <label htmlFor="repository-target">Python source target</label>
+      <select
+        id="repository-target"
+        name="repository-target"
+        value={selectedTargetPath}
+        disabled={isDisabled || isLoading || sourcePaths.length === 0}
+        onChange={(event) => onTargetChange(event.target.value)}
+      >
+        {sourcePaths.length === 0 && <option value="">No Python source files found</option>}
+        {sourcePaths.map((path) => (
+          <option key={path} value={path}>
+            {path}
+          </option>
+        ))}
+      </select>
+      <p className="field-hint">
+        The file must be inside the selected project folder at the resolved commit.
+      </p>
+      <button
+        disabled={isDisabled || isLoading || !selectedTargetPath}
+        onClick={onPreview}
+        type="button"
+      >
+        {isLoading ? "Loading context preview..." : "Preview Gemini context"}
+      </button>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {preview !== null && (
+        <div className="context-preview-result" aria-live="polite">
+          <dl className="plan-summary">
+            <div>
+              <dt>Resolved commit</dt>
+              <dd className="revision-value">{preview.revision}</dd>
+            </div>
+            <div>
+              <dt>Selected project folder</dt>
+              <dd>{preview.subdirectory ?? "Repository root"}</dd>
+            </div>
+            <div>
+              <dt>Included context size</dt>
+              <dd>{preview.total_bytes} bytes</dd>
+            </div>
+            <div>
+              <dt>Related test files</dt>
+              <dd>{preview.test_files.length}</dd>
+            </div>
+          </dl>
+
+          {preview.skipped_paths.length > 0 && (
+            <div className="context-skipped warning">
+              <p>These optional files were skipped because of the context size limits:</p>
+              <ul>
+                {preview.skipped_paths.map((path) => (
+                  <li key={path}>{path}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <h3>Selected source</h3>
+          {preview.source_file !== null && (
+            <BoundedFilePreview
+              path={preview.source_file.path}
+              content={preview.source_file.content}
+              byteCount={preview.source_file.byte_count}
+              open
+            />
+          )}
+
+          <h3>Related existing tests</h3>
+          {preview.test_files.length === 0 ? (
+            <p>No related existing test files were included.</p>
+          ) : (
+            preview.test_files.map((file) => (
+              <BoundedFilePreview
+                key={file.path}
+                path={file.path}
+                content={file.content}
+                byteCount={file.byte_count}
+              />
+            ))
+          )}
+
+          <h3>Project configuration</h3>
+          {preview.configuration_files.length === 0 ? (
+            <p>No project configuration files were included.</p>
+          ) : (
+            preview.configuration_files.map((file) => (
+              <BoundedFilePreview key={file.path} path={file.path} content={file.content} />
+            ))
+          )}
+        </div>
+      )}
     </section>
   );
 }

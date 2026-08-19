@@ -7,6 +7,7 @@ import {
   RepositoryTestRunResult,
 } from "../components/repository-execution-results";
 import {
+  RepositoryContextPreview,
   RepositorySummary,
   RepositoryTestPlanPanel,
   RepositoryTreeView,
@@ -17,11 +18,20 @@ export default function Home() {
   const {
     repositoryUrl,
     setRepositoryUrl,
+    repositoryReference,
+    setRepositoryReference,
+    repositorySubdirectory,
+    setRepositorySubdirectory,
+    repositoryContext,
     repository,
     repositoryTree,
     repositoryTestPlan,
     isRepositoryLoading,
     repositoryError,
+    selectedTargetPath,
+    repositoryContextPreview,
+    isRepositoryContextPreviewLoading,
+    repositoryContextPreviewError,
     repositoryTestRun,
     isRepositoryTestRunning,
     repositoryTestError,
@@ -32,10 +42,19 @@ export default function Home() {
     isRepositoryInvestigationRunning,
     repositoryInvestigationError,
     handleRepositorySubmit,
+    handleRepositoryTargetChange,
+    handleRepositoryContextPreview,
     handleRepositoryTestRun,
     handleRepositoryGeneration,
     handleRepositoryInvestigation,
   } = useRepositoryWorkflow();
+
+  const isRepositoryBusy =
+    isRepositoryLoading ||
+    isRepositoryContextPreviewLoading ||
+    isRepositoryTestRunning ||
+    isRepositoryGenerationRunning ||
+    isRepositoryInvestigationRunning;
 
   return (
     <main>
@@ -50,24 +69,37 @@ export default function Home() {
             placeholder="https://github.com/owner/repository"
             type="url"
             value={repositoryUrl}
-            disabled={
-              isRepositoryLoading ||
-              isRepositoryTestRunning ||
-              isRepositoryGenerationRunning
-              || isRepositoryInvestigationRunning
-            }
+            disabled={isRepositoryBusy}
             onChange={(event) => setRepositoryUrl(event.target.value)}
           />
           <p className="field-hint">Use an HTTPS URL for a public repository.</p>
-          <button
-            disabled={
-              isRepositoryLoading ||
-              isRepositoryTestRunning ||
-              isRepositoryGenerationRunning
-              || isRepositoryInvestigationRunning
-            }
-            type="submit"
-          >
+          <label htmlFor="repository-reference">Branch, tag, or commit (optional)</label>
+          <input
+            id="repository-reference"
+            name="repository-reference"
+            placeholder="main, release-1.0, or a commit SHA"
+            type="text"
+            value={repositoryReference}
+            disabled={isRepositoryBusy}
+            onChange={(event) => setRepositoryReference(event.target.value)}
+          />
+          <p className="field-hint">
+            Leave empty to use the repository&apos;s default branch.
+          </p>
+          <label htmlFor="repository-subdirectory">Python project folder (optional)</label>
+          <input
+            id="repository-subdirectory"
+            name="repository-subdirectory"
+            placeholder="packages/payments"
+            type="text"
+            value={repositorySubdirectory}
+            disabled={isRepositoryBusy}
+            onChange={(event) => setRepositorySubdirectory(event.target.value)}
+          />
+          <p className="field-hint">
+            Use a repository-relative folder path for a nested Python project.
+          </p>
+          <button disabled={isRepositoryBusy} type="submit">
             {isRepositoryLoading ? "Fetching..." : "Fetch repository"}
           </button>
           {repositoryError && (
@@ -81,6 +113,23 @@ export default function Home() {
         )}
         {repositoryTree !== null && (
           <RepositoryTreeView tree={repositoryTree} />
+        )}
+        {repositoryContext !== null && repositoryTestPlan !== null && (
+          <RepositoryContextPreview
+            sourcePaths={repositoryTestPlan.source_paths}
+            selectedTargetPath={selectedTargetPath}
+            preview={repositoryContextPreview}
+            isLoading={isRepositoryContextPreviewLoading}
+            isDisabled={
+              isRepositoryLoading ||
+              isRepositoryTestRunning ||
+              isRepositoryGenerationRunning ||
+              isRepositoryInvestigationRunning
+            }
+            error={repositoryContextPreviewError}
+            onTargetChange={handleRepositoryTargetChange}
+            onPreview={handleRepositoryContextPreview}
+          />
         )}
         {repositoryTestPlan !== null && (
           <RepositoryTestPlanPanel

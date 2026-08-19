@@ -6,11 +6,14 @@ import {
   fetchRepositoryContext,
   generateRepositoryTests,
   investigateRepository,
+  previewRepositoryGenerationContext,
   runRepositoryTests,
 } from "../lib/api";
 import type {
   RepositoryGenerationRun,
+  RepositoryGenerationContextPreview,
   RepositoryInvestigationRun,
+  RepositoryContext,
   RepositoryMetadata,
   RepositoryTestPlan,
   RepositoryTestRun,
@@ -37,11 +40,21 @@ function isPublicGitHubRepositoryUrl(value: string): boolean {
 
 export function useRepositoryWorkflow() {
   const [repositoryUrl, setRepositoryUrl] = useState("");
+  const [repositoryReference, setRepositoryReference] = useState("");
+  const [repositorySubdirectory, setRepositorySubdirectory] = useState("");
+  const [repositoryContext, setRepositoryContext] = useState<RepositoryContext | null>(null);
   const [repository, setRepository] = useState<RepositoryMetadata | null>(null);
   const [repositoryTree, setRepositoryTree] = useState<RepositoryTree | null>(null);
   const [repositoryTestPlan, setRepositoryTestPlan] = useState<RepositoryTestPlan | null>(null);
   const [isRepositoryLoading, setIsRepositoryLoading] = useState(false);
   const [repositoryError, setRepositoryError] = useState<string | null>(null);
+  const [selectedTargetPath, setSelectedTargetPath] = useState("");
+  const [repositoryContextPreview, setRepositoryContextPreview] =
+    useState<RepositoryGenerationContextPreview | null>(null);
+  const [isRepositoryContextPreviewLoading, setIsRepositoryContextPreviewLoading] =
+    useState(false);
+  const [repositoryContextPreviewError, setRepositoryContextPreviewError] =
+    useState<string | null>(null);
   const [repositoryTestRun, setRepositoryTestRun] = useState<RepositoryTestRun | null>(null);
   const [isRepositoryTestRunning, setIsRepositoryTestRunning] = useState(false);
   const [repositoryTestError, setRepositoryTestError] = useState<string | null>(null);
@@ -64,8 +77,12 @@ export function useRepositoryWorkflow() {
         "Enter a public GitHub repository URL, such as https://github.com/owner/repository.",
       );
       setRepository(null);
+      setRepositoryContext(null);
       setRepositoryTree(null);
       setRepositoryTestPlan(null);
+      setSelectedTargetPath("");
+      setRepositoryContextPreview(null);
+      setRepositoryContextPreviewError(null);
       setRepositoryTestRun(null);
       setRepositoryTestError(null);
       setRepositoryGenerationRun(null);
@@ -78,8 +95,12 @@ export function useRepositoryWorkflow() {
     setIsRepositoryLoading(true);
     setRepositoryError(null);
     setRepository(null);
+    setRepositoryContext(null);
     setRepositoryTree(null);
     setRepositoryTestPlan(null);
+    setSelectedTargetPath("");
+    setRepositoryContextPreview(null);
+    setRepositoryContextPreviewError(null);
     setRepositoryTestRun(null);
     setRepositoryTestError(null);
     setRepositoryGenerationRun(null);
@@ -88,11 +109,16 @@ export function useRepositoryWorkflow() {
     setRepositoryInvestigationError(null);
 
     try {
-      const context = await fetchRepositoryContext(repositoryUrl);
+      const context = await fetchRepositoryContext(repositoryUrl, {
+        reference: repositoryReference.trim() || undefined,
+        subdirectory: repositorySubdirectory.trim() || undefined,
+      });
 
+      setRepositoryContext(context);
       setRepository(context.metadata);
       setRepositoryTree(context.tree);
       setRepositoryTestPlan(context.test_plan);
+      setSelectedTargetPath(context.generation_selection.target_path ?? "");
     } catch (error) {
       setRepositoryError(
         error instanceof Error
@@ -104,8 +130,53 @@ export function useRepositoryWorkflow() {
     }
   }
 
+  function handleRepositoryTargetChange(targetPath: string) {
+    setSelectedTargetPath(targetPath);
+    setRepositoryContextPreview(null);
+    setRepositoryContextPreviewError(null);
+    setRepositoryGenerationRun(null);
+    setRepositoryGenerationError(null);
+    setRepositoryInvestigationRun(null);
+    setRepositoryInvestigationError(null);
+  }
+
+  async function handleRepositoryContextPreview() {
+    if (repository === null || repositoryContext === null) {
+      setRepositoryContextPreviewError(
+        "Fetch a public Python repository before previewing its Gemini context.",
+      );
+      return;
+    }
+    if (!selectedTargetPath) {
+      setRepositoryContextPreviewError("Select a Python source file to preview.");
+      return;
+    }
+
+    setIsRepositoryContextPreviewLoading(true);
+    setRepositoryContextPreviewError(null);
+    setRepositoryContextPreview(null);
+
+    try {
+      const preview = await previewRepositoryGenerationContext(repository.url, {
+        reference: repositoryContext.revision,
+        subdirectory: repositoryContext.subdirectory ?? undefined,
+        targetPath: selectedTargetPath,
+      });
+
+      setRepositoryContextPreview(preview);
+    } catch (error) {
+      setRepositoryContextPreviewError(
+        error instanceof Error
+          ? error.message
+          : "Unable to preview the Gemini context. Please try again.",
+      );
+    } finally {
+      setIsRepositoryContextPreviewLoading(false);
+    }
+  }
+
   async function handleRepositoryTestRun() {
-    if (repository === null) {
+    if (repository === null || repositoryContext === null) {
       setRepositoryTestError("Fetch a public Python repository before running its tests.");
       return;
     }
@@ -119,7 +190,10 @@ export function useRepositoryWorkflow() {
     setRepositoryInvestigationRun(null);
 
     try {
-      const result = await runRepositoryTests(repository.url);
+      const result = await runRepositoryTests(repository.url, {
+        reference: repositoryContext.revision,
+        subdirectory: repositoryContext.subdirectory ?? undefined,
+      });
 
       setRepositoryTestRun(result);
     } catch (error) {
@@ -134,10 +208,14 @@ export function useRepositoryWorkflow() {
   }
 
   async function handleRepositoryGeneration() {
-    if (repository === null) {
+    if (repository === null || repositoryContext === null) {
       setRepositoryGenerationError(
         "Fetch a public Python repository before generating its tests.",
       );
+      return;
+    }
+    if (!selectedTargetPath) {
+      setRepositoryGenerationError("Select a Python source file before generating tests.");
       return;
     }
 
@@ -150,7 +228,11 @@ export function useRepositoryWorkflow() {
     setRepositoryInvestigationRun(null);
 
     try {
-      const result = await generateRepositoryTests(repository.url);
+      const result = await generateRepositoryTests(repository.url, {
+        reference: repositoryContext.revision,
+        subdirectory: repositoryContext.subdirectory ?? undefined,
+        targetPath: selectedTargetPath,
+      });
 
       setRepositoryGenerationRun(result);
     } catch (error) {
@@ -165,9 +247,15 @@ export function useRepositoryWorkflow() {
   }
 
   async function handleRepositoryInvestigation() {
-    if (repository === null) {
+    if (repository === null || repositoryContext === null) {
       setRepositoryInvestigationError(
         "Fetch a public Python repository before investigating it.",
+      );
+      return;
+    }
+    if (!selectedTargetPath) {
+      setRepositoryInvestigationError(
+        "Select a Python source file before investigating the repository.",
       );
       return;
     }
@@ -181,7 +269,11 @@ export function useRepositoryWorkflow() {
     setRepositoryGenerationRun(null);
 
     try {
-      const result = await investigateRepository(repository.url);
+      const result = await investigateRepository(repository.url, {
+        reference: repositoryContext.revision,
+        subdirectory: repositoryContext.subdirectory ?? undefined,
+        targetPath: selectedTargetPath,
+      });
 
       setRepositoryInvestigationRun(result);
       setRepositoryTestPlan(result.test_plan);
@@ -199,11 +291,20 @@ export function useRepositoryWorkflow() {
   return {
     repositoryUrl,
     setRepositoryUrl,
+    repositoryReference,
+    setRepositoryReference,
+    repositorySubdirectory,
+    setRepositorySubdirectory,
+    repositoryContext,
     repository,
     repositoryTree,
     repositoryTestPlan,
     isRepositoryLoading,
     repositoryError,
+    selectedTargetPath,
+    repositoryContextPreview,
+    isRepositoryContextPreviewLoading,
+    repositoryContextPreviewError,
     repositoryTestRun,
     isRepositoryTestRunning,
     repositoryTestError,
@@ -214,6 +315,8 @@ export function useRepositoryWorkflow() {
     isRepositoryInvestigationRunning,
     repositoryInvestigationError,
     handleRepositorySubmit,
+    handleRepositoryTargetChange,
+    handleRepositoryContextPreview,
     handleRepositoryTestRun,
     handleRepositoryGeneration,
     handleRepositoryInvestigation,

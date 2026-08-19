@@ -35,10 +35,41 @@ export type RepositoryTestPlan = {
   is_truncated: boolean;
 };
 
+export type RepositoryGenerationSelection = {
+  target_path: string | null;
+  related_test_paths: string[];
+  configuration_paths: string[];
+  is_truncated: boolean;
+};
+
+export type RepositoryConfigurationFile = {
+  path: string;
+  content: string;
+};
+
+export type RepositoryFileContent = RepositoryConfigurationFile & {
+  byte_count: number;
+};
+
 export type RepositoryContext = {
+  revision: string;
+  subdirectory: string | null;
   metadata: RepositoryMetadata;
   tree: RepositoryTree;
+  configuration_files: RepositoryConfigurationFile[];
   test_plan: RepositoryTestPlan;
+  generation_selection: RepositoryGenerationSelection;
+};
+
+export type RepositoryGenerationContextPreview = {
+  revision: string;
+  subdirectory: string | null;
+  selection: RepositoryGenerationSelection;
+  source_file: RepositoryFileContent | null;
+  test_files: RepositoryFileContent[];
+  configuration_files: RepositoryConfigurationFile[];
+  skipped_paths: string[];
+  total_bytes: number;
 };
 
 export type RepositoryPreparation = {
