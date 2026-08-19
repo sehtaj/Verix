@@ -120,6 +120,7 @@ class RepositoryGenerationContext:
     total_bytes: int
     revision: str | None = None
     test_plan: RepositoryTestPlan | None = None
+    subdirectory: str | None = None
 
 
 @dataclass
@@ -132,3 +133,4 @@ class RepositoryContext:
     test_plan: RepositoryTestPlan
     generation_selection: RepositoryGenerationSelection
     revision: str | None = None
+    subdirectory: str | None = None

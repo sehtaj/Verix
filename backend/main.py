@@ -7,13 +7,19 @@ from api.presenters import (
     present_configuration_files,
     present_python_project_setup,
     present_repository_context,
+    present_repository_generation_context,
     present_repository_investigation,
     present_repository_metadata,
     present_repository_paths,
     present_repository_test_plan,
     present_repository_tree,
 )
-from api.schemas import GenerateTestsRequest, RepositoryRequest
+from api.schemas import (
+    GenerateTestsRequest,
+    RepositoryRequest,
+    RepositorySubdirectoryRequest,
+    RepositoryTargetRequest,
+)
 from services.github_service import GitHubRepositoryService
 from services.llm_service import GeminiLLMService
 from services.repository_preparer import PublicRepositoryPreparer
@@ -179,10 +185,28 @@ def get_repository_test_plan(request: RepositoryRequest) -> dict[str, object]:
 
 
 @app.post("/repository/context")
-def get_repository_context(request: RepositoryRequest) -> dict[str, object]:
+def get_repository_context(
+    request: RepositoryTargetRequest,
+) -> dict[str, object]:
     """Return shared repository evidence and its derived test plan."""
     try:
-        context = github_repository_service.fetch_context(request.url)
+        if request.target_path is not None:
+            context = github_repository_service.fetch_context(
+                request.url,
+                request.reference,
+                request.subdirectory,
+                request.target_path,
+            )
+        elif request.subdirectory is not None:
+            context = github_repository_service.fetch_context(
+                request.url, request.reference, request.subdirectory
+            )
+        elif request.reference is not None:
+            context = github_repository_service.fetch_context(
+                request.url, request.reference
+            )
+        else:
+            context = github_repository_service.fetch_context(request.url)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
     except RuntimeError:
@@ -194,12 +218,54 @@ def get_repository_context(request: RepositoryRequest) -> dict[str, object]:
     return present_repository_context(context)
 
 
+@app.post("/repository/context/preview")
+def preview_repository_generation_context(
+    request: RepositoryTargetRequest,
+) -> dict[str, object]:
+    """Return bounded selected contents without calling Gemini or running code."""
+    if request.target_path is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Select a Python source target before previewing its context.",
+        )
+
+    try:
+        context = github_repository_service.fetch_generation_context(
+            request.url,
+            request.reference,
+            request.subdirectory,
+            request.target_path,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to preview repository generation context. Please try again.",
+        ) from None
+
+    return present_repository_generation_context(context)
+
+
 @app.post("/repository/test-run")
-def run_repository_test_suite(request: RepositoryRequest) -> dict[str, object]:
+def run_repository_test_suite(
+    request: RepositorySubdirectoryRequest,
+) -> dict[str, object]:
     """Prepare a public Python repository and return its isolated test results."""
     try:
         workflow = RepositoryExecutionWorkflow(repository_preparer, test_runner)
-        return workflow.run_existing_tests(request.url)
+        revision = (
+            github_repository_service.resolve_revision(
+                request.url, request.reference
+            )
+            if request.reference is not None
+            else None
+        )
+        return workflow.run_existing_tests(
+            request.url,
+            revision=revision,
+            subdirectory=request.subdirectory,
+        )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
     except RuntimeError:
@@ -211,7 +277,7 @@ def run_repository_test_suite(request: RepositoryRequest) -> dict[str, object]:
 
 @app.post("/repository/generate")
 def generate_repository_test_suite(
-    request: RepositoryRequest,
+    request: RepositoryTargetRequest,
 ) -> dict[str, object]:
     """Generate repository-aware tests and return both isolated test results."""
     if llm_service is None:
@@ -221,9 +287,25 @@ def generate_repository_test_suite(
         )
 
     try:
-        generation_context = github_repository_service.fetch_generation_context(
-            request.url
-        )
+        if request.target_path is not None:
+            generation_context = github_repository_service.fetch_generation_context(
+                request.url,
+                request.reference,
+                request.subdirectory,
+                request.target_path,
+            )
+        elif request.subdirectory is not None:
+            generation_context = github_repository_service.fetch_generation_context(
+                request.url, request.reference, request.subdirectory
+            )
+        elif request.reference is not None:
+            generation_context = github_repository_service.fetch_generation_context(
+                request.url, request.reference
+            )
+        else:
+            generation_context = github_repository_service.fetch_generation_context(
+                request.url
+            )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from None
     except RuntimeError:
@@ -256,20 +338,27 @@ def generate_repository_test_suite(
     try:
         workflow = RepositoryExecutionWorkflow(repository_preparer, test_runner)
         revision = getattr(generation_context, "revision", None)
-        execution_results = (
-            workflow.run_existing_and_generated_tests(
+        if request.subdirectory is not None:
+            execution_results = workflow.run_existing_and_generated_tests(
+                request.url,
+                target_path,
+                generated_tests,
+                revision,
+                request.subdirectory,
+            )
+        elif revision is not None:
+            execution_results = workflow.run_existing_and_generated_tests(
                 request.url,
                 target_path,
                 generated_tests,
                 revision,
             )
-            if revision is not None
-            else workflow.run_existing_and_generated_tests(
+        else:
+            execution_results = workflow.run_existing_and_generated_tests(
                 request.url,
                 target_path,
                 generated_tests,
             )
-        )
     except GeneratedTestsValidationError:
         raise HTTPException(
             status_code=502,
@@ -291,7 +380,9 @@ def generate_repository_test_suite(
 
 
 @app.post("/repository/investigate")
-def investigate_repository(request: RepositoryRequest) -> dict[str, object]:
+def investigate_repository(
+    request: RepositoryTargetRequest,
+) -> dict[str, object]:
     """Run one repository investigation and return its result and explanation."""
     if llm_service is None:
         raise HTTPException(
@@ -304,11 +395,26 @@ def investigate_repository(request: RepositoryRequest) -> dict[str, object]:
             repository_preparer,
             test_runner,
         )
-        investigation = RepositoryInvestigationWorkflow(
+        workflow = RepositoryInvestigationWorkflow(
             github_repository_service,
             llm_service,
             execution_workflow,
-        ).run(request.url)
+        )
+        if request.target_path is not None:
+            investigation = workflow.run(
+                request.url,
+                request.reference,
+                request.subdirectory,
+                request.target_path,
+            )
+        elif request.subdirectory is not None:
+            investigation = workflow.run(
+                request.url, request.reference, request.subdirectory
+            )
+        elif request.reference is not None:
+            investigation = workflow.run(request.url, request.reference)
+        else:
+            investigation = workflow.run(request.url)
         return present_repository_investigation(investigation)
     except GeneratedTestsValidationError:
         raise HTTPException(

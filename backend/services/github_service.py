@@ -2,6 +2,7 @@
 
 from base64 import b64decode
 from binascii import Error as Base64DecodeError
+from pathlib import PurePosixPath
 import re
 from urllib.parse import quote, urlparse
 
@@ -50,6 +51,18 @@ class GitHubRepositoryService:
 
         return self._build_metadata(data)
 
+    def resolve_revision(
+        self, repository_url: str, reference: str | None = None
+    ) -> str:
+        """Resolve a selected branch, tag, or commit to one immutable commit SHA."""
+        owner, repository = self._parse_repository_url(repository_url)
+        repository_data = self._fetch_repository_data(owner, repository)
+        if reference is None:
+            return self._resolve_default_branch_revision(
+                owner, repository, repository_data
+            )
+        return self._resolve_reference_revision(owner, repository, reference)
+
     def fetch_archive_reference(
         self, repository_url: str, revision: str | None = None
     ) -> RepositoryArchiveReference:
@@ -94,16 +107,36 @@ class GitHubRepositoryService:
         return self._fetch_file_tree(owner, repository, revision)
 
     def _fetch_file_tree(
-        self, owner: str, repository: str, revision: str
+        self,
+        owner: str,
+        repository: str,
+        revision: str,
+        subdirectory: str | None = None,
     ) -> RepositoryTree:
         """Fetch a bounded recursive tree using previously fetched repository data."""
         tree_data = self._request_json(
             f"{GITHUB_API_URL}/{quote(owner, safe='')}/{quote(repository, safe='')}/git/trees/{quote(revision, safe='')}?recursive=1"
         )
-        tree_entries = sorted(
+        all_tree_entries = sorted(
             tree_data["tree"],
             key=lambda entry: (entry["path"].lower(), entry["type"] != "tree"),
         )
+        tree_entries = all_tree_entries
+        subdirectory_prefix = ""
+        if subdirectory is not None:
+            self._validate_subdirectory(subdirectory)
+            if not any(
+                entry["path"] == subdirectory and entry["type"] == "tree"
+                for entry in all_tree_entries
+            ):
+                raise ValueError("Repository subdirectory was not found.")
+
+            subdirectory_prefix = f"{subdirectory}/"
+            tree_entries = [
+                entry
+                for entry in all_tree_entries
+                if entry["path"].startswith(subdirectory_prefix)
+            ]
 
         return RepositoryTree(
             entries=[
@@ -115,7 +148,8 @@ class GitHubRepositoryService:
                 entry["path"]
                 for entry in tree_entries
                 if entry["type"] == "blob"
-                and entry["path"] in CONFIGURATION_FILENAMES
+                and entry["path"].removeprefix(subdirectory_prefix)
+                in CONFIGURATION_FILENAMES
             ),
         )
 
@@ -137,10 +171,14 @@ class GitHubRepositoryService:
     ) -> list[RepositoryConfigurationFile]:
         """Fetch only allowed configuration files known to exist in the tree."""
         configuration_files = []
-        available_paths = set(tree.available_configuration_paths)
+        available_paths = {
+            PurePosixPath(path).name: path
+            for path in tree.available_configuration_paths
+        }
 
-        for path in CONFIGURATION_FILENAMES:
-            if path not in available_paths:
+        for filename in CONFIGURATION_FILENAMES:
+            path = available_paths.get(filename)
+            if path is None:
                 continue
 
             file_data = self._fetch_file_data(owner, repository, path, revision)
@@ -166,9 +204,13 @@ class GitHubRepositoryService:
 
         return self._identify_likely_paths(tree)
 
-    def _identify_likely_paths(self, tree: RepositoryTree) -> RepositoryPaths:
+    def _identify_likely_paths(
+        self,
+        tree: RepositoryTree,
+        subdirectory: str | None = None,
+    ) -> RepositoryPaths:
         """Identify likely Python paths from an already fetched tree."""
-        return RepositoryAnalyzer.identify_likely_paths(tree)
+        return RepositoryAnalyzer.identify_likely_paths(tree, subdirectory)
 
     def detect_python_project_setup(self, repository_url: str) -> PythonProjectSetup:
         """Recognize Python tooling from the repository's available configuration files."""
@@ -186,19 +228,35 @@ class GitHubRepositoryService:
         """Build a test plan from available configuration and repository-path evidence."""
         return self.fetch_context(repository_url).test_plan
 
-    def fetch_context(self, repository_url: str) -> RepositoryContext:
+    def fetch_context(
+        self,
+        repository_url: str,
+        reference: str | None = None,
+        subdirectory: str | None = None,
+        target_path: str | None = None,
+    ) -> RepositoryContext:
         """Fetch repository evidence once and derive its complete test-planning context."""
         owner, repository = self._parse_repository_url(repository_url)
         repository_data = self._fetch_repository_data(owner, repository)
         metadata = self._build_metadata(repository_data)
-        revision = self._resolve_default_branch_revision(
-            owner, repository, repository_data
+        revision = (
+            self._resolve_default_branch_revision(
+                owner, repository, repository_data
+            )
+            if reference is None
+            else self._resolve_reference_revision(owner, repository, reference)
         )
-        tree = self._fetch_file_tree(owner, repository, revision)
+        tree = (
+            self._fetch_file_tree(
+                owner, repository, revision, subdirectory
+            )
+            if subdirectory is not None
+            else self._fetch_file_tree(owner, repository, revision)
+        )
         configuration_files = self._fetch_configuration_files(
             owner, repository, revision, tree
         )
-        paths = self._identify_likely_paths(tree)
+        paths = self._identify_likely_paths(tree, subdirectory)
         setup = self._detect_python_project_setup(configuration_files)
         test_plan = RepositoryTestPlan(
             setup=setup,
@@ -208,7 +266,7 @@ class GitHubRepositoryService:
             is_truncated=paths.is_truncated,
         )
         generation_selection = self._select_generation_context(
-            paths, configuration_files
+            paths, configuration_files, target_path
         )
 
         return RepositoryContext(
@@ -218,14 +276,33 @@ class GitHubRepositoryService:
             test_plan=test_plan,
             generation_selection=generation_selection,
             revision=revision,
+            subdirectory=subdirectory,
         )
 
     def fetch_generation_context(
-        self, repository_url: str
+        self,
+        repository_url: str,
+        reference: str | None = None,
+        subdirectory: str | None = None,
+        target_path: str | None = None,
     ) -> RepositoryGenerationContext:
         """Fetch only the bounded file contents selected for one generation request."""
         owner, repository = self._parse_repository_url(repository_url)
-        repository_context = self.fetch_context(repository_url)
+        if target_path is not None:
+            repository_context = self.fetch_context(
+                repository_url,
+                reference,
+                subdirectory,
+                target_path,
+            )
+        elif subdirectory is not None:
+            repository_context = self.fetch_context(
+                repository_url, reference, subdirectory
+            )
+        elif reference is not None:
+            repository_context = self.fetch_context(repository_url, reference)
+        else:
+            repository_context = self.fetch_context(repository_url)
         revision = getattr(repository_context, "revision", None)
         selection = repository_context.generation_selection
         selected_configuration_files = {
@@ -289,16 +366,18 @@ class GitHubRepositoryService:
             total_bytes=total_bytes,
             revision=revision,
             test_plan=getattr(repository_context, "test_plan", None),
+            subdirectory=subdirectory,
         )
 
     @staticmethod
     def _select_generation_context(
         paths: RepositoryPaths,
         configuration_files: list[RepositoryConfigurationFile],
+        target_path: str | None = None,
     ) -> RepositoryGenerationSelection:
         """Select one source target and a small, deterministic context set."""
         return RepositoryAnalyzer.select_generation_context(
-            paths, configuration_files
+            paths, configuration_files, target_path
         )
 
     @staticmethod
@@ -325,11 +404,23 @@ class GitHubRepositoryService:
         if not isinstance(default_branch, str) or not default_branch:
             raise RuntimeError("GitHub could not resolve the repository revision.")
 
-        reference_data = self._request_json(
-            f"{GITHUB_API_URL}/{quote(owner, safe='')}/{quote(repository, safe='')}/git/ref/heads/{quote(default_branch, safe='')}"
-        )
+        return self._resolve_reference_revision(owner, repository, default_branch)
+
+    def _resolve_reference_revision(
+        self, owner: str, repository: str, reference: str
+    ) -> str:
+        """Ask GitHub to resolve one branch, tag, or commit reference."""
         try:
-            revision = reference_data["object"]["sha"]
+            reference_data = self._request_json(
+                f"{GITHUB_API_URL}/{quote(owner, safe='')}/"
+                f"{quote(repository, safe='')}/commits/"
+                f"{quote(reference, safe='')}"
+            )
+        except ValueError:
+            raise ValueError("Repository reference was not found.") from None
+
+        try:
+            revision = reference_data["sha"]
         except (KeyError, TypeError):
             raise RuntimeError("GitHub could not resolve the repository revision.") from None
 
@@ -337,6 +428,20 @@ class GitHubRepositoryService:
             raise RuntimeError("GitHub could not resolve the repository revision.")
         self._validate_revision(revision)
         return revision
+
+    @staticmethod
+    def _validate_subdirectory(subdirectory: str) -> None:
+        """Require a safe repository-relative directory path inside services."""
+        path = PurePosixPath(subdirectory)
+        if (
+            not subdirectory
+            or len(subdirectory) > 1024
+            or "\\" in subdirectory
+            or path.is_absolute()
+            or any(part in {"", ".", ".."} for part in subdirectory.split("/"))
+            or any(ord(character) < 32 or ord(character) == 127 for character in subdirectory)
+        ):
+            raise ValueError("Repository subdirectory is invalid.")
 
     @staticmethod
     def _validate_revision(revision: str) -> None:

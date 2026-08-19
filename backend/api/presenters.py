@@ -6,6 +6,8 @@ from models.repository import (
     PythonProjectSetup,
     RepositoryConfigurationFile,
     RepositoryContext,
+    RepositoryFileContent,
+    RepositoryGenerationContext,
     RepositoryGenerationSelection,
     RepositoryMetadata,
     RepositoryPaths,
@@ -90,9 +92,46 @@ def present_generation_selection(
     }
 
 
-def present_repository_context(context: RepositoryContext) -> dict[str, object]:
-    """Return consolidated repository evidence in the existing API shape."""
+def present_repository_file_content(
+    file: RepositoryFileContent,
+) -> dict[str, object]:
+    """Return one bounded repository file exactly as previewed for Gemini."""
     return {
+        "path": file.path,
+        "content": file.content,
+        "byte_count": file.byte_count,
+    }
+
+
+def present_repository_generation_context(
+    context: RepositoryGenerationContext,
+) -> dict[str, object]:
+    """Return the exact bounded repository evidence available to Gemini."""
+    return {
+        "revision": context.revision,
+        "subdirectory": context.subdirectory,
+        "selection": present_generation_selection(context.selection),
+        "source_file": (
+            present_repository_file_content(context.source_file)
+            if context.source_file is not None
+            else None
+        ),
+        "test_files": [
+            present_repository_file_content(file) for file in context.test_files
+        ],
+        "configuration_files": present_configuration_files(
+            context.configuration_files
+        ),
+        "skipped_paths": context.skipped_paths,
+        "total_bytes": context.total_bytes,
+    }
+
+
+def present_repository_context(context: RepositoryContext) -> dict[str, object]:
+    """Return consolidated repository evidence and its resolved revision."""
+    return {
+        "revision": context.revision,
+        "subdirectory": context.subdirectory,
         "metadata": present_repository_metadata(context.metadata),
         "tree": present_repository_tree(context.tree),
         "configuration_files": present_configuration_files(
