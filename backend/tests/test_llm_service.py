@@ -17,6 +17,12 @@ from services.github_service import (
     RepositoryGenerationSelection,
 )
 from services.llm_service import GeminiLLMService, MODEL_NAME
+from models.investigation import (
+    RepositoryInvestigationEvidence,
+    RepositoryCommandEvidence,
+    RepositoryOutcomeKind,
+)
+from services.llm_service import MAX_INVESTIGATION_EXPLANATION_CHARACTERS
 
 
 class RepositoryLLMServiceTests(unittest.TestCase):
@@ -76,6 +82,13 @@ class RepositoryLLMServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "empty response"):
             service.generate_repository_tests(self.make_context())
 
+    def test_gemini_request_failures_are_normalized_to_runtime_errors(self) -> None:
+        service = self.make_service("unused")
+        service.client.models.generate_content.side_effect = Exception("unavailable")
+
+        with self.assertRaisesRegex(RuntimeError, "could not generate"):
+            service.generate_repository_tests(self.make_context())
+
     def test_existing_pasted_code_generation_still_uses_main_module_prompt(self) -> None:
         generated_tests = "from main import add\n"
         service = self.make_service(generated_tests)
@@ -97,6 +110,53 @@ class RepositoryLLMServiceTests(unittest.TestCase):
             service.generate_repository_tests(context)
 
         service.client.models.generate_content.assert_not_called()
+
+    def test_generates_an_evidence_grounded_repository_explanation(self) -> None:
+        service = self.make_service("The existing suite has one failing test.\n")
+
+        explanation = service.generate_repository_investigation(
+            outcome=RepositoryOutcomeKind.EXISTING_TESTS_FAILED,
+            evidence=self.make_investigation_evidence(),
+        )
+
+        self.assertEqual(explanation, "The existing suite has one failing test.")
+        call = service.client.models.generate_content.call_args
+        self.assertEqual(call.kwargs["model"], MODEL_NAME)
+        self.assertIn("existing_tests_failed", call.kwargs["contents"])
+        self.assertIn("existing failure output", call.kwargs["contents"])
+        self.assertIn("do not reclassify it", call.kwargs["contents"])
+
+    def test_bounds_an_overlong_repository_explanation(self) -> None:
+        service = self.make_service("x" * (MAX_INVESTIGATION_EXPLANATION_CHARACTERS + 1))
+
+        explanation = service.generate_repository_investigation(
+            outcome=RepositoryOutcomeKind.EXISTING_TESTS_FAILED,
+            evidence=self.make_investigation_evidence(),
+        )
+
+        self.assertEqual(len(explanation), MAX_INVESTIGATION_EXPLANATION_CHARACTERS)
+        self.assertTrue(explanation.endswith("..."))
+
+    @staticmethod
+    def make_investigation_evidence() -> RepositoryInvestigationEvidence:
+        return RepositoryInvestigationEvidence(
+            test_runner="pytest",
+            installation=RepositoryCommandEvidence(
+                return_code=0,
+                timed_out=False,
+                skipped=False,
+                output_excerpt="installation complete",
+                output_truncated=False,
+            ),
+            existing_execution=RepositoryCommandEvidence(
+                return_code=1,
+                timed_out=False,
+                skipped=False,
+                output_excerpt="existing failure output",
+                output_truncated=False,
+            ),
+            generated_execution=None,
+        )
 
 
 if __name__ == "__main__":
