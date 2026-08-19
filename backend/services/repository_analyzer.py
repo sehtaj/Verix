@@ -49,7 +49,11 @@ class RepositoryAnalyzer:
     """Derive Python project evidence without performing external requests."""
 
     @classmethod
-    def identify_likely_paths(cls, tree: RepositoryTree) -> RepositoryPaths:
+    def identify_likely_paths(
+        cls,
+        tree: RepositoryTree,
+        subdirectory: str | None = None,
+    ) -> RepositoryPaths:
         """Identify likely Python paths from an already fetched tree."""
         python_file_paths = [
             entry.path
@@ -59,13 +63,14 @@ class RepositoryAnalyzer:
         test_paths = [
             path
             for path in python_file_paths
-            if cls.is_test_path(path)
+            if cls.is_test_path(cls._project_relative_path(path, subdirectory))
             and PurePosixPath(path).name not in {"__init__.py", "__main__.py"}
         ]
         source_paths = [
             path
             for path in python_file_paths
-            if not cls.is_test_path(path) and cls.is_source_path(path)
+            if not cls.is_test_path(cls._project_relative_path(path, subdirectory))
+            and cls.is_source_path(cls._project_relative_path(path, subdirectory))
         ]
 
         return RepositoryPaths(
@@ -74,13 +79,24 @@ class RepositoryAnalyzer:
             is_truncated=tree.is_truncated,
         )
 
+    @staticmethod
+    def _project_relative_path(path: str, subdirectory: str | None) -> str:
+        """Use the selected project root for classification while preserving API paths."""
+        if subdirectory is None:
+            return path
+        try:
+            return PurePosixPath(path).relative_to(subdirectory).as_posix()
+        except ValueError:
+            return path
+
     @classmethod
     def detect_python_project_setup(
         cls, configuration_files: list[RepositoryConfigurationFile]
     ) -> PythonProjectSetup:
         """Recognize Python tooling from already fetched configuration files."""
         contents_by_path = {
-            file.path: file.content.lower() for file in configuration_files
+            PurePosixPath(file.path).name: file.content.lower()
+            for file in configuration_files
         }
 
         return PythonProjectSetup(
@@ -95,29 +111,36 @@ class RepositoryAnalyzer:
         cls,
         paths: RepositoryPaths,
         configuration_files: list[RepositoryConfigurationFile],
+        target_path: str | None = None,
     ) -> RepositoryGenerationSelection:
         """Select one source target and a small, deterministic context set."""
-        preferred_targets = [
-            path
-            for path in paths.source_paths
-            if PurePosixPath(path).name not in {"__init__.py", "__main__.py"}
-        ]
-        target_candidates = preferred_targets or paths.source_paths
-        target_path = (
-            min(
-                target_candidates,
-                key=lambda path: (
-                    not any(
-                        cls.is_direct_test_for_source(test_path, path)
-                        for test_path in paths.test_paths
+        if target_path is not None:
+            if target_path not in paths.source_paths:
+                raise ValueError(
+                    "Repository source target was not found in the selected project."
+                )
+        else:
+            preferred_targets = [
+                path
+                for path in paths.source_paths
+                if PurePosixPath(path).name not in {"__init__.py", "__main__.py"}
+            ]
+            target_candidates = preferred_targets or paths.source_paths
+            target_path = (
+                min(
+                    target_candidates,
+                    key=lambda path: (
+                        not any(
+                            cls.is_direct_test_for_source(test_path, path)
+                            for test_path in paths.test_paths
+                        ),
+                        len(PurePosixPath(path).parts),
+                        path.lower(),
                     ),
-                    len(PurePosixPath(path).parts),
-                    path.lower(),
-                ),
+                )
+                if target_candidates
+                else None
             )
-            if target_candidates
-            else None
-        )
 
         related_test_paths: list[str] = []
         if target_path is not None:
@@ -131,12 +154,13 @@ class RepositoryAnalyzer:
             )[:MAX_GENERATION_TEST_PATHS]
 
         available_configuration_paths = {
-            file.path for file in configuration_files
+            PurePosixPath(file.path).name: file.path
+            for file in configuration_files
         }
         ordered_configuration_paths = [
-            path
-            for path in GENERATION_CONFIGURATION_PRIORITY
-            if path in available_configuration_paths
+            available_configuration_paths[filename]
+            for filename in GENERATION_CONFIGURATION_PRIORITY
+            if filename in available_configuration_paths
         ]
         configuration_paths = ordered_configuration_paths[
             :MAX_GENERATION_CONFIGURATION_PATHS

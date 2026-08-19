@@ -1,5 +1,7 @@
 """Coordinate preparation and isolated execution for public repositories."""
 
+from pathlib import PurePosixPath
+
 from services.docker_runner import DockerTestRunner
 from services.repository_preparer import PublicRepositoryPreparer
 
@@ -16,13 +18,22 @@ class RepositoryExecutionWorkflow:
         self.test_runner = test_runner
 
     def run_existing_tests(
-        self, repository_url: str, revision: str | None = None
+        self,
+        repository_url: str,
+        revision: str | None = None,
+        subdirectory: str | None = None,
     ) -> dict[str, object]:
         """Run a repository's existing tests in an isolated workspace."""
         preparation = (
-            self.repository_preparer.prepare(repository_url, revision)
-            if revision is not None
-            else self.repository_preparer.prepare(repository_url)
+            self.repository_preparer.prepare(
+                repository_url, revision, subdirectory
+            )
+            if subdirectory is not None
+            else (
+                self.repository_preparer.prepare(repository_url, revision)
+                if revision is not None
+                else self.repository_preparer.prepare(repository_url)
+            )
         )
         with preparation as prepared_repository:
             preparation = {
@@ -83,12 +94,22 @@ class RepositoryExecutionWorkflow:
         target_path: str,
         generated_tests: str,
         revision: str | None = None,
+        subdirectory: str | None = None,
     ) -> dict[str, object]:
         """Run existing and generated tests after one shared preparation step."""
         preparation = (
-            self.repository_preparer.prepare(repository_url, revision)
-            if revision is not None
-            else self.repository_preparer.prepare(repository_url)
+            self.repository_preparer.prepare(
+                repository_url, revision, subdirectory
+            )
+            if subdirectory is not None
+            else (
+                self.repository_preparer.prepare(repository_url, revision)
+                if revision is not None
+                else self.repository_preparer.prepare(repository_url)
+            )
+        )
+        project_target_path = self._project_target_path(
+            target_path, subdirectory
         )
         with preparation as prepared_repository:
             preparation = {
@@ -128,7 +149,7 @@ class RepositoryExecutionWorkflow:
                 else:
                     test_results = self.test_runner.run_repository_test_sets(
                         workspace_path,
-                        target_path,
+                        project_target_path,
                         generated_tests,
                         selected_runner,
                     )
@@ -157,3 +178,23 @@ class RepositoryExecutionWorkflow:
             "existing_execution": existing_execution,
             "generated_execution": generated_execution,
         }
+
+    @staticmethod
+    def _project_target_path(
+        target_path: str, subdirectory: str | None
+    ) -> str:
+        """Translate a repository-relative source path into the project workspace."""
+        if subdirectory is None:
+            return target_path
+
+        try:
+            relative_target = PurePosixPath(target_path).relative_to(
+                PurePosixPath(subdirectory)
+            )
+        except ValueError:
+            raise ValueError(
+                "Repository source target is outside the selected subdirectory."
+            ) from None
+        if not relative_target.parts:
+            raise ValueError("Repository source target is invalid.")
+        return relative_target.as_posix()

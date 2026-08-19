@@ -45,7 +45,10 @@ class PublicRepositoryPreparer:
 
     @contextmanager
     def prepare(
-        self, repository_url: str, revision: str | None = None
+        self,
+        repository_url: str,
+        revision: str | None = None,
+        subdirectory: str | None = None,
     ) -> Iterator[PreparedRepository]:
         """Yield a temporary repository directory and remove it after use."""
         archive_reference = self.github_service.fetch_archive_reference(
@@ -59,14 +62,46 @@ class PublicRepositoryPreparer:
             file_count, total_bytes, skipped_entries = self._extract_archive(
                 archive_data, repository_path
             )
-            self._validate_python_project(repository_path)
+            project_path = self._select_project_path(
+                repository_path, subdirectory
+            )
+            self._validate_python_project(project_path)
 
             yield PreparedRepository(
-                path=repository_path,
+                path=project_path,
                 file_count=file_count,
                 total_bytes=total_bytes,
                 skipped_entries=skipped_entries,
             )
+
+    @staticmethod
+    def _select_project_path(
+        repository_path: Path, subdirectory: str | None
+    ) -> Path:
+        """Select one safe extracted project directory without following links."""
+        if subdirectory is None:
+            return repository_path
+
+        relative_path = PurePosixPath(subdirectory)
+        if (
+            not subdirectory
+            or len(subdirectory) > 1024
+            or "\\" in subdirectory
+            or relative_path.is_absolute()
+            or any(part in {"", ".", ".."} for part in subdirectory.split("/"))
+            or any(ord(character) < 32 or ord(character) == 127 for character in subdirectory)
+        ):
+            raise ValueError("Repository subdirectory is invalid.")
+
+        selected_path = repository_path
+        for part in relative_path.parts:
+            selected_path /= part
+            if selected_path.is_symlink():
+                raise ValueError("Repository subdirectory cannot use symbolic links.")
+
+        if not selected_path.is_dir():
+            raise ValueError("Repository subdirectory was not found.")
+        return selected_path
 
     @staticmethod
     def _download_archive(url: str) -> bytes:

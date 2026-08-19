@@ -24,11 +24,33 @@ class RepositoryInvestigationWorkflow:
         self.llm_service = llm_service
         self.execution_workflow = execution_workflow
 
-    def run(self, repository_url: str) -> RepositoryInvestigationRun:
+    def run(
+        self,
+        repository_url: str,
+        reference: str | None = None,
+        subdirectory: str | None = None,
+        target_path: str | None = None,
+    ) -> RepositoryInvestigationRun:
         """Plan, generate, execute, classify, and explain a repository once."""
-        generation_context = self.github_service.fetch_generation_context(
-            repository_url
-        )
+        if target_path is not None:
+            generation_context = self.github_service.fetch_generation_context(
+                repository_url,
+                reference,
+                subdirectory,
+                target_path,
+            )
+        elif subdirectory is not None:
+            generation_context = self.github_service.fetch_generation_context(
+                repository_url, reference, subdirectory
+            )
+        elif reference is not None:
+            generation_context = self.github_service.fetch_generation_context(
+                repository_url, reference
+            )
+        else:
+            generation_context = self.github_service.fetch_generation_context(
+                repository_url
+            )
         target_path = generation_context.selection.target_path
         test_plan = generation_context.test_plan
         if (
@@ -52,12 +74,22 @@ class RepositoryInvestigationWorkflow:
                 target_path,
                 generated_tests,
                 revision,
+                subdirectory,
             )
-            if revision is not None
-            else self.execution_workflow.run_existing_and_generated_tests(
-                repository_url,
-                target_path,
-                generated_tests,
+            if subdirectory is not None
+            else (
+                self.execution_workflow.run_existing_and_generated_tests(
+                    repository_url,
+                    target_path,
+                    generated_tests,
+                    revision,
+                )
+                if revision is not None
+                else self.execution_workflow.run_existing_and_generated_tests(
+                    repository_url,
+                    target_path,
+                    generated_tests,
+                )
             )
         )
         evidence = build_repository_investigation_evidence(
