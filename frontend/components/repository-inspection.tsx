@@ -53,10 +53,13 @@ type RepositoryTestPlanPanelProps = {
   isRepositoryLoading: boolean;
   isRepositoryTestRunning: boolean;
   isRepositoryGenerationRunning: boolean;
+  isRepositoryInvestigationRunning: boolean;
   repositoryTestError: string | null;
   repositoryGenerationError: string | null;
+  repositoryInvestigationError: string | null;
   onRunRepositoryTests: () => void;
   onGenerateRepositoryTests: () => void;
+  onInvestigateRepository: () => void;
 };
 
 export function RepositoryTestPlanPanel({
@@ -64,10 +67,13 @@ export function RepositoryTestPlanPanel({
   isRepositoryLoading,
   isRepositoryTestRunning,
   isRepositoryGenerationRunning,
+  isRepositoryInvestigationRunning,
   repositoryTestError,
   repositoryGenerationError,
+  repositoryInvestigationError,
   onRunRepositoryTests,
   onGenerateRepositoryTests,
+  onInvestigateRepository,
 }: RepositoryTestPlanPanelProps) {
   return (
     <section className="result">
@@ -116,6 +122,7 @@ export function RepositoryTestPlanPanel({
             isRepositoryTestRunning ||
             isRepositoryLoading ||
             isRepositoryGenerationRunning
+            || isRepositoryInvestigationRunning
           }
           onClick={onRunRepositoryTests}
           type="button"
@@ -138,6 +145,7 @@ export function RepositoryTestPlanPanel({
             isRepositoryGenerationRunning ||
             isRepositoryLoading ||
             isRepositoryTestRunning
+            || isRepositoryInvestigationRunning
           }
           onClick={onGenerateRepositoryTests}
           type="button"
@@ -149,6 +157,31 @@ export function RepositoryTestPlanPanel({
         {repositoryGenerationError && (
           <p className="error" role="alert">
             {repositoryGenerationError}
+          </p>
+        )}
+      </div>
+      <div className="test-run-action">
+        <p>
+          Generate focused tests, run both test suites in Docker, then get a Gemini explanation
+          grounded in the recorded execution results.
+        </p>
+        <button
+          disabled={
+            isRepositoryInvestigationRunning ||
+            isRepositoryLoading ||
+            isRepositoryTestRunning ||
+            isRepositoryGenerationRunning
+          }
+          onClick={onInvestigateRepository}
+          type="button"
+        >
+          {isRepositoryInvestigationRunning
+            ? "Investigating repository..."
+            : "Investigate repository"}
+        </button>
+        {repositoryInvestigationError && (
+          <p className="error" role="alert">
+            {repositoryInvestigationError}
           </p>
         )}
       </div>

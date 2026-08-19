@@ -2,6 +2,7 @@ import type {
   PastedCodeGenerationRun,
   RepositoryContext,
   RepositoryGenerationRun,
+  RepositoryInvestigationRun,
   RepositoryTestRun,
 } from "../types/api";
 
@@ -55,6 +56,23 @@ export async function generateRepositoryTests(
 
   if (!response.ok || !("generated_execution" in result)) {
     throw new Error("detail" in result ? result.detail : "Test generation failed.");
+  }
+
+  return result;
+}
+
+export async function investigateRepository(
+  repositoryUrl: string,
+): Promise<RepositoryInvestigationRun> {
+  const response = await fetch(`${apiUrl}/repository/investigate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url: repositoryUrl }),
+  });
+  const result: RepositoryInvestigationRun | ApiError = await response.json();
+
+  if (!response.ok || !("investigation" in result)) {
+    throw new Error("detail" in result ? result.detail : "Repository investigation failed.");
   }
 
   return result;

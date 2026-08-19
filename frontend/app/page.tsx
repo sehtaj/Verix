@@ -3,6 +3,7 @@
 import { PastedCodeGenerator } from "../components/pasted-code-generator";
 import {
   RepositoryGenerationResult,
+  RepositoryInvestigationResult,
   RepositoryTestRunResult,
 } from "../components/repository-execution-results";
 import {
@@ -27,9 +28,13 @@ export default function Home() {
     repositoryGenerationRun,
     isRepositoryGenerationRunning,
     repositoryGenerationError,
+    repositoryInvestigationRun,
+    isRepositoryInvestigationRunning,
+    repositoryInvestigationError,
     handleRepositorySubmit,
     handleRepositoryTestRun,
     handleRepositoryGeneration,
+    handleRepositoryInvestigation,
   } = useRepositoryWorkflow();
 
   return (
@@ -49,6 +54,7 @@ export default function Home() {
               isRepositoryLoading ||
               isRepositoryTestRunning ||
               isRepositoryGenerationRunning
+              || isRepositoryInvestigationRunning
             }
             onChange={(event) => setRepositoryUrl(event.target.value)}
           />
@@ -58,6 +64,7 @@ export default function Home() {
               isRepositoryLoading ||
               isRepositoryTestRunning ||
               isRepositoryGenerationRunning
+              || isRepositoryInvestigationRunning
             }
             type="submit"
           >
@@ -81,10 +88,13 @@ export default function Home() {
             isRepositoryLoading={isRepositoryLoading}
             isRepositoryTestRunning={isRepositoryTestRunning}
             isRepositoryGenerationRunning={isRepositoryGenerationRunning}
+            isRepositoryInvestigationRunning={isRepositoryInvestigationRunning}
             repositoryTestError={repositoryTestError}
             repositoryGenerationError={repositoryGenerationError}
+            repositoryInvestigationError={repositoryInvestigationError}
             onRunRepositoryTests={handleRepositoryTestRun}
             onGenerateRepositoryTests={handleRepositoryGeneration}
+            onInvestigateRepository={handleRepositoryInvestigation}
           />
         )}
         {repositoryTestRun !== null && (
@@ -92,6 +102,9 @@ export default function Home() {
         )}
         {repositoryGenerationRun !== null && (
           <RepositoryGenerationResult result={repositoryGenerationRun} />
+        )}
+        {repositoryInvestigationRun !== null && (
+          <RepositoryInvestigationResult result={repositoryInvestigationRun} />
         )}
         <PastedCodeGenerator />
       </section>

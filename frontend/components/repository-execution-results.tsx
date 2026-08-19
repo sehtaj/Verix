@@ -1,6 +1,7 @@
 import type {
   RepositoryExecution,
   RepositoryGenerationRun,
+  RepositoryInvestigationRun,
   RepositoryTestRun,
 } from "../types/api";
 
@@ -133,5 +134,25 @@ export function RepositoryGenerationResult({
       </p>
       <pre>{result.generated_execution.output || "No generated test output."}</pre>
     </section>
+  );
+}
+
+export function RepositoryInvestigationResult({
+  result,
+}: {
+  result: RepositoryInvestigationRun;
+}) {
+  return (
+    <>
+      <section className="result repository-test-result" aria-live="polite">
+        <h2>Repository investigation</h2>
+        <p className={`investigation-outcome ${result.investigation.outcome}`} role="status">
+          Outcome: {result.investigation.outcome.replaceAll("_", " ")}
+        </p>
+        <h3>Explanation</h3>
+        <p>{result.investigation.explanation}</p>
+      </section>
+      <RepositoryGenerationResult result={result} />
+    </>
   );
 }

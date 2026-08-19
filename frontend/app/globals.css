@@ -114,6 +114,27 @@ button:disabled {
   color: #a16207;
 }
 
+.investigation-outcome {
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.investigation-outcome.tests_passed {
+  color: #15803d;
+}
+
+.investigation-outcome.no_existing_tests {
+  color: #a16207;
+}
+
+.investigation-outcome.setup_failed,
+.investigation-outcome.existing_tests_timed_out,
+.investigation-outcome.existing_tests_failed,
+.investigation-outcome.generated_tests_timed_out,
+.investigation-outcome.generated_tests_failed {
+  color: #b91c1c;
+}
+
 .result {
   margin-top: 1.5rem;
 }

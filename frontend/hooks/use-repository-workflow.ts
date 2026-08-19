@@ -5,10 +5,12 @@ import { FormEvent, useState } from "react";
 import {
   fetchRepositoryContext,
   generateRepositoryTests,
+  investigateRepository,
   runRepositoryTests,
 } from "../lib/api";
 import type {
   RepositoryGenerationRun,
+  RepositoryInvestigationRun,
   RepositoryMetadata,
   RepositoryTestPlan,
   RepositoryTestRun,
@@ -47,6 +49,12 @@ export function useRepositoryWorkflow() {
     useState<RepositoryGenerationRun | null>(null);
   const [isRepositoryGenerationRunning, setIsRepositoryGenerationRunning] = useState(false);
   const [repositoryGenerationError, setRepositoryGenerationError] = useState<string | null>(null);
+  const [repositoryInvestigationRun, setRepositoryInvestigationRun] =
+    useState<RepositoryInvestigationRun | null>(null);
+  const [isRepositoryInvestigationRunning, setIsRepositoryInvestigationRunning] =
+    useState(false);
+  const [repositoryInvestigationError, setRepositoryInvestigationError] =
+    useState<string | null>(null);
 
   async function handleRepositorySubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -62,6 +70,8 @@ export function useRepositoryWorkflow() {
       setRepositoryTestError(null);
       setRepositoryGenerationRun(null);
       setRepositoryGenerationError(null);
+      setRepositoryInvestigationRun(null);
+      setRepositoryInvestigationError(null);
       return;
     }
 
@@ -74,6 +84,8 @@ export function useRepositoryWorkflow() {
     setRepositoryTestError(null);
     setRepositoryGenerationRun(null);
     setRepositoryGenerationError(null);
+    setRepositoryInvestigationRun(null);
+    setRepositoryInvestigationError(null);
 
     try {
       const context = await fetchRepositoryContext(repositoryUrl);
@@ -103,6 +115,8 @@ export function useRepositoryWorkflow() {
     setRepositoryTestRun(null);
     setRepositoryGenerationError(null);
     setRepositoryGenerationRun(null);
+    setRepositoryInvestigationError(null);
+    setRepositoryInvestigationRun(null);
 
     try {
       const result = await runRepositoryTests(repository.url);
@@ -132,6 +146,8 @@ export function useRepositoryWorkflow() {
     setRepositoryGenerationRun(null);
     setRepositoryTestError(null);
     setRepositoryTestRun(null);
+    setRepositoryInvestigationError(null);
+    setRepositoryInvestigationRun(null);
 
     try {
       const result = await generateRepositoryTests(repository.url);
@@ -145,6 +161,38 @@ export function useRepositoryWorkflow() {
       );
     } finally {
       setIsRepositoryGenerationRunning(false);
+    }
+  }
+
+  async function handleRepositoryInvestigation() {
+    if (repository === null) {
+      setRepositoryInvestigationError(
+        "Fetch a public Python repository before investigating it.",
+      );
+      return;
+    }
+
+    setIsRepositoryInvestigationRunning(true);
+    setRepositoryInvestigationError(null);
+    setRepositoryInvestigationRun(null);
+    setRepositoryTestError(null);
+    setRepositoryTestRun(null);
+    setRepositoryGenerationError(null);
+    setRepositoryGenerationRun(null);
+
+    try {
+      const result = await investigateRepository(repository.url);
+
+      setRepositoryInvestigationRun(result);
+      setRepositoryTestPlan(result.test_plan);
+    } catch (error) {
+      setRepositoryInvestigationError(
+        error instanceof Error
+          ? error.message
+          : "Unable to investigate the repository. Please try again.",
+      );
+    } finally {
+      setIsRepositoryInvestigationRunning(false);
     }
   }
 
@@ -162,8 +210,12 @@ export function useRepositoryWorkflow() {
     repositoryGenerationRun,
     isRepositoryGenerationRunning,
     repositoryGenerationError,
+    repositoryInvestigationRun,
+    isRepositoryInvestigationRunning,
+    repositoryInvestigationError,
     handleRepositorySubmit,
     handleRepositoryTestRun,
     handleRepositoryGeneration,
+    handleRepositoryInvestigation,
   };
 }

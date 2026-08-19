@@ -66,6 +66,21 @@ export type RepositoryGenerationRun = {
   generated_execution: RepositoryExecution;
 };
 
+export type RepositoryInvestigationRun = RepositoryGenerationRun & {
+  test_plan: RepositoryTestPlan;
+  investigation: {
+    outcome:
+      | "setup_failed"
+      | "no_existing_tests"
+      | "existing_tests_timed_out"
+      | "existing_tests_failed"
+      | "generated_tests_timed_out"
+      | "generated_tests_failed"
+      | "tests_passed";
+    explanation: string;
+  };
+};
+
 export type PastedCodeGenerationRun = {
   tests: string;
   execution: TestExecution;
