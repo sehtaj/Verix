@@ -122,6 +122,37 @@ class RepositoryPromptTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "does not match"):
             build_repository_test_prompt(context)
 
+    def test_prompt_exposes_a_project_relative_target_for_nested_projects(self) -> None:
+        context = self.make_context()
+        context.selection.target_path = "packages/sample/src/calculator.py"
+        context.source_file = RepositoryFileContent(
+            path="packages/sample/src/calculator.py",
+            content="def divide(a, b):\n    return a / b\n",
+            byte_count=38,
+        )
+        context.subdirectory = "packages/sample"
+
+        prompt = build_repository_test_prompt(context)
+        json_start = prompt.index("<repository_context_json>") + len(
+            "<repository_context_json>"
+        )
+        json_end = prompt.index("</repository_context_json>")
+        payload = json.loads(prompt[json_start:json_end])
+
+        self.assertEqual(
+            payload["target"]["project_path"],
+            "src/calculator.py",
+        )
+        self.assertIn("Project-relative target: src/calculator.py", prompt)
+        self.assertIn("Docker runs from the selected project folder", prompt)
+
+    def test_prompt_rejects_a_source_outside_the_selected_project(self) -> None:
+        context = self.make_context()
+        context.subdirectory = "packages/sample"
+
+        with self.assertRaisesRegex(ValueError, "outside the selected project"):
+            build_repository_test_prompt(context)
+
 
 if __name__ == "__main__":
     unittest.main()

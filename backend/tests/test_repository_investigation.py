@@ -238,7 +238,7 @@ class RepositoryInvestigationWorkflowTests(unittest.TestCase):
         execution_workflow = Mock()
         test_plan = Mock(spec=RepositoryTestPlan)
         generation_context = Mock(
-            selection=Mock(target_path="src/sample.py"),
+            selection=Mock(target_path="packages/sample/src/sample.py"),
             source_file=object(),
             revision="a" * 40,
             test_plan=test_plan,
@@ -274,23 +274,32 @@ class RepositoryInvestigationWorkflowTests(unittest.TestCase):
             github_service,
             llm_service,
             execution_workflow,
-        ).run("https://github.com/example/sample")
+        ).run(
+            "https://github.com/example/sample",
+            "feature/v0.10",
+            "packages/sample",
+            "packages/sample/src/sample.py",
+        )
 
-        self.assertEqual(result.target_path, "src/sample.py")
+        self.assertEqual(result.target_path, "packages/sample/src/sample.py")
         self.assertEqual(result.generated_tests, "def test_sample(): pass\n")
         self.assertEqual(result.outcome, RepositoryOutcomeKind.EXISTING_TESTS_FAILED)
         self.assertEqual(result.explanation, "The existing suite has one failure.")
         github_service.fetch_generation_context.assert_called_once_with(
-            "https://github.com/example/sample"
+            "https://github.com/example/sample",
+            "feature/v0.10",
+            "packages/sample",
+            "packages/sample/src/sample.py",
         )
         execution_workflow.validate_generated_tests.assert_called_once_with(
             "def test_sample(): pass\n"
         )
         execution_workflow.run_existing_and_generated_tests.assert_called_once_with(
             "https://github.com/example/sample",
-            "src/sample.py",
+            "packages/sample/src/sample.py",
             "def test_sample(): pass\n",
             "a" * 40,
+            "packages/sample",
         )
         llm_service.generate_repository_investigation.assert_called_once_with(
             outcome=RepositoryOutcomeKind.EXISTING_TESTS_FAILED,
