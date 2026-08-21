@@ -8,6 +8,7 @@ from api.presenters import (
     present_python_project_setup,
     present_repository_context,
     present_repository_fix_proposal_run,
+    present_repository_fix_verification,
     present_repository_generation_context,
     present_repository_investigation,
     present_repository_metadata,
@@ -18,6 +19,7 @@ from api.presenters import (
 from api.schemas import (
     GenerateTestsRequest,
     RepositoryFixProposalRequest,
+    RepositoryFixApplyRequest,
     RepositoryRequest,
     RepositorySubdirectoryRequest,
     RepositoryTargetRequest,
@@ -28,6 +30,9 @@ from services.repository_preparer import PublicRepositoryPreparer
 from services.docker_runner import DockerTestRunner, GeneratedTestsValidationError
 from workflows.repository_execution import RepositoryExecutionWorkflow
 from workflows.repository_fix_proposal import RepositoryFixProposalWorkflow
+from workflows.repository_fix_application import RepositoryFixApplicationWorkflow
+from workflows.repository_fix_verification import RepositoryFixVerificationWorkflow
+from models.fix_proposal import RepositoryApprovedFix
 from workflows.repository_investigation import RepositoryInvestigationWorkflow
 
 
@@ -476,4 +481,29 @@ def propose_repository_fix(
         raise HTTPException(
             status_code=502,
             detail="Unable to propose a repository fix. Please try again.",
+        ) from None
+
+
+@app.post("/repository/fix-verify")
+def verify_approved_repository_fix(
+    request: RepositoryFixApplyRequest,
+) -> dict[str, object]:
+    """Test an explicitly approved patch in a disposable copy without GitHub writes."""
+    try:
+        approved_fix = RepositoryApprovedFix(
+            revision=request.revision,
+            subdirectory=request.subdirectory,
+            target_path=request.target_path,
+            patch=request.patch,
+        )
+        application_workflow = RepositoryFixApplicationWorkflow(repository_preparer)
+        workflow = RepositoryFixVerificationWorkflow(application_workflow, test_runner)
+        verification = workflow.run(request.url, approved_fix)
+        return present_repository_fix_verification(approved_fix, verification)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to verify the approved repository fix. Please try again.",
         ) from None

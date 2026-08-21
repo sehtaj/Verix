@@ -1,7 +1,8 @@
 """Convert repository domain models into the existing JSON response shapes."""
 
-from models.fix_proposal import RepositoryFixProposalRun
+from models.fix_proposal import RepositoryApprovedFix, RepositoryFixProposalRun
 from models.investigation import RepositoryInvestigationRun
+from workflows.repository_fix_verification import RepositoryFixVerificationRun
 
 from models.repository import (
     PythonProjectSetup,
@@ -177,5 +178,33 @@ def present_repository_fix_proposal_run(
             "validated": run.validated,
             "approval_required": proposal.approval_required,
             "applied": proposal.applied,
+        },
+    }
+
+
+def present_repository_fix_verification(
+    approved_fix: RepositoryApprovedFix,
+    verification: RepositoryFixVerificationRun,
+) -> dict[str, object]:
+    """Return results from an approved patch tested in a temporary copy only."""
+    return {
+        "revision": approved_fix.revision,
+        "subdirectory": approved_fix.subdirectory,
+        "target_path": approved_fix.target_path,
+        "approved": approved_fix.approved,
+        "applied_in_disposable_workspace": True,
+        "github_changed": False,
+        "test_runner": verification.test_runner,
+        "installation": {
+            "return_code": verification.installation.return_code,
+            "output": verification.installation.output,
+            "timed_out": verification.installation.timed_out,
+            "skipped": verification.installation.skipped,
+        },
+        "execution": {
+            "return_code": verification.execution.return_code,
+            "output": verification.execution.output,
+            "timed_out": verification.execution.timed_out,
+            "skipped": verification.execution.skipped,
         },
     }
