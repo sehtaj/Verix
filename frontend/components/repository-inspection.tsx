@@ -205,12 +205,15 @@ type RepositoryTestPlanPanelProps = {
   isRepositoryTestRunning: boolean;
   isRepositoryGenerationRunning: boolean;
   isRepositoryInvestigationRunning: boolean;
+  isRepositoryFixProposalRunning: boolean;
   repositoryTestError: string | null;
   repositoryGenerationError: string | null;
   repositoryInvestigationError: string | null;
+  repositoryFixProposalError: string | null;
   onRunRepositoryTests: () => void;
   onGenerateRepositoryTests: () => void;
   onInvestigateRepository: () => void;
+  onProposeRepositoryFix: () => void;
 };
 
 export function RepositoryTestPlanPanel({
@@ -219,12 +222,15 @@ export function RepositoryTestPlanPanel({
   isRepositoryTestRunning,
   isRepositoryGenerationRunning,
   isRepositoryInvestigationRunning,
+  isRepositoryFixProposalRunning,
   repositoryTestError,
   repositoryGenerationError,
   repositoryInvestigationError,
+  repositoryFixProposalError,
   onRunRepositoryTests,
   onGenerateRepositoryTests,
   onInvestigateRepository,
+  onProposeRepositoryFix,
 }: RepositoryTestPlanPanelProps) {
   return (
     <section className="result">
@@ -273,7 +279,8 @@ export function RepositoryTestPlanPanel({
             isRepositoryTestRunning ||
             isRepositoryLoading ||
             isRepositoryGenerationRunning
-            || isRepositoryInvestigationRunning
+            || isRepositoryInvestigationRunning ||
+            isRepositoryFixProposalRunning
           }
           onClick={onRunRepositoryTests}
           type="button"
@@ -296,7 +303,8 @@ export function RepositoryTestPlanPanel({
             isRepositoryGenerationRunning ||
             isRepositoryLoading ||
             isRepositoryTestRunning
-            || isRepositoryInvestigationRunning
+            || isRepositoryInvestigationRunning ||
+            isRepositoryFixProposalRunning
           }
           onClick={onGenerateRepositoryTests}
           type="button"
@@ -321,7 +329,8 @@ export function RepositoryTestPlanPanel({
             isRepositoryInvestigationRunning ||
             isRepositoryLoading ||
             isRepositoryTestRunning ||
-            isRepositoryGenerationRunning
+            isRepositoryGenerationRunning ||
+            isRepositoryFixProposalRunning
           }
           onClick={onInvestigateRepository}
           type="button"
@@ -333,6 +342,32 @@ export function RepositoryTestPlanPanel({
         {repositoryInvestigationError && (
           <p className="error" role="alert">
             {repositoryInvestigationError}
+          </p>
+        )}
+      </div>
+      <div className="test-run-action">
+        <p>
+          Run one investigation, then ask Gemini for one validated source-only patch. The patch is
+          shown for review and is never applied automatically.
+        </p>
+        <button
+          disabled={
+            isRepositoryFixProposalRunning ||
+            isRepositoryLoading ||
+            isRepositoryTestRunning ||
+            isRepositoryGenerationRunning ||
+            isRepositoryInvestigationRunning
+          }
+          onClick={onProposeRepositoryFix}
+          type="button"
+        >
+          {isRepositoryFixProposalRunning
+            ? "Investigating and proposing a fix..."
+            : "Propose source fix"}
+        </button>
+        {repositoryFixProposalError && (
+          <p className="error" role="alert">
+            {repositoryFixProposalError}
           </p>
         )}
       </div>

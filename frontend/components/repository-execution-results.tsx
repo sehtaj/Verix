@@ -1,6 +1,7 @@
 import type {
   RepositoryExecution,
   RepositoryGenerationRun,
+  RepositoryFixProposalRun,
   RepositoryInvestigationRun,
   RepositoryTestRun,
 } from "../types/api";
@@ -153,6 +154,49 @@ export function RepositoryInvestigationResult({
         <p>{result.investigation.explanation}</p>
       </section>
       <RepositoryGenerationResult result={result} />
+    </>
+  );
+}
+
+export function RepositoryFixProposalResult({
+  result,
+}: {
+  result: RepositoryFixProposalRun;
+}) {
+  return (
+    <>
+      <section className="result fix-proposal-result" aria-live="polite">
+        <h2>Proposed source fix</h2>
+        <p className="fix-review-status" role="status">
+          Validated for review — approval required — not applied
+        </p>
+        <p>{result.proposal.summary}</p>
+        <dl className="plan-summary">
+          <div>
+            <dt>Pinned commit</dt>
+            <dd className="revision-value">{result.proposal.revision}</dd>
+          </div>
+          <div>
+            <dt>Selected file</dt>
+            <dd className="revision-value">{result.proposal.target_path}</dd>
+          </div>
+          <div>
+            <dt>Patch validated</dt>
+            <dd>{result.proposal.validated ? "Yes" : "No"}</dd>
+          </div>
+          <div>
+            <dt>Applied</dt>
+            <dd>{result.proposal.applied ? "Yes" : "No"}</dd>
+          </div>
+        </dl>
+        <h3>Unified diff</h3>
+        <pre className="fix-patch">{result.proposal.patch}</pre>
+        <p className="warning">
+          Review every changed line. This proposal has not changed the GitHub repository or any
+          local file.
+        </p>
+      </section>
+      <RepositoryInvestigationResult result={result} />
     </>
   );
 }

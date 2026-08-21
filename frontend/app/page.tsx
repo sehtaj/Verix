@@ -3,6 +3,7 @@
 import { PastedCodeGenerator } from "../components/pasted-code-generator";
 import {
   RepositoryGenerationResult,
+  RepositoryFixProposalResult,
   RepositoryInvestigationResult,
   RepositoryTestRunResult,
 } from "../components/repository-execution-results";
@@ -41,12 +42,16 @@ export default function Home() {
     repositoryInvestigationRun,
     isRepositoryInvestigationRunning,
     repositoryInvestigationError,
+    repositoryFixProposalRun,
+    isRepositoryFixProposalRunning,
+    repositoryFixProposalError,
     handleRepositorySubmit,
     handleRepositoryTargetChange,
     handleRepositoryContextPreview,
     handleRepositoryTestRun,
     handleRepositoryGeneration,
     handleRepositoryInvestigation,
+    handleRepositoryFixProposal,
   } = useRepositoryWorkflow();
 
   const isRepositoryBusy =
@@ -54,7 +59,8 @@ export default function Home() {
     isRepositoryContextPreviewLoading ||
     isRepositoryTestRunning ||
     isRepositoryGenerationRunning ||
-    isRepositoryInvestigationRunning;
+    isRepositoryInvestigationRunning ||
+    isRepositoryFixProposalRunning;
 
   return (
     <main>
@@ -124,7 +130,8 @@ export default function Home() {
               isRepositoryLoading ||
               isRepositoryTestRunning ||
               isRepositoryGenerationRunning ||
-              isRepositoryInvestigationRunning
+              isRepositoryInvestigationRunning ||
+              isRepositoryFixProposalRunning
             }
             error={repositoryContextPreviewError}
             onTargetChange={handleRepositoryTargetChange}
@@ -138,12 +145,15 @@ export default function Home() {
             isRepositoryTestRunning={isRepositoryTestRunning}
             isRepositoryGenerationRunning={isRepositoryGenerationRunning}
             isRepositoryInvestigationRunning={isRepositoryInvestigationRunning}
+            isRepositoryFixProposalRunning={isRepositoryFixProposalRunning}
             repositoryTestError={repositoryTestError}
             repositoryGenerationError={repositoryGenerationError}
             repositoryInvestigationError={repositoryInvestigationError}
+            repositoryFixProposalError={repositoryFixProposalError}
             onRunRepositoryTests={handleRepositoryTestRun}
             onGenerateRepositoryTests={handleRepositoryGeneration}
             onInvestigateRepository={handleRepositoryInvestigation}
+            onProposeRepositoryFix={handleRepositoryFixProposal}
           />
         )}
         {repositoryTestRun !== null && (
@@ -154,6 +164,9 @@ export default function Home() {
         )}
         {repositoryInvestigationRun !== null && (
           <RepositoryInvestigationResult result={repositoryInvestigationRun} />
+        )}
+        {repositoryFixProposalRun !== null && (
+          <RepositoryFixProposalResult result={repositoryFixProposalRun} />
         )}
         <PastedCodeGenerator />
       </section>
