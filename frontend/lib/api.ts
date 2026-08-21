@@ -2,6 +2,7 @@ import type {
   PastedCodeGenerationRun,
   RepositoryContext,
   RepositoryFixProposalRun,
+  RepositoryFixVerificationRun,
   RepositoryGenerationContextPreview,
   RepositoryGenerationRun,
   RepositoryInvestigationRun,
@@ -133,6 +134,31 @@ export async function proposeRepositoryFix(
 
   if (!response.ok || !("proposal" in result)) {
     throw new Error("detail" in result ? result.detail : "Repository fix proposal failed.");
+  }
+
+  return result;
+}
+
+export async function verifyRepositoryFix(
+  repositoryUrl: string,
+  proposal: RepositoryFixProposalRun["proposal"],
+): Promise<RepositoryFixVerificationRun> {
+  const response = await fetch(`${apiUrl}/repository/fix-verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      url: repositoryUrl,
+      revision: proposal.revision,
+      ...(proposal.subdirectory ? { subdirectory: proposal.subdirectory } : {}),
+      target_path: proposal.target_path,
+      patch: proposal.patch,
+      approved: true,
+    }),
+  });
+  const result: RepositoryFixVerificationRun | ApiError = await response.json();
+
+  if (!response.ok || !("applied_in_disposable_workspace" in result)) {
+    throw new Error("detail" in result ? result.detail : "Repository fix verification failed.");
   }
 
   return result;

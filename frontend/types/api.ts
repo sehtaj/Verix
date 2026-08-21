@@ -125,6 +125,18 @@ export type RepositoryFixProposalRun = RepositoryInvestigationRun & {
   };
 };
 
+export type RepositoryFixVerificationRun = {
+  revision: string;
+  subdirectory: string | null;
+  target_path: string;
+  approved: true;
+  applied_in_disposable_workspace: true;
+  github_changed: false;
+  test_runner: "pytest" | "tox";
+  installation: RepositoryExecution;
+  execution: RepositoryExecution;
+};
+
 export type PastedCodeGenerationRun = {
   tests: string;
   execution: TestExecution;

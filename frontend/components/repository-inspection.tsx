@@ -206,6 +206,7 @@ type RepositoryTestPlanPanelProps = {
   isRepositoryGenerationRunning: boolean;
   isRepositoryInvestigationRunning: boolean;
   isRepositoryFixProposalRunning: boolean;
+  isRepositoryFixVerificationRunning: boolean;
   repositoryTestError: string | null;
   repositoryGenerationError: string | null;
   repositoryInvestigationError: string | null;
@@ -223,6 +224,7 @@ export function RepositoryTestPlanPanel({
   isRepositoryGenerationRunning,
   isRepositoryInvestigationRunning,
   isRepositoryFixProposalRunning,
+  isRepositoryFixVerificationRunning,
   repositoryTestError,
   repositoryGenerationError,
   repositoryInvestigationError,
@@ -280,7 +282,8 @@ export function RepositoryTestPlanPanel({
             isRepositoryLoading ||
             isRepositoryGenerationRunning
             || isRepositoryInvestigationRunning ||
-            isRepositoryFixProposalRunning
+            isRepositoryFixProposalRunning ||
+            isRepositoryFixVerificationRunning
           }
           onClick={onRunRepositoryTests}
           type="button"
@@ -304,7 +307,8 @@ export function RepositoryTestPlanPanel({
             isRepositoryLoading ||
             isRepositoryTestRunning
             || isRepositoryInvestigationRunning ||
-            isRepositoryFixProposalRunning
+            isRepositoryFixProposalRunning ||
+            isRepositoryFixVerificationRunning
           }
           onClick={onGenerateRepositoryTests}
           type="button"
@@ -330,7 +334,8 @@ export function RepositoryTestPlanPanel({
             isRepositoryLoading ||
             isRepositoryTestRunning ||
             isRepositoryGenerationRunning ||
-            isRepositoryFixProposalRunning
+            isRepositoryFixProposalRunning ||
+            isRepositoryFixVerificationRunning
           }
           onClick={onInvestigateRepository}
           type="button"
@@ -356,7 +361,8 @@ export function RepositoryTestPlanPanel({
             isRepositoryLoading ||
             isRepositoryTestRunning ||
             isRepositoryGenerationRunning ||
-            isRepositoryInvestigationRunning
+            isRepositoryInvestigationRunning ||
+            isRepositoryFixVerificationRunning
           }
           onClick={onProposeRepositoryFix}
           type="button"

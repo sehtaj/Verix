@@ -2,6 +2,7 @@ import type {
   RepositoryExecution,
   RepositoryGenerationRun,
   RepositoryFixProposalRun,
+  RepositoryFixVerificationRun,
   RepositoryInvestigationRun,
   RepositoryTestRun,
 } from "../types/api";
@@ -160,8 +161,14 @@ export function RepositoryInvestigationResult({
 
 export function RepositoryFixProposalResult({
   result,
+  isVerificationRunning,
+  verificationError,
+  onVerify,
 }: {
   result: RepositoryFixProposalRun;
+  isVerificationRunning: boolean;
+  verificationError: string | null;
+  onVerify: () => void;
 }) {
   return (
     <>
@@ -195,8 +202,75 @@ export function RepositoryFixProposalResult({
           Review every changed line. This proposal has not changed the GitHub repository or any
           local file.
         </p>
+        <div className="test-run-action">
+          <p>
+            Approve this exact reviewed patch to test it in a temporary Docker workspace. GitHub
+            and your local repository will remain unchanged.
+          </p>
+          <button disabled={isVerificationRunning} onClick={onVerify} type="button">
+            {isVerificationRunning
+              ? "Verifying approved fix..."
+              : "Approve and verify in temporary workspace"}
+          </button>
+          {verificationError && (
+            <p className="error" role="alert">
+              {verificationError}
+            </p>
+          )}
+        </div>
       </section>
       <RepositoryInvestigationResult result={result} />
     </>
+  );
+}
+
+export function RepositoryFixVerificationResult({
+  result,
+}: {
+  result: RepositoryFixVerificationRun;
+}) {
+  return (
+    <section className="result repository-test-result" aria-live="polite">
+      <h2>Approved fix verification</h2>
+      <p className="fix-review-status" role="status">
+        Patch applied only in a disposable workspace — GitHub unchanged
+      </p>
+      <dl className="plan-summary">
+        <div>
+          <dt>Pinned commit</dt>
+          <dd className="revision-value">{result.revision}</dd>
+        </div>
+        <div>
+          <dt>Verified file</dt>
+          <dd className="revision-value">{result.target_path}</dd>
+        </div>
+        <div>
+          <dt>Test runner</dt>
+          <dd>{result.test_runner}</dd>
+        </div>
+      </dl>
+      <h3>Dependency installation</h3>
+      <p className={executionStatusClass(result.installation)} role="status">
+        {result.installation.skipped
+          ? "No dependency installation was required."
+          : result.installation.timed_out
+            ? "Dependency installation timed out."
+            : result.installation.return_code === 0
+              ? "Dependencies prepared successfully."
+              : "Dependency installation failed."}
+      </p>
+      <pre>{result.installation.output || "No installation output."}</pre>
+      <h3>Patched repository test suite</h3>
+      <p className={executionStatusClass(result.execution)} role="status">
+        {result.execution.skipped
+          ? "Patched repository tests were skipped."
+          : result.execution.timed_out
+            ? "Patched repository tests timed out."
+            : result.execution.return_code === 0
+              ? "Patched repository tests passed."
+              : "Patched repository tests failed."}
+      </p>
+      <pre>{result.execution.output || "No test output."}</pre>
+    </section>
   );
 }

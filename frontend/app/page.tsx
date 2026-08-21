@@ -4,6 +4,7 @@ import { PastedCodeGenerator } from "../components/pasted-code-generator";
 import {
   RepositoryGenerationResult,
   RepositoryFixProposalResult,
+  RepositoryFixVerificationResult,
   RepositoryInvestigationResult,
   RepositoryTestRunResult,
 } from "../components/repository-execution-results";
@@ -45,6 +46,9 @@ export default function Home() {
     repositoryFixProposalRun,
     isRepositoryFixProposalRunning,
     repositoryFixProposalError,
+    repositoryFixVerificationRun,
+    isRepositoryFixVerificationRunning,
+    repositoryFixVerificationError,
     handleRepositorySubmit,
     handleRepositoryTargetChange,
     handleRepositoryContextPreview,
@@ -52,6 +56,7 @@ export default function Home() {
     handleRepositoryGeneration,
     handleRepositoryInvestigation,
     handleRepositoryFixProposal,
+    handleRepositoryFixVerification,
   } = useRepositoryWorkflow();
 
   const isRepositoryBusy =
@@ -60,7 +65,8 @@ export default function Home() {
     isRepositoryTestRunning ||
     isRepositoryGenerationRunning ||
     isRepositoryInvestigationRunning ||
-    isRepositoryFixProposalRunning;
+    isRepositoryFixProposalRunning ||
+    isRepositoryFixVerificationRunning;
 
   return (
     <main>
@@ -131,7 +137,8 @@ export default function Home() {
               isRepositoryTestRunning ||
               isRepositoryGenerationRunning ||
               isRepositoryInvestigationRunning ||
-              isRepositoryFixProposalRunning
+              isRepositoryFixProposalRunning ||
+              isRepositoryFixVerificationRunning
             }
             error={repositoryContextPreviewError}
             onTargetChange={handleRepositoryTargetChange}
@@ -146,6 +153,7 @@ export default function Home() {
             isRepositoryGenerationRunning={isRepositoryGenerationRunning}
             isRepositoryInvestigationRunning={isRepositoryInvestigationRunning}
             isRepositoryFixProposalRunning={isRepositoryFixProposalRunning}
+            isRepositoryFixVerificationRunning={isRepositoryFixVerificationRunning}
             repositoryTestError={repositoryTestError}
             repositoryGenerationError={repositoryGenerationError}
             repositoryInvestigationError={repositoryInvestigationError}
@@ -166,7 +174,15 @@ export default function Home() {
           <RepositoryInvestigationResult result={repositoryInvestigationRun} />
         )}
         {repositoryFixProposalRun !== null && (
-          <RepositoryFixProposalResult result={repositoryFixProposalRun} />
+          <RepositoryFixProposalResult
+            result={repositoryFixProposalRun}
+            isVerificationRunning={isRepositoryFixVerificationRunning}
+            verificationError={repositoryFixVerificationError}
+            onVerify={handleRepositoryFixVerification}
+          />
+        )}
+        {repositoryFixVerificationRun !== null && (
+          <RepositoryFixVerificationResult result={repositoryFixVerificationRun} />
         )}
         <PastedCodeGenerator />
       </section>

@@ -9,6 +9,7 @@ import {
   previewRepositoryGenerationContext,
   proposeRepositoryFix,
   runRepositoryTests,
+  verifyRepositoryFix,
 } from "../lib/api";
 import type {
   RepositoryGenerationRun,
@@ -16,6 +17,7 @@ import type {
   RepositoryInvestigationRun,
   RepositoryContext,
   RepositoryFixProposalRun,
+  RepositoryFixVerificationRun,
   RepositoryMetadata,
   RepositoryTestPlan,
   RepositoryTestRun,
@@ -76,6 +78,12 @@ export function useRepositoryWorkflow() {
     useState(false);
   const [repositoryFixProposalError, setRepositoryFixProposalError] =
     useState<string | null>(null);
+  const [repositoryFixVerificationRun, setRepositoryFixVerificationRun] =
+    useState<RepositoryFixVerificationRun | null>(null);
+  const [isRepositoryFixVerificationRunning, setIsRepositoryFixVerificationRunning] =
+    useState(false);
+  const [repositoryFixVerificationError, setRepositoryFixVerificationError] =
+    useState<string | null>(null);
 
   async function handleRepositorySubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -99,6 +107,8 @@ export function useRepositoryWorkflow() {
       setRepositoryInvestigationError(null);
       setRepositoryFixProposalRun(null);
       setRepositoryFixProposalError(null);
+      setRepositoryFixVerificationRun(null);
+      setRepositoryFixVerificationError(null);
       return;
     }
 
@@ -119,6 +129,8 @@ export function useRepositoryWorkflow() {
     setRepositoryInvestigationError(null);
     setRepositoryFixProposalRun(null);
     setRepositoryFixProposalError(null);
+    setRepositoryFixVerificationRun(null);
+    setRepositoryFixVerificationError(null);
 
     try {
       const context = await fetchRepositoryContext(repositoryUrl, {
@@ -325,6 +337,8 @@ export function useRepositoryWorkflow() {
     setIsRepositoryFixProposalRunning(true);
     setRepositoryFixProposalError(null);
     setRepositoryFixProposalRun(null);
+    setRepositoryFixVerificationError(null);
+    setRepositoryFixVerificationRun(null);
     setRepositoryTestError(null);
     setRepositoryTestRun(null);
     setRepositoryGenerationError(null);
@@ -349,6 +363,32 @@ export function useRepositoryWorkflow() {
       );
     } finally {
       setIsRepositoryFixProposalRunning(false);
+    }
+  }
+
+  async function handleRepositoryFixVerification() {
+    if (repository === null || repositoryFixProposalRun === null) {
+      setRepositoryFixVerificationError(
+        "Create and review a source fix proposal before verifying it.",
+      );
+      return;
+    }
+
+    setIsRepositoryFixVerificationRunning(true);
+    setRepositoryFixVerificationError(null);
+    setRepositoryFixVerificationRun(null);
+
+    try {
+      const result = await verifyRepositoryFix(repository.url, repositoryFixProposalRun.proposal);
+      setRepositoryFixVerificationRun(result);
+    } catch (error) {
+      setRepositoryFixVerificationError(
+        error instanceof Error
+          ? error.message
+          : "Unable to verify the approved repository fix. Please try again.",
+      );
+    } finally {
+      setIsRepositoryFixVerificationRunning(false);
     }
   }
 
@@ -381,6 +421,9 @@ export function useRepositoryWorkflow() {
     repositoryFixProposalRun,
     isRepositoryFixProposalRunning,
     repositoryFixProposalError,
+    repositoryFixVerificationRun,
+    isRepositoryFixVerificationRunning,
+    repositoryFixVerificationError,
     handleRepositorySubmit,
     handleRepositoryTargetChange,
     handleRepositoryContextPreview,
@@ -388,5 +431,6 @@ export function useRepositoryWorkflow() {
     handleRepositoryGeneration,
     handleRepositoryInvestigation,
     handleRepositoryFixProposal,
+    handleRepositoryFixVerification,
   };
 }
