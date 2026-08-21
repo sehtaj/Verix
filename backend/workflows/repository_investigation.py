@@ -116,6 +116,7 @@ class RepositoryInvestigationWorkflow:
             evidence=evidence,
             outcome=outcome,
             explanation=explanation,
+            generation_context=generation_context,
         )
 
 

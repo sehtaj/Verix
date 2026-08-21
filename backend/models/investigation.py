@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-from models.repository import RepositoryTestPlan
+from models.repository import RepositoryGenerationContext, RepositoryTestPlan
 
 
 class RepositoryOutcomeKind(StrEnum):
@@ -50,3 +50,4 @@ class RepositoryInvestigationRun:
     evidence: RepositoryInvestigationEvidence
     outcome: RepositoryOutcomeKind
     explanation: str
+    generation_context: RepositoryGenerationContext | None = None

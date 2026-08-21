@@ -1,11 +1,13 @@
-"""Gemini-powered test generation for Verix."""
+"""Gemini-powered test, investigation, and fix generation for Verix."""
 
+import json
 import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 from google import genai
 
+from models.fix_proposal import RepositoryFixContext, RepositoryFixProposal
 from models.investigation import (
     RepositoryInvestigationEvidence,
     RepositoryOutcomeKind,
@@ -14,6 +16,7 @@ from models.repository import RepositoryGenerationContext
 from services.repository_investigation_prompt import (
     build_repository_investigation_prompt,
 )
+from services.repository_fix_prompt import build_repository_fix_prompt
 from services.repository_prompt import build_repository_test_prompt
 
 
@@ -74,6 +77,33 @@ Python code:
             explanation[: MAX_INVESTIGATION_EXPLANATION_CHARACTERS - 3].rstrip()
             + "..."
         )
+
+    def generate_repository_fix_proposal(
+        self,
+        context: RepositoryFixContext,
+    ) -> RepositoryFixProposal:
+        """Generate one review-only patch without writing repository files."""
+        prompt = build_repository_fix_prompt(context)
+        response = self._generate_from_prompt(prompt)
+
+        try:
+            payload = json.loads(response)
+            if not isinstance(payload, dict) or set(payload) != {"summary", "patch"}:
+                raise ValueError
+            summary = payload["summary"]
+            patch = payload["patch"]
+            if not isinstance(summary, str) or not isinstance(patch, str):
+                raise ValueError
+
+            return RepositoryFixProposal(
+                revision=context.revision,
+                subdirectory=context.subdirectory,
+                target_path=context.target_path,
+                summary=summary.strip(),
+                patch=patch,
+            )
+        except (TypeError, ValueError, json.JSONDecodeError):
+            raise RuntimeError("Gemini returned an invalid fix proposal.") from None
 
     def _generate_from_prompt(self, prompt: str) -> str:
         """Send one prepared prompt to Gemini and require a non-empty response."""
