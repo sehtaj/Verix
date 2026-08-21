@@ -7,6 +7,7 @@ import {
   generateRepositoryTests,
   investigateRepository,
   previewRepositoryGenerationContext,
+  proposeRepositoryFix,
   runRepositoryTests,
 } from "../lib/api";
 import type {
@@ -14,6 +15,7 @@ import type {
   RepositoryGenerationContextPreview,
   RepositoryInvestigationRun,
   RepositoryContext,
+  RepositoryFixProposalRun,
   RepositoryMetadata,
   RepositoryTestPlan,
   RepositoryTestRun,
@@ -68,6 +70,12 @@ export function useRepositoryWorkflow() {
     useState(false);
   const [repositoryInvestigationError, setRepositoryInvestigationError] =
     useState<string | null>(null);
+  const [repositoryFixProposalRun, setRepositoryFixProposalRun] =
+    useState<RepositoryFixProposalRun | null>(null);
+  const [isRepositoryFixProposalRunning, setIsRepositoryFixProposalRunning] =
+    useState(false);
+  const [repositoryFixProposalError, setRepositoryFixProposalError] =
+    useState<string | null>(null);
 
   async function handleRepositorySubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -89,6 +97,8 @@ export function useRepositoryWorkflow() {
       setRepositoryGenerationError(null);
       setRepositoryInvestigationRun(null);
       setRepositoryInvestigationError(null);
+      setRepositoryFixProposalRun(null);
+      setRepositoryFixProposalError(null);
       return;
     }
 
@@ -107,6 +117,8 @@ export function useRepositoryWorkflow() {
     setRepositoryGenerationError(null);
     setRepositoryInvestigationRun(null);
     setRepositoryInvestigationError(null);
+    setRepositoryFixProposalRun(null);
+    setRepositoryFixProposalError(null);
 
     try {
       const context = await fetchRepositoryContext(repositoryUrl, {
@@ -138,6 +150,8 @@ export function useRepositoryWorkflow() {
     setRepositoryGenerationError(null);
     setRepositoryInvestigationRun(null);
     setRepositoryInvestigationError(null);
+    setRepositoryFixProposalRun(null);
+    setRepositoryFixProposalError(null);
   }
 
   async function handleRepositoryContextPreview() {
@@ -188,6 +202,8 @@ export function useRepositoryWorkflow() {
     setRepositoryGenerationRun(null);
     setRepositoryInvestigationError(null);
     setRepositoryInvestigationRun(null);
+    setRepositoryFixProposalError(null);
+    setRepositoryFixProposalRun(null);
 
     try {
       const result = await runRepositoryTests(repository.url, {
@@ -226,6 +242,8 @@ export function useRepositoryWorkflow() {
     setRepositoryTestRun(null);
     setRepositoryInvestigationError(null);
     setRepositoryInvestigationRun(null);
+    setRepositoryFixProposalError(null);
+    setRepositoryFixProposalRun(null);
 
     try {
       const result = await generateRepositoryTests(repository.url, {
@@ -267,6 +285,8 @@ export function useRepositoryWorkflow() {
     setRepositoryTestRun(null);
     setRepositoryGenerationError(null);
     setRepositoryGenerationRun(null);
+    setRepositoryFixProposalError(null);
+    setRepositoryFixProposalRun(null);
 
     try {
       const result = await investigateRepository(repository.url, {
@@ -285,6 +305,50 @@ export function useRepositoryWorkflow() {
       );
     } finally {
       setIsRepositoryInvestigationRunning(false);
+    }
+  }
+
+  async function handleRepositoryFixProposal() {
+    if (repository === null || repositoryContext === null) {
+      setRepositoryFixProposalError(
+        "Fetch a public Python repository before proposing a fix.",
+      );
+      return;
+    }
+    if (!selectedTargetPath) {
+      setRepositoryFixProposalError(
+        "Select a Python source file before proposing a fix.",
+      );
+      return;
+    }
+
+    setIsRepositoryFixProposalRunning(true);
+    setRepositoryFixProposalError(null);
+    setRepositoryFixProposalRun(null);
+    setRepositoryTestError(null);
+    setRepositoryTestRun(null);
+    setRepositoryGenerationError(null);
+    setRepositoryGenerationRun(null);
+    setRepositoryInvestigationError(null);
+    setRepositoryInvestigationRun(null);
+
+    try {
+      const result = await proposeRepositoryFix(repository.url, {
+        reference: repositoryContext.revision,
+        subdirectory: repositoryContext.subdirectory ?? undefined,
+        targetPath: selectedTargetPath,
+      });
+
+      setRepositoryFixProposalRun(result);
+      setRepositoryTestPlan(result.test_plan);
+    } catch (error) {
+      setRepositoryFixProposalError(
+        error instanceof Error
+          ? error.message
+          : "Unable to propose a repository fix. Please try again.",
+      );
+    } finally {
+      setIsRepositoryFixProposalRunning(false);
     }
   }
 
@@ -314,11 +378,15 @@ export function useRepositoryWorkflow() {
     repositoryInvestigationRun,
     isRepositoryInvestigationRunning,
     repositoryInvestigationError,
+    repositoryFixProposalRun,
+    isRepositoryFixProposalRunning,
+    repositoryFixProposalError,
     handleRepositorySubmit,
     handleRepositoryTargetChange,
     handleRepositoryContextPreview,
     handleRepositoryTestRun,
     handleRepositoryGeneration,
     handleRepositoryInvestigation,
+    handleRepositoryFixProposal,
   };
 }

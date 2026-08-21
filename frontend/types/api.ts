@@ -112,6 +112,19 @@ export type RepositoryInvestigationRun = RepositoryGenerationRun & {
   };
 };
 
+export type RepositoryFixProposalRun = RepositoryInvestigationRun & {
+  proposal: {
+    revision: string;
+    subdirectory: string | null;
+    target_path: string;
+    summary: string;
+    patch: string;
+    validated: boolean;
+    approval_required: boolean;
+    applied: boolean;
+  };
+};
+
 export type PastedCodeGenerationRun = {
   tests: string;
   execution: TestExecution;

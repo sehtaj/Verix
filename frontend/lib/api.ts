@@ -1,6 +1,7 @@
 import type {
   PastedCodeGenerationRun,
   RepositoryContext,
+  RepositoryFixProposalRun,
   RepositoryGenerationContextPreview,
   RepositoryGenerationRun,
   RepositoryInvestigationRun,
@@ -114,6 +115,24 @@ export async function investigateRepository(
 
   if (!response.ok || !("investigation" in result)) {
     throw new Error("detail" in result ? result.detail : "Repository investigation failed.");
+  }
+
+  return result;
+}
+
+export async function proposeRepositoryFix(
+  repositoryUrl: string,
+  targeting: RepositoryTargeting,
+): Promise<RepositoryFixProposalRun> {
+  const response = await fetch(`${apiUrl}/repository/fix-proposal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(repositoryRequestBody(repositoryUrl, targeting)),
+  });
+  const result: RepositoryFixProposalRun | ApiError = await response.json();
+
+  if (!response.ok || !("proposal" in result)) {
+    throw new Error("detail" in result ? result.detail : "Repository fix proposal failed.");
   }
 
   return result;
