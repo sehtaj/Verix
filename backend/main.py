@@ -7,6 +7,7 @@ from api.presenters import (
     present_configuration_files,
     present_python_project_setup,
     present_repository_context,
+    present_repository_fix_proposal_run,
     present_repository_generation_context,
     present_repository_investigation,
     present_repository_metadata,
@@ -16,6 +17,7 @@ from api.presenters import (
 )
 from api.schemas import (
     GenerateTestsRequest,
+    RepositoryFixProposalRequest,
     RepositoryRequest,
     RepositorySubdirectoryRequest,
     RepositoryTargetRequest,
@@ -25,6 +27,7 @@ from services.llm_service import GeminiLLMService
 from services.repository_preparer import PublicRepositoryPreparer
 from services.docker_runner import DockerTestRunner, GeneratedTestsValidationError
 from workflows.repository_execution import RepositoryExecutionWorkflow
+from workflows.repository_fix_proposal import RepositoryFixProposalWorkflow
 from workflows.repository_investigation import RepositoryInvestigationWorkflow
 
 
@@ -41,7 +44,7 @@ repository_preparer = PublicRepositoryPreparer(github_repository_service)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_methods=["POST"],
     allow_headers=["Content-Type"],
 )
@@ -427,4 +430,50 @@ def investigate_repository(
         raise HTTPException(
             status_code=502,
             detail="Unable to investigate the repository. Please try again.",
+        ) from None
+
+
+@app.post("/repository/fix-proposal")
+def propose_repository_fix(
+    request: RepositoryFixProposalRequest,
+) -> dict[str, object]:
+    """Return one validated source patch for explicit review without applying it."""
+    if llm_service is None:
+        raise HTTPException(
+            status_code=503,
+            detail="LLM service is not configured.",
+        )
+
+    try:
+        execution_workflow = RepositoryExecutionWorkflow(
+            repository_preparer,
+            test_runner,
+        )
+        investigation_workflow = RepositoryInvestigationWorkflow(
+            github_repository_service,
+            llm_service,
+            execution_workflow,
+        )
+        workflow = RepositoryFixProposalWorkflow(
+            investigation_workflow,
+            llm_service,
+        )
+        run = workflow.run(
+            request.url,
+            request.reference,
+            request.subdirectory,
+            request.target_path,
+        )
+        return present_repository_fix_proposal_run(run)
+    except GeneratedTestsValidationError:
+        raise HTTPException(
+            status_code=502,
+            detail="Gemini returned unusable generated tests. Please try again.",
+        ) from None
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to propose a repository fix. Please try again.",
         ) from None

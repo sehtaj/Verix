@@ -12,6 +12,7 @@ if str(BACKEND_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIRECTORY))
 
 from api.schemas import (
+    RepositoryFixProposalRequest,
     RepositoryReferenceRequest,
     RepositoryRequest,
     RepositorySubdirectoryRequest,
@@ -166,6 +167,67 @@ class RepositoryTargetRequestTests(unittest.TestCase):
                 subdirectory="backend",
                 target_path="backend/main.py",
             )
+
+
+class RepositoryFixProposalRequestTests(unittest.TestCase):
+    """Protect the narrower path allowed for a future fix proposal."""
+
+    def test_requires_one_explicit_python_source_target(self) -> None:
+        with self.assertRaises(ValidationError):
+            RepositoryFixProposalRequest(url=REPOSITORY_URL)
+
+        with self.assertRaises(ValidationError):
+            RepositoryFixProposalRequest(
+                url=REPOSITORY_URL,
+                target_path="src/sample.py",
+                approved=True,
+            )
+
+        request = RepositoryFixProposalRequest(
+            url=REPOSITORY_URL,
+            reference="main",
+            subdirectory="packages/sample",
+            target_path="packages/sample/src/sample.py",
+        )
+
+        self.assertEqual(request.target_path, "packages/sample/src/sample.py")
+
+    def test_rejects_verix_owned_fix_targets(self) -> None:
+        reserved_targets = (
+            ".verix-generated-tests/test_verix_generated.py",
+            ".verix-tox/plugin.py",
+            ".verix-venv/lib/python/site.py",
+            "src/.verix-generated-tests/helper.py",
+        )
+
+        for target_path in reserved_targets:
+            with self.subTest(target_path=target_path):
+                with self.assertRaises(ValidationError):
+                    RepositoryFixProposalRequest(
+                        url=REPOSITORY_URL,
+                        target_path=target_path,
+                    )
+
+    def test_rejects_reserved_target_inside_selected_subdirectory(self) -> None:
+        reserved_selections = (
+            (
+                "packages/sample",
+                "packages/sample/.verix-tox/plugin.py",
+            ),
+            (
+                ".verix-tox",
+                ".verix-tox/plugin.py",
+            ),
+        )
+
+        for subdirectory, target_path in reserved_selections:
+            with self.subTest(subdirectory=subdirectory, target_path=target_path):
+                with self.assertRaises(ValidationError):
+                    RepositoryFixProposalRequest(
+                        url=REPOSITORY_URL,
+                        subdirectory=subdirectory,
+                        target_path=target_path,
+                    )
 
 
 if __name__ == "__main__":

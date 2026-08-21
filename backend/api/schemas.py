@@ -5,6 +5,8 @@ import re
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from models.fix_proposal import validate_fix_target_path
+
 
 MAX_REPOSITORY_REFERENCE_CHARACTERS = 255
 MAX_REPOSITORY_PATH_CHARACTERS = 1024
@@ -144,4 +146,20 @@ class RepositoryTargetRequest(RepositorySubdirectoryRequest):
             raise ValueError(
                 "Repository source target must be inside the selected subdirectory."
             )
+        return self
+
+
+class RepositoryFixProposalRequest(RepositoryTargetRequest):
+    """A request to propose, but never automatically apply, one source fix."""
+
+    target_path: str = Field(
+        min_length=1,
+        max_length=MAX_REPOSITORY_PATH_CHARACTERS,
+        description="Repository-relative Python source file allowed to change.",
+    )
+
+    @model_validator(mode="after")
+    def validate_fix_target(self) -> "RepositoryFixProposalRequest":
+        """Keep fixes away from Verix-owned disposable workspace paths."""
+        validate_fix_target_path(self.target_path, self.subdirectory)
         return self

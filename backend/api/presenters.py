@@ -1,5 +1,6 @@
 """Convert repository domain models into the existing JSON response shapes."""
 
+from models.fix_proposal import RepositoryFixProposalRun
 from models.investigation import RepositoryInvestigationRun
 
 from models.repository import (
@@ -156,5 +157,25 @@ def present_repository_investigation(
         "investigation": {
             "outcome": investigation.outcome.value,
             "explanation": investigation.explanation,
+        },
+    }
+
+
+def present_repository_fix_proposal_run(
+    run: RepositoryFixProposalRun,
+) -> dict[str, object]:
+    """Return one validated proposal with its completed investigation."""
+    proposal = run.proposal
+    return {
+        **present_repository_investigation(run.investigation),
+        "proposal": {
+            "revision": proposal.revision,
+            "subdirectory": proposal.subdirectory,
+            "target_path": proposal.target_path,
+            "summary": proposal.summary,
+            "patch": proposal.patch,
+            "validated": run.validated,
+            "approval_required": proposal.approval_required,
+            "applied": proposal.applied,
         },
     }
