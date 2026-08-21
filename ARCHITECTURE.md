@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Verix is a small client-server application. Version 0.12 can generate and safely run pytest tests for pasted Python code. For public Python repositories, it supports a validated branch, tag, or commit reference; a validated project subdirectory; a verified source-target choice; a bounded Gemini-context preview; safe Docker execution; a bounded investigation explanation; a reviewed source-fix proposal; and explicit temporary verification of that proposal.
+Verix is a small client-server application. Version 1.0 can generate and safely run pytest tests for pasted Python code. For public Python repositories, it supports a validated branch, tag, or commit reference; a validated project subdirectory; a verified source-target choice; a bounded Gemini-context preview; safe Docker execution; a bounded investigation explanation; a reviewed source-fix proposal; and explicit temporary verification of that proposal.
 
 ## Current architecture
 
@@ -238,7 +238,7 @@ Dependency installation is intentionally less restrictive because package downlo
 
 ## Frontend responsibilities
 
-`frontend/app/page.tsx` composes the pasted-code, repository execution, repository generation, V0.9 investigation, V0.10 targeting, V0.11 fix-proposal, and V0.12 approved-fix-verification workflows. Its supporting modules are:
+`frontend/app/page.tsx` composes the pasted-code, repository execution, repository generation, V0.9 investigation, V0.10 targeting, V0.11 fix-proposal, and V1.0 approved-fix-verification workflows. Its supporting modules are:
 
 - `frontend/hooks/use-repository-workflow.ts`, which owns repository form state and user actions.
 - `frontend/lib/api.ts`, which owns typed backend HTTP calls and API-error extraction.
@@ -403,7 +403,7 @@ The frontend uses `NEXT_PUBLIC_API_URL` and defaults to `http://localhost:8000`.
 
 `backend/.env.example` documents `LLM_API_KEY`; the ignored `backend/.env` holds the local Gemini key. The key is required by `/generate`, `/repository/generate`, `/repository/investigate`, and `/repository/fix-proposal`, but not by repository inspection, `/repository/test-run`, or `/repository/fix-verify`. The Docker image must exist locally as `verix-test-runner:dev`, and Docker Desktop must be running.
 
-## V0.12 boundaries
+## V1.0 boundaries
 
 - Public GitHub repositories only; no token, private repository, or pull-request integration.
 - Python projects only, with dependency declarations and runner configuration at the selected project root.
@@ -420,4 +420,4 @@ The frontend uses `NEXT_PUBLIC_API_URL` and defaults to `http://localhost:8000`.
 
 ## Next evolution
 
-V1.0 can build on this verified-patch evidence with quality reports and merge-confidence information, without weakening the explicit-approval or disposable-workspace boundary.
+Future milestones can build on this verified-patch evidence with quality reports and merge-confidence information, without weakening the explicit-approval or disposable-workspace boundary.

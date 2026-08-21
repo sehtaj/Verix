@@ -311,7 +311,7 @@ Features:
 
 V0.11 never writes to the repository, applies a patch, retries tests, or claims that a proposed patch fixes the failure. Fix proposals are review artifacts only and are produced only for deterministic failure outcomes with sufficient evidence.
 
-## V0.12 — Complete
+## V1.0 — Complete
 
 Goal:
 
@@ -326,7 +326,7 @@ Features:
 - Adds deterministic tests for patch validation, temporary-workspace cleanup, execution coordination, and safe API errors.
 - Adds an explicit frontend action to approve and verify a reviewed proposal, then displays the patched-suite result separately.
 
-V0.12 does not push a commit, open a pull request, modify a local checkout, retry automatically, or claim that a passing test suite proves the patch is correct. The developer still reviews the diff and decides whether to make a real repository change.
+V1.0 does not push a commit, open a pull request, modify a local checkout, retry automatically, or claim that a passing test suite proves the patch is correct. The developer still reviews the diff and decides whether to make a real repository change.
 
 ---
 
@@ -380,10 +380,6 @@ V0.12 does not push a commit, open a pull request, modify a local checkout, retr
 - Complete: safe repository targeting and user control
 - Complete: branch/tag/commit, subdirectory, and Python source-target selection
 - Complete: bounded Gemini-context preview and pinned execution
-
-## V1.0
-
-- Produce quality reports and merge-confidence evidence
 
 ## After V1.0
 

@@ -1,6 +1,6 @@
 # Verix
 
-Verix is an early-stage AI software quality engineer. Version 0.12 can generate and safely execute pytest tests for pasted Python code. For a public Python repository, it can select a branch, tag, or commit; choose a nested project folder and verified source target; preview bounded Gemini context; run original and generated suites separately in Docker; explain one classified result using bounded evidence; propose one validated source-only patch for review; and verify an explicitly approved patch in a disposable workspace without changing GitHub.
+Verix is an early-stage AI software quality engineer. Version 1.0 can generate and safely execute pytest tests for pasted Python code. For a public Python repository, it can select a branch, tag, or commit; choose a nested project folder and verified source target; preview bounded Gemini context; run original and generated suites separately in Docker; explain one classified result using bounded evidence; propose one validated source-only patch for review; and verify an explicitly approved patch in a disposable workspace without changing GitHub.
 
 ## Requirements
 
@@ -59,7 +59,7 @@ Open `http://localhost:3000`. Keep the frontend, backend, and Docker Desktop run
 
 `NEXT_PUBLIC_API_URL` can point the frontend at a different backend address and defaults to `http://localhost:8000`. The backend's local CORS configuration permits `http://localhost:3000` and `http://127.0.0.1:3000`.
 
-## How to use V0.12
+## How to use V1.0
 
 ### Inspect and test a repository
 
@@ -366,10 +366,10 @@ cd frontend
 npm run build
 ```
 
-For an end-to-end V0.12 check, use a small public Python repository with a nested project folder, select its branch or commit, folder, and target, preview the context, then select **Investigate repository**. Verify the resolved commit, previewed content, outcome, explanation, generated code, and separate original/generated panels. On a repository with a fixable test failure, select **Propose source fix**, review the pinned validated diff, then select **Approve and verify in temporary workspace**. Confirm that the patched-suite result is shown and GitHub remains unchanged. During review, `https://github.com/sehtaj/competitive-programming` with reference `main`, subdirectory `python/arraysAndHashing`, and target `python/arraysAndHashing/duplicate_integers.py` successfully verified a harmless comment-only patch against commit `b315056fc836421184d5509c996a1023e1534495`; pytest returned exit code 5 because that folder has no tests, and the response correctly reported `github_changed: false`.
+For an end-to-end V1.0 check, use a small public Python repository with a nested project folder, select its branch or commit, folder, and target, preview the context, then select **Investigate repository**. Verify the resolved commit, previewed content, outcome, explanation, generated code, and separate original/generated panels. On a repository with a fixable test failure, select **Propose source fix**, review the pinned validated diff, then select **Approve and verify in temporary workspace**. Confirm that the patched-suite result is shown and GitHub remains unchanged. During review, `https://github.com/sehtaj/competitive-programming` with reference `main`, subdirectory `python/arraysAndHashing`, and target `python/arraysAndHashing/duplicate_integers.py` successfully verified a harmless comment-only patch against commit `b315056fc836421184d5509c996a1023e1534495`; pytest returned exit code 5 because that folder has no tests, and the response correctly reported `github_changed: false`.
 
-## V0.12 boundaries
+## V1.0 boundaries
 
-V0.12 supports public Python repositories, one validated branch/tag/full-commit reference, one validated project subdirectory, one verified Python source target, one review-only source-fix proposal, and one explicit temporary verification of its exact patch. It does not support private repositories, authenticated GitHub access, arbitrary local filesystem paths, multiple targets, coverage, automatic retries, automatic real-world patch application, or a multi-step agent loop. Generated tests and proposed patches are not committed back and are not guaranteed to be logically correct. Investigation explanations are evidence-grounded summaries, not guaranteed root-cause diagnoses. A passed patched suite is evidence to review, not proof that the patch is correct.
+V1.0 supports public Python repositories, one validated branch/tag/full-commit reference, one validated project subdirectory, one verified Python source target, one review-only source-fix proposal, and one explicit temporary verification of its exact patch. It does not support private repositories, authenticated GitHub access, arbitrary local filesystem paths, multiple targets, coverage, automatic retries, automatic real-world patch application, or a multi-step agent loop. Generated tests and proposed patches are not committed back and are not guaranteed to be logically correct. Investigation explanations are evidence-grounded summaries, not guaranteed root-cause diagnoses. A passed patched suite is evidence to review, not proof that the patch is correct.
 
 The selected target must come from the commit-pinned tree and remain inside the selected project directory. This prevents a user-supplied path from escaping the disposable Docker workspace.
