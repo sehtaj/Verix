@@ -150,19 +150,31 @@
 
 ## V0.11
 
-- [ ] Define an approval-based fix-proposal contract and safety boundary
-- [ ] Select bounded failure-focused repository context for a proposed fix
-- [ ] Generate one minimal proposed patch without applying it
-- [ ] Validate and display a proposed patch for explicit user review
-- [ ] Add deterministic regression tests for fix proposals
-- [ ] Test the complete V0.11 flow
-- [ ] Update documentation during the V0.11 Review Phase
+- [x] Define an approval-based fix-proposal contract and safety boundary
+- [x] Select bounded failure-focused repository context for a proposed fix
+- [x] Generate one minimal proposed patch without applying it
+- [x] Validate and display a proposed patch for explicit user review
+- [x] Add deterministic regression tests for fix proposals
+- [x] Test the complete V0.11 flow
+- [x] Update documentation during the V0.11 Review Phase
+
+---
+
+## V0.12
+
+- [ ] Define an explicit approval/apply request contract
+- [ ] Apply an approved validated patch only in a disposable workspace
+- [ ] Rerun the relevant repository tests after applying the patch
+- [ ] Return verified post-patch results without changing GitHub
+- [ ] Add deterministic regression tests for approved patch execution
+- [ ] Test the complete V0.12 flow
+- [ ] Update documentation during the V0.12 Review Phase
 
 ---
 
 ## Current Task
 
-**Define an approval-based fix-proposal contract and safety boundary**
+**Define an explicit approval/apply request contract**
 
 ---
 

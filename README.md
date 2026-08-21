@@ -1,13 +1,13 @@
 # Verix
 
-Verix is an early-stage AI software quality engineer. Version 0.10 can generate and safely execute pytest tests for pasted Python code. For a public Python repository, it can select a branch, tag, or commit; choose a nested project folder and verified source target; preview bounded Gemini context; run original and generated suites separately in Docker; and explain one classified result using bounded evidence.
+Verix is an early-stage AI software quality engineer. Version 0.11 can generate and safely execute pytest tests for pasted Python code. For a public Python repository, it can select a branch, tag, or commit; choose a nested project folder and verified source target; preview bounded Gemini context; run original and generated suites separately in Docker; explain one classified result using bounded evidence; and propose one validated source-only patch for explicit review.
 
 ## Requirements
 
 - Python 3.10 or later.
 - Node.js 20.9 or later.
 - Docker Desktop, running locally.
-- A Gemini API key for pasted-code generation, repository-aware generation, and repository investigation.
+- A Gemini API key for pasted-code generation, repository-aware generation, repository investigation, and review-only fix proposals.
 
 ## 1. Build the runner image
 
@@ -43,7 +43,7 @@ cd backend
 python3 -m uvicorn main:app --reload
 ```
 
-The API starts at `http://localhost:8000`. The Gemini key is required by `POST /generate`, `POST /repository/generate`, and `POST /repository/investigate`. Repository inspection and `POST /repository/test-run` do not use it.
+The API starts at `http://localhost:8000`. The Gemini key is required by `POST /generate`, `POST /repository/generate`, `POST /repository/investigate`, and `POST /repository/fix-proposal`. Repository inspection and `POST /repository/test-run` do not use it.
 
 ## 3. Run the frontend
 
@@ -57,9 +57,9 @@ npm run dev
 
 Open `http://localhost:3000`. Keep the frontend, backend, and Docker Desktop running while using Verix.
 
-`NEXT_PUBLIC_API_URL` can point the frontend at a different backend address and defaults to `http://localhost:8000`. The backend's local CORS configuration permits `http://localhost:3000`.
+`NEXT_PUBLIC_API_URL` can point the frontend at a different backend address and defaults to `http://localhost:8000`. The backend's local CORS configuration permits `http://localhost:3000` and `http://127.0.0.1:3000`.
 
-## How to use V0.10
+## How to use V0.11
 
 ### Inspect and test a repository
 
@@ -70,12 +70,13 @@ Open `http://localhost:3000`. Keep the frontend, backend, and Docker Desktop run
 5. Keep Verix's automatic source target or choose another verified Python file, then select **Preview Gemini context** to inspect the exact bounded source, test, and configuration content that could be sent to Gemini. Previewing does not call Gemini or run code.
 6. Select **Run repository tests**, **Generate repository tests**, or **Investigate repository**. Each action keeps the selected commit, project folder, and target consistent through execution.
 7. Review the selected target, generated pytest code, installation status, original/generated results, and—when investigating—the outcome and explanation.
+8. If the investigation finds a fixable failure, select **Propose source fix**. Review the one-file unified diff, pinned commit, validation status, and explicit approval-required/not-applied status. The proposal does not change GitHub or any local repository file.
 
 Repository execution supports Python projects with dependency and runner configuration at the repository root. Nested projects in monorepositories are not selected automatically. Dependency installation may download packages in a disposable container. Original and generated tests run afterward without network access and with a read-only repository mount.
 
 Generated tests are temporary and disappear with the disposable workspace. Verix does not commit them to the repository, and LLM-generated tests still require developer judgment.
 
-For repository generation and investigation, Verix resolves the requested reference to one commit SHA and uses that same SHA for the selected context and Docker archive. This prevents a branch update from mixing repository versions within one request. When a project folder is selected, Docker runs from that folder and Gemini receives the project-relative target path needed to choose imports correctly. Gemini receives only bounded execution evidence for investigation and explains the backend's already-selected outcome; it does not retry tests, change code, or propose a patch.
+For repository generation and investigation, Verix resolves the requested reference to one commit SHA and uses that same SHA for the selected context and Docker archive. This prevents a branch update from mixing repository versions within one request. When a project folder is selected, Docker runs from that folder and Gemini receives the project-relative target path needed to choose imports correctly. Gemini receives only bounded execution evidence for investigation and explains the backend's already-selected outcome; it does not retry tests, change code, or propose a patch. The fix-proposal flow uses the same pinned selection, asks for one source-only diff, validates it in memory, and leaves it unapplied for explicit review.
 
 ### Generate tests for pasted code
 
@@ -257,6 +258,31 @@ The possible outcomes are:
 
 The outcome is selected by fixed backend rules. Gemini receives bounded command evidence only to explain that outcome. A normal test failure or no-existing-tests result returns HTTP 200; invalid input returns HTTP 422; external, validation, or Docker failures return HTTP 502; and a missing Gemini key returns HTTP 503.
 
+### Propose a review-only repository fix
+
+`POST /repository/fix-proposal`
+
+```json
+{
+  "url": "https://github.com/owner/python-repository",
+  "reference": "main",
+  "subdirectory": "src",
+  "target_path": "src/sample.py"
+}
+```
+
+This endpoint runs one investigation, selects bounded failure-focused context, and asks Gemini for one minimal unified diff for the selected Python file. A successful response includes the pinned revision, target path, summary, patch, and:
+
+```json
+{
+  "approval_required": true,
+  "validated": true,
+  "applied": false
+}
+```
+
+The patch must match the exact selected source, change only that file, remain valid Python, and stay within the configured size limits. The endpoint never writes files, changes GitHub, applies the patch, retries tests, or claims that the proposal fixes the failure. A repository run with no fixable failure returns HTTP 422. External or validation failures return HTTP 502, and missing Gemini configuration returns HTTP 503.
+
 The focused repository endpoints remain available for development and inspection:
 
 - `POST /repository`
@@ -313,10 +339,10 @@ cd frontend
 npm run build
 ```
 
-For an end-to-end V0.10 check, use a small public Python repository with a nested project folder, select its branch or commit, folder, and target, preview the context, then select **Investigate repository**. Verify the resolved commit, previewed content, outcome, explanation, generated code, and separate original/generated panels. During the V0.10 review, `https://github.com/sehtaj/competitive-programming` with reference `main`, subdirectory `python/arraysAndHashing`, and target `python/arraysAndHashing/duplicate_integers.py` reported `no_existing_tests` (pytest exit code 5), while the generated suite passed.
+For an end-to-end V0.11 check, use a small public Python repository with a nested project folder, select its branch or commit, folder, and target, preview the context, then select **Investigate repository**. Verify the resolved commit, previewed content, outcome, explanation, generated code, and separate original/generated panels. On a repository with a fixable test failure, select **Propose source fix** and verify the pinned target, validated one-file diff, and not-applied status. During review, `https://github.com/sehtaj/competitive-programming` with reference `main`, subdirectory `python/arraysAndHashing`, and target `python/arraysAndHashing/duplicate_integers.py` reported `no_existing_tests` (pytest exit code 5), while the generated suite passed; the fix-proposal endpoint correctly refused that non-fixable outcome with HTTP 422.
 
-## V0.10 boundaries
+## V0.11 boundaries
 
-V0.10 supports public Python repositories, one validated branch/tag/full-commit reference, one validated project subdirectory, and one verified Python source target. It does not support private repositories, authenticated GitHub access, arbitrary local filesystem paths, multiple targets, coverage, fix proposals, automatic retries, patch application, or a multi-step agent loop. Generated tests are not committed back and are not guaranteed to be logically correct. Investigation explanations are evidence-grounded summaries, not guaranteed root-cause diagnoses.
+V0.11 supports public Python repositories, one validated branch/tag/full-commit reference, one validated project subdirectory, one verified Python source target, and one review-only source-fix proposal. It does not support private repositories, authenticated GitHub access, arbitrary local filesystem paths, multiple targets, coverage, automatic retries, patch application, or a multi-step agent loop. Generated tests and proposed patches are not committed back and are not guaranteed to be logically correct. Investigation explanations are evidence-grounded summaries, not guaranteed root-cause diagnoses.
 
 The selected target must come from the commit-pinned tree and remain inside the selected project directory. This prevents a user-supplied path from escaping the disposable Docker workspace.

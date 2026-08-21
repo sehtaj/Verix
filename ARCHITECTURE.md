@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Verix is a small client-server application. Version 0.10 can generate and safely run pytest tests for pasted Python code. For public Python repositories, it supports a validated branch, tag, or commit reference; a validated project subdirectory; a verified source-target choice; a bounded Gemini-context preview; safe Docker execution; and a bounded investigation explanation.
+Verix is a small client-server application. Version 0.11 can generate and safely run pytest tests for pasted Python code. For public Python repositories, it supports a validated branch, tag, or commit reference; a validated project subdirectory; a verified source-target choice; a bounded Gemini-context preview; safe Docker execution; a bounded investigation explanation; and one validated, review-only source-fix proposal.
 
 ## Current architecture
 
@@ -20,6 +20,7 @@ repository workflow hook -> typed API client
   | POST /repository/test-run            v
   | POST /repository/generate         Gemini API
   | POST /repository/investigate      |
+  | POST /repository/fix-proposal     |
   v                                      |
 FastAPI backend                          | generated pytest code
   |                                      v
@@ -63,6 +64,7 @@ verix/
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── execution.py
+│   │   ├── fix_proposal.py
 │   │   ├── investigation.py
 │   │   └── repository.py
 │   ├── services/
@@ -76,6 +78,9 @@ verix/
 │   │   ├── repository_dependencies.py
 │   │   ├── repository_investigation.py
 │   │   ├── repository_investigation_prompt.py
+│   │   ├── repository_fix_context.py
+│   │   ├── repository_fix_prompt.py
+│   │   ├── repository_fix_validation.py
 │   │   ├── repository_preparer.py
 │   │   ├── repository_prompt.py
 │   │   ├── repository_test_commands.py
@@ -89,6 +94,11 @@ verix/
 │   │   ├── test_llm_service.py
 │   │   ├── test_repository_dependencies.py
 │   │   ├── test_repository_investigation.py
+│   │   ├── test_fix_proposal.py
+│   │   ├── test_repository_fix_context.py
+│   │   ├── test_repository_fix_prompt.py
+│   │   ├── test_repository_fix_proposal.py
+│   │   ├── test_repository_fix_validation.py
 │   │   ├── test_repository_prompt.py
 │   │   ├── test_repository_test_commands.py
 │   │   ├── test_repository_workflow.py
@@ -96,7 +106,8 @@ verix/
 │   ├── workflows/
 │   │   ├── __init__.py
 │   │   ├── repository_execution.py
-│   │   └── repository_investigation.py
+│   │   ├── repository_investigation.py
+│   │   └── repository_fix_proposal.py
 │   ├── requirements.txt
 │   ├── .env.example
 │   └── .gitignore
@@ -135,7 +146,7 @@ The route declarations remain together in `backend/main.py`, and the browser sti
 
 `backend/main.py` creates the FastAPI application, permits the local frontend through CORS, declares the routes, and translates expected failures into HTTP responses. `backend/api/schemas.py` owns Pydantic request models, including validated repository references, subdirectories, and source targets. `backend/api/presenters.py` converts internal repository models into JSON-ready response dictionaries. Invalid repository input becomes HTTP 422. Safe GitHub, Gemini, archive, preparation, or Docker infrastructure failures become HTTP 502. A missing Gemini key produces HTTP 503 on generation routes.
 
-`backend/workflows/repository_execution.py` coordinates repository preparation, dependency installation, and existing/generated test execution. `backend/workflows/repository_investigation.py` coordinates one plan-generate-execute-classify-explain pass without retrying or modifying code. `backend/models/repository.py`, `backend/models/execution.py`, and `backend/models/investigation.py` carry internal data between those boundaries.
+`backend/workflows/repository_execution.py` coordinates repository preparation, dependency installation, and existing/generated test execution. `backend/workflows/repository_investigation.py` coordinates one plan-generate-execute-classify-explain pass without retrying or modifying code. `backend/workflows/repository_fix_proposal.py` coordinates one investigation, bounded failure-context selection, Gemini patch generation, and in-memory validation without writing files. `backend/models/repository.py`, `backend/models/execution.py`, `backend/models/investigation.py`, and `backend/models/fix_proposal.py` carry internal data between those boundaries.
 
 ### GitHub evidence, planning, and generation context
 
@@ -170,6 +181,8 @@ GitHub access uses `certifi` for its CA bundle. It remains unauthenticated and s
 `backend/services/repository_prompt.py` converts the bounded selection into deterministic JSON and clearly labels it as untrusted evidence rather than instructions. It includes both the full repository path and the project-relative target path, because Docker runs from the selected project directory. It escapes prompt-delimiter characters and asks for one pytest module covering source-justified normal, boundary, and error behavior without inventing dependencies or returning a patch.
 
 `backend/services/repository_investigation.py` turns completed installation and test facts into bounded evidence and one deterministic outcome. `backend/services/repository_investigation_prompt.py` sends that outcome and no more than 2,000 characters of output per command to Gemini. Repository data and command output are marked as untrusted evidence, not instructions.
+
+`backend/services/repository_fix_context.py` selects only the pinned target source, failure evidence, investigation explanation, and bounded related files for a fix proposal. `backend/services/repository_fix_prompt.py` requests one source-only unified diff. `backend/services/repository_fix_validation.py` applies that diff in memory, requires exact target headers and source context, rejects changes outside the selected file, and parses the resulting Python without writing to the repository.
 
 ### Repository preparation
 
@@ -210,7 +223,7 @@ Dependency installation is intentionally less restrictive because package downlo
 
 ## Frontend responsibilities
 
-`frontend/app/page.tsx` composes the pasted-code, repository execution, repository generation, V0.9 investigation, and V0.10 targeting workflows. Its supporting modules are:
+`frontend/app/page.tsx` composes the pasted-code, repository execution, repository generation, V0.9 investigation, V0.10 targeting, and V0.11 fix-proposal workflows. Its supporting modules are:
 
 - `frontend/hooks/use-repository-workflow.ts`, which owns repository form state and user actions.
 - `frontend/lib/api.ts`, which owns typed backend HTTP calls and API-error extraction.
@@ -281,7 +294,7 @@ Ordinary test assertion failures return HTTP 200 with a non-zero return code. In
 6. Gemini receives the fixed outcome and bounded evidence to produce a concise explanation; it cannot change the outcome or request a retry.
 7. The API returns the plan, generated tests, separate execution results, outcome, and explanation. The frontend displays them.
 
-The workflow has no automatic retry, patch, or fix step. An ordinary test failure or no-existing-tests result remains an HTTP 200 result with an outcome label. Invalid repository input returns HTTP 422. Gemini, GitHub, archive, validation, or Docker infrastructure failures return HTTP 502; a missing Gemini key returns HTTP 503.
+The investigation workflow has no automatic retry, patch, or fix step. The separate fix-proposal workflow is review-only and runs only after a completed investigation. An ordinary test failure or no-existing-tests result remains an HTTP 200 result with an outcome label. Invalid repository input returns HTTP 422. Gemini, GitHub, archive, validation, or Docker infrastructure failures return HTTP 502; a missing Gemini key returns HTTP 503.
 
 ### Pasted-code generation
 
@@ -356,13 +369,19 @@ Accepts the same targeting fields as `/repository/generate` and returns the gene
 
 Possible outcomes are `setup_failed`, `no_existing_tests`, `existing_tests_timed_out`, `existing_tests_failed`, `generated_tests_timed_out`, `generated_tests_failed`, and `tests_passed`.
 
+### `POST /repository/fix-proposal`
+
+Accepts `url`, a required verified `target_path`, and optional `reference` and `subdirectory`. It runs one investigation and returns one source-only unified diff when the deterministic outcome is an existing or generated test failure/timeout with sufficient evidence. The response includes the pinned revision, target, summary, patch, validation status, and explicit `approval_required: true` / `applied: false` flags, along with the investigation result.
+
+The endpoint never writes repository files, changes GitHub, applies the patch, retries tests, or claims that the proposal fixes the failure. It returns HTTP 422 when the outcome is not fixable or the proposal is invalid, HTTP 502 for external or infrastructure failures, and HTTP 503 when Gemini is not configured.
+
 ## Configuration
 
-The frontend uses `NEXT_PUBLIC_API_URL` and defaults to `http://localhost:8000`. The backend permits `http://localhost:3000` through CORS.
+The frontend uses `NEXT_PUBLIC_API_URL` and defaults to `http://localhost:8000`. The backend permits `http://localhost:3000` and `http://127.0.0.1:3000` through CORS.
 
-`backend/.env.example` documents `LLM_API_KEY`; the ignored `backend/.env` holds the local Gemini key. The key is required by `/generate`, `/repository/generate`, and `/repository/investigate`, but not by repository inspection or `/repository/test-run`. The Docker image must exist locally as `verix-test-runner:dev`, and Docker Desktop must be running.
+`backend/.env.example` documents `LLM_API_KEY`; the ignored `backend/.env` holds the local Gemini key. The key is required by `/generate`, `/repository/generate`, `/repository/investigate`, and `/repository/fix-proposal`, but not by repository inspection or `/repository/test-run`. The Docker image must exist locally as `verix-test-runner:dev`, and Docker Desktop must be running.
 
-## V0.10 boundaries
+## V0.11 boundaries
 
 - Public GitHub repositories only; no token, private repository, or pull-request integration.
 - Python projects only, with dependency declarations and runner configuration at the selected project root.
@@ -371,11 +390,11 @@ The frontend uses `NEXT_PUBLIC_API_URL` and defaults to `http://localhost:8000`.
 - Repository context, generation, test execution, and investigation resolve the requested reference to one commit SHA before their selected work begins.
 - Generated tests are temporary, are not committed back, and are not guaranteed to be logically correct.
 - Investigation explanations are limited to the collected evidence; they are not guaranteed root-cause diagnoses.
-- No coverage measurement, fix proposal, automatic retry, patch application, or multi-step agent loop.
+- No coverage measurement, automatic retry, patch application, or multi-step agent loop.
 - No database, Redis, queue, authentication, or background job system.
 - Requests are synchronous, and one backend process coordinates the local Docker daemon directly.
 - Docker isolation is intended for local development, not as a production-grade multi-tenant security boundary.
 
 ## Next evolution
 
-Approval-based patches and verification remain V1.0 work.
+Applying an explicitly approved patch in a disposable workspace and rerunning relevant tests remain V1.0 work.

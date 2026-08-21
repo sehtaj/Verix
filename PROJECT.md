@@ -295,6 +295,22 @@ Features:
 
 V0.10 still supports public GitHub Python repositories only. It does not allow arbitrary local paths, private repositories, unauthenticated file access, patch application, automatic retries, or automatic fixes.
 
+## V0.11 — Complete
+
+Goal:
+
+Turn a classified repository failure into one bounded, review-only source-fix proposal without changing the repository.
+
+Features:
+
+- Adds `POST /repository/fix-proposal`, which runs one existing investigation before proposing a fix.
+- Selects only the pinned target source file, the command evidence responsible for the outcome, the investigation explanation, and a small number of related tests/configuration files.
+- Asks Gemini for exactly one minimal unified diff for the selected Python source file.
+- Requires a full commit SHA, validates the target path, limits summary/patch size, and rejects empty, malformed, multi-file, out-of-scope, source-mismatched, or syntactically invalid patches.
+- Displays the proposed diff with explicit approval-required and not-applied status in the frontend.
+
+V0.11 never writes to the repository, applies a patch, retries tests, or claims that a proposed patch fixes the failure. Fix proposals are review artifacts only and are produced only for deterministic failure outcomes with sufficient evidence.
+
 ---
 
 # Roadmap
@@ -350,8 +366,9 @@ V0.10 still supports public GitHub Python repositories only. It does not allow a
 
 ## V1.0
 
-- Approval-based fix proposals and verified quality reports
-- Propose minimal patches, rerun relevant tests, and report merge confidence
+- Apply an explicitly approved patch only in a disposable workspace
+- Rerun relevant tests and report verified results
+- Produce quality reports and merge-confidence evidence
 
 ## After V1.0
 
