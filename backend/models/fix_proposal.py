@@ -61,6 +61,16 @@ def validate_fix_target_path(target_path: str, subdirectory: str | None) -> None
         raise ValueError("Repository fix target uses a reserved Verix path.")
 
 
+def validate_fix_patch(patch: str) -> None:
+    """Require bounded patch text before any future approval or application."""
+    if not patch.strip():
+        raise ValueError("Repository fix patch cannot be empty.")
+    if "\x00" in patch:
+        raise ValueError("Repository fix patch contains invalid data.")
+    if len(patch.encode("utf-8")) > MAX_FIX_PATCH_BYTES:
+        raise ValueError("Repository fix patch is too large.")
+
+
 @dataclass(frozen=True)
 class RepositoryFixProposal:
     """One immutable patch proposal that Verix has not applied."""
@@ -85,12 +95,26 @@ class RepositoryFixProposal:
         if len(self.summary) > MAX_FIX_SUMMARY_CHARACTERS:
             raise ValueError("Repository fix proposal summary is too long.")
 
-        if not self.patch.strip():
-            raise ValueError("Repository fix proposal patch cannot be empty.")
-        if "\x00" in self.patch:
-            raise ValueError("Repository fix proposal patch contains invalid data.")
-        if len(self.patch.encode("utf-8")) > MAX_FIX_PATCH_BYTES:
-            raise ValueError("Repository fix proposal patch is too large.")
+        validate_fix_patch(self.patch)
+
+
+@dataclass(frozen=True)
+class RepositoryApprovedFix:
+    """One explicit approval to apply an exact, still-unapplied proposal later."""
+
+    revision: str
+    subdirectory: str | None
+    target_path: str
+    patch: str
+    approved: bool = field(default=True, init=False)
+    applied: bool = field(default=False, init=False)
+
+    def __post_init__(self) -> None:
+        """Keep approval tied to one safe target and immutable repository revision."""
+        if COMMIT_SHA_PATTERN.fullmatch(self.revision) is None:
+            raise ValueError("Repository fix approval requires a full commit SHA.")
+        validate_fix_target_path(self.target_path, self.subdirectory)
+        validate_fix_patch(self.patch)
 
 
 @dataclass(frozen=True)

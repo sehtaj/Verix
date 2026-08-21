@@ -12,6 +12,7 @@ if str(BACKEND_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIRECTORY))
 
 from api.schemas import (
+    RepositoryFixApplyRequest,
     RepositoryFixProposalRequest,
     RepositoryReferenceRequest,
     RepositoryRequest,
@@ -228,6 +229,51 @@ class RepositoryFixProposalRequestTests(unittest.TestCase):
                         subdirectory=subdirectory,
                         target_path=target_path,
                     )
+
+
+class RepositoryFixApplyRequestTests(unittest.TestCase):
+    """Protect explicit approval inputs before disposable application exists."""
+
+    def test_accepts_the_exact_pinned_approval_contract(self) -> None:
+        request = RepositoryFixApplyRequest(
+            url=REPOSITORY_URL,
+            revision="a" * 40,
+            subdirectory="packages/sample",
+            target_path="packages/sample/src/sample.py",
+            patch=(
+                "--- a/packages/sample/src/sample.py\n"
+                "+++ b/packages/sample/src/sample.py\n"
+            ),
+            approved=True,
+        )
+
+        self.assertEqual(request.revision, "a" * 40)
+        self.assertEqual(request.target_path, "packages/sample/src/sample.py")
+        self.assertTrue(request.approved)
+
+    def test_rejects_missing_or_unsafe_explicit_approval_values(self) -> None:
+        valid_values = {
+            "url": REPOSITORY_URL,
+            "revision": "a" * 40,
+            "subdirectory": None,
+            "target_path": "src/sample.py",
+            "patch": "--- a/src/sample.py\n+++ b/src/sample.py\n",
+            "approved": True,
+        }
+        invalid_overrides = (
+            {"revision": "main"},
+            {"target_path": "README.md"},
+            {"target_path": ".verix-venv/site.py"},
+            {"patch": ""},
+            {"patch": "patch\x00hidden"},
+            {"approved": False},
+            {"reference": "main"},
+        )
+
+        for override in invalid_overrides:
+            with self.subTest(override=override):
+                with self.assertRaises(ValidationError):
+                    RepositoryFixApplyRequest(**(valid_values | override))
 
 
 if __name__ == "__main__":

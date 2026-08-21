@@ -2,10 +2,15 @@
 
 from pathlib import PurePosixPath
 import re
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from models.fix_proposal import validate_fix_target_path
+from models.fix_proposal import (
+    COMMIT_SHA_PATTERN,
+    validate_fix_patch,
+    validate_fix_target_path,
+)
 
 
 MAX_REPOSITORY_REFERENCE_CHARACTERS = 255
@@ -162,4 +167,65 @@ class RepositoryFixProposalRequest(RepositoryTargetRequest):
     def validate_fix_target(self) -> "RepositoryFixProposalRequest":
         """Keep fixes away from Verix-owned disposable workspace paths."""
         validate_fix_target_path(self.target_path, self.subdirectory)
+        return self
+
+
+class RepositoryFixApplyRequest(RepositoryRequest):
+    """An explicit approval for a previously displayed, pinned source patch."""
+
+    revision: str = Field(
+        min_length=40,
+        max_length=40,
+        description="Exact commit SHA used when Verix created the proposal.",
+    )
+    subdirectory: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=MAX_REPOSITORY_PATH_CHARACTERS,
+        description="Optional repository-relative project directory.",
+    )
+    target_path: str = Field(
+        min_length=1,
+        max_length=MAX_REPOSITORY_PATH_CHARACTERS,
+        description="Repository-relative Python source file approved to change.",
+    )
+    patch: str = Field(
+        min_length=1,
+        max_length=128 * 1024,
+        description="Exact unified diff previously shown to the developer.",
+    )
+    approved: Literal[True] = Field(
+        description="Must be true to explicitly authorize later disposable application.",
+    )
+
+    @field_validator("revision")
+    @classmethod
+    def validate_revision(cls, value: str) -> str:
+        """Require the immutable revision displayed with the proposal."""
+        if COMMIT_SHA_PATTERN.fullmatch(value) is None:
+            raise ValueError("Repository fix approval requires a full commit SHA.")
+        return value
+
+    @field_validator("subdirectory")
+    @classmethod
+    def validate_subdirectory(cls, value: str | None) -> str | None:
+        """Accept only a safe optional project directory."""
+        if value is None:
+            return None
+        return _validate_repository_path(value, "Repository subdirectory")
+
+    @field_validator("target_path")
+    @classmethod
+    def validate_target_path(cls, value: str) -> str:
+        """Accept only a safe repository-relative Python source path."""
+        value = _validate_repository_path(value, "Repository source target")
+        if not value.endswith(".py"):
+            raise ValueError("Repository source target must be a Python file.")
+        return value
+
+    @model_validator(mode="after")
+    def validate_approved_fix(self) -> "RepositoryFixApplyRequest":
+        """Require one safe target and bounded patch before later execution exists."""
+        validate_fix_target_path(self.target_path, self.subdirectory)
+        validate_fix_patch(self.patch)
         return self

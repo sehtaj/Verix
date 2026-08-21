@@ -13,6 +13,7 @@ if str(BACKEND_DIRECTORY) not in sys.path:
 from models.fix_proposal import (
     MAX_FIX_PATCH_BYTES,
     MAX_FIX_SUMMARY_CHARACTERS,
+    RepositoryApprovedFix,
     RepositoryFixProposal,
 )
 
@@ -91,6 +92,40 @@ class RepositoryFixProposalTests(unittest.TestCase):
                         summary="Handle an empty input.",
                         patch="--- a/src/sample.py\n+++ b/src/sample.py\n",
                     )
+
+    def test_approved_fix_stays_explicit_and_unapplied(self) -> None:
+        approved_fix = RepositoryApprovedFix(
+            revision="a" * 40,
+            subdirectory="packages/sample",
+            target_path="packages/sample/src/sample.py",
+            patch="--- a/packages/sample/src/sample.py\n+++ b/packages/sample/src/sample.py\n",
+        )
+
+        self.assertTrue(approved_fix.approved)
+        self.assertFalse(approved_fix.applied)
+
+        with self.assertRaises(FrozenInstanceError):
+            approved_fix.applied = True  # type: ignore[misc]
+
+    def test_approved_fix_reuses_revision_target_and_patch_safety(self) -> None:
+        valid_values = {
+            "revision": "a" * 40,
+            "subdirectory": None,
+            "target_path": "src/sample.py",
+            "patch": "--- a/src/sample.py\n+++ b/src/sample.py\n",
+        }
+
+        invalid_overrides = (
+            {"revision": "main"},
+            {"target_path": "README.md"},
+            {"patch": ""},
+            {"patch": "patch\x00hidden"},
+        )
+
+        for override in invalid_overrides:
+            with self.subTest(override=override):
+                with self.assertRaises(ValueError):
+                    RepositoryApprovedFix(**(valid_values | override))
 
 
 if __name__ == "__main__":
