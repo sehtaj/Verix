@@ -17,9 +17,23 @@ def validate_repository_fix_proposal(
     source_content: str,
 ) -> str:
     """Return patched Python text only when one diff applies to the exact source."""
-    patch_lines = proposal.patch.splitlines()
-    expected_old_header = f"--- a/{proposal.target_path}"
-    expected_new_header = f"+++ b/{proposal.target_path}"
+    return apply_repository_fix_patch(
+        target_path=proposal.target_path,
+        patch=proposal.patch,
+        source_content=source_content,
+    )
+
+
+def apply_repository_fix_patch(
+    *,
+    target_path: str,
+    patch: str,
+    source_content: str,
+) -> str:
+    """Apply one exact source-only diff in memory without writing any file."""
+    patch_lines = patch.splitlines()
+    expected_old_header = f"--- a/{target_path}"
+    expected_new_header = f"+++ b/{target_path}"
     if len(patch_lines) < 3 or patch_lines[:2] != [
         expected_old_header,
         expected_new_header,
