@@ -2,6 +2,7 @@
 
 import json
 import ssl
+from socket import timeout as SocketTimeout
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -28,7 +29,7 @@ class GitHubApiClient:
             raise RuntimeError(
                 "GitHub could not return repository metadata."
             ) from None
-        except URLError:
+        except (URLError, TimeoutError, SocketTimeout):
             raise RuntimeError(
                 "GitHub could not return repository metadata."
             ) from None

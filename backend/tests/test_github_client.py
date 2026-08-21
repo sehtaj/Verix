@@ -59,6 +59,13 @@ class GitHubApiClientTests(unittest.TestCase):
             ):
                 GitHubApiClient().request_json("https://api.github.com")
 
+    def test_request_json_hides_socket_timeouts(self) -> None:
+        with patch("services.github_client.urlopen", side_effect=TimeoutError):
+            with self.assertRaisesRegex(
+                RuntimeError, "GitHub could not return repository metadata"
+            ):
+                GitHubApiClient().request_json("https://api.github.com")
+
 
 class GitHubRepositoryServiceClientTests(unittest.TestCase):
     """Protect the boundary between repository analysis and HTTP transport."""
