@@ -1,6 +1,6 @@
 # Verix
 
-Verix is an early-stage AI software quality engineer. Version 0.11 can generate and safely execute pytest tests for pasted Python code. For a public Python repository, it can select a branch, tag, or commit; choose a nested project folder and verified source target; preview bounded Gemini context; run original and generated suites separately in Docker; explain one classified result using bounded evidence; and propose one validated source-only patch for explicit review.
+Verix is an early-stage AI software quality engineer. Version 0.12 can generate and safely execute pytest tests for pasted Python code. For a public Python repository, it can select a branch, tag, or commit; choose a nested project folder and verified source target; preview bounded Gemini context; run original and generated suites separately in Docker; explain one classified result using bounded evidence; propose one validated source-only patch for review; and verify an explicitly approved patch in a disposable workspace without changing GitHub.
 
 ## Requirements
 
@@ -43,7 +43,7 @@ cd backend
 python3 -m uvicorn main:app --reload
 ```
 
-The API starts at `http://localhost:8000`. The Gemini key is required by `POST /generate`, `POST /repository/generate`, `POST /repository/investigate`, and `POST /repository/fix-proposal`. Repository inspection and `POST /repository/test-run` do not use it.
+The API starts at `http://localhost:8000`. The Gemini key is required by `POST /generate`, `POST /repository/generate`, `POST /repository/investigate`, and `POST /repository/fix-proposal`. Repository inspection, `POST /repository/test-run`, and `POST /repository/fix-verify` do not use it.
 
 ## 3. Run the frontend
 
@@ -59,7 +59,7 @@ Open `http://localhost:3000`. Keep the frontend, backend, and Docker Desktop run
 
 `NEXT_PUBLIC_API_URL` can point the frontend at a different backend address and defaults to `http://localhost:8000`. The backend's local CORS configuration permits `http://localhost:3000` and `http://127.0.0.1:3000`.
 
-## How to use V0.11
+## How to use V0.12
 
 ### Inspect and test a repository
 
@@ -71,12 +71,13 @@ Open `http://localhost:3000`. Keep the frontend, backend, and Docker Desktop run
 6. Select **Run repository tests**, **Generate repository tests**, or **Investigate repository**. Each action keeps the selected commit, project folder, and target consistent through execution.
 7. Review the selected target, generated pytest code, installation status, original/generated results, and—when investigating—the outcome and explanation.
 8. If the investigation finds a fixable failure, select **Propose source fix**. Review the one-file unified diff, pinned commit, validation status, and explicit approval-required/not-applied status. The proposal does not change GitHub or any local repository file.
+9. Only after reviewing every changed line, select **Approve and verify in temporary workspace**. Verix revalidates that exact diff, applies it to a temporary copy of the pinned repository, and runs the selected test suite in Docker. Review the separate patched-suite result. GitHub and your local repository remain unchanged.
 
 Repository execution supports Python projects with dependency and runner configuration at the repository root. Nested projects in monorepositories are not selected automatically. Dependency installation may download packages in a disposable container. Original and generated tests run afterward without network access and with a read-only repository mount.
 
 Generated tests are temporary and disappear with the disposable workspace. Verix does not commit them to the repository, and LLM-generated tests still require developer judgment.
 
-For repository generation and investigation, Verix resolves the requested reference to one commit SHA and uses that same SHA for the selected context and Docker archive. This prevents a branch update from mixing repository versions within one request. When a project folder is selected, Docker runs from that folder and Gemini receives the project-relative target path needed to choose imports correctly. Gemini receives only bounded execution evidence for investigation and explains the backend's already-selected outcome; it does not retry tests, change code, or propose a patch. The fix-proposal flow uses the same pinned selection, asks for one source-only diff, validates it in memory, and leaves it unapplied for explicit review.
+For repository generation and investigation, Verix resolves the requested reference to one commit SHA and uses that same SHA for the selected context and Docker archive. This prevents a branch update from mixing repository versions within one request. When a project folder is selected, Docker runs from that folder and Gemini receives the project-relative target path needed to choose imports correctly. Gemini receives only bounded execution evidence for investigation and explains the backend's already-selected outcome; it does not retry tests, change code, or propose a patch. The fix-proposal flow uses the same pinned selection, asks for one source-only diff, validates it in memory, and leaves it unapplied for explicit review. The approval flow uses the same pinned selection but creates a fresh disposable copy, where it applies and tests only the exact reviewed diff before deleting that copy.
 
 ### Generate tests for pasted code
 
@@ -283,6 +284,32 @@ This endpoint runs one investigation, selects bounded failure-focused context, a
 
 The patch must match the exact selected source, change only that file, remain valid Python, and stay within the configured size limits. The endpoint never writes files, changes GitHub, applies the patch, retries tests, or claims that the proposal fixes the failure. A repository run with no fixable failure returns HTTP 422. External or validation failures return HTTP 502, and missing Gemini configuration returns HTTP 503.
 
+### Verify an approved fix without changing GitHub
+
+`POST /repository/fix-verify`
+
+```json
+{
+  "url": "https://github.com/owner/python-repository",
+  "revision": "the_exact_40_character_commit_sha",
+  "subdirectory": "src",
+  "target_path": "src/sample.py",
+  "patch": "--- a/src/sample.py\n+++ b/src/sample.py\n...",
+  "approved": true
+}
+```
+
+This endpoint does not call Gemini. It revalidates the exact reviewed patch, downloads the pinned repository revision, applies the patch only in a temporary workspace, and runs the repository's configured test runner in Docker. A successful response includes the installation and patched-test result, plus:
+
+```json
+{
+  "applied_in_disposable_workspace": true,
+  "github_changed": false
+}
+```
+
+The temporary workspace is deleted after the request. This endpoint never pushes a commit, changes GitHub, or changes a local checkout. Invalid, unsafe, or source-mismatched patches return HTTP 422; repository preparation and Docker failures return HTTP 502.
+
 The focused repository endpoints remain available for development and inspection:
 
 - `POST /repository`
@@ -339,10 +366,10 @@ cd frontend
 npm run build
 ```
 
-For an end-to-end V0.11 check, use a small public Python repository with a nested project folder, select its branch or commit, folder, and target, preview the context, then select **Investigate repository**. Verify the resolved commit, previewed content, outcome, explanation, generated code, and separate original/generated panels. On a repository with a fixable test failure, select **Propose source fix** and verify the pinned target, validated one-file diff, and not-applied status. During review, `https://github.com/sehtaj/competitive-programming` with reference `main`, subdirectory `python/arraysAndHashing`, and target `python/arraysAndHashing/duplicate_integers.py` reported `no_existing_tests` (pytest exit code 5), while the generated suite passed; the fix-proposal endpoint correctly refused that non-fixable outcome with HTTP 422.
+For an end-to-end V0.12 check, use a small public Python repository with a nested project folder, select its branch or commit, folder, and target, preview the context, then select **Investigate repository**. Verify the resolved commit, previewed content, outcome, explanation, generated code, and separate original/generated panels. On a repository with a fixable test failure, select **Propose source fix**, review the pinned validated diff, then select **Approve and verify in temporary workspace**. Confirm that the patched-suite result is shown and GitHub remains unchanged. During review, `https://github.com/sehtaj/competitive-programming` with reference `main`, subdirectory `python/arraysAndHashing`, and target `python/arraysAndHashing/duplicate_integers.py` successfully verified a harmless comment-only patch against commit `b315056fc836421184d5509c996a1023e1534495`; pytest returned exit code 5 because that folder has no tests, and the response correctly reported `github_changed: false`.
 
-## V0.11 boundaries
+## V0.12 boundaries
 
-V0.11 supports public Python repositories, one validated branch/tag/full-commit reference, one validated project subdirectory, one verified Python source target, and one review-only source-fix proposal. It does not support private repositories, authenticated GitHub access, arbitrary local filesystem paths, multiple targets, coverage, automatic retries, patch application, or a multi-step agent loop. Generated tests and proposed patches are not committed back and are not guaranteed to be logically correct. Investigation explanations are evidence-grounded summaries, not guaranteed root-cause diagnoses.
+V0.12 supports public Python repositories, one validated branch/tag/full-commit reference, one validated project subdirectory, one verified Python source target, one review-only source-fix proposal, and one explicit temporary verification of its exact patch. It does not support private repositories, authenticated GitHub access, arbitrary local filesystem paths, multiple targets, coverage, automatic retries, automatic real-world patch application, or a multi-step agent loop. Generated tests and proposed patches are not committed back and are not guaranteed to be logically correct. Investigation explanations are evidence-grounded summaries, not guaranteed root-cause diagnoses. A passed patched suite is evidence to review, not proof that the patch is correct.
 
 The selected target must come from the commit-pinned tree and remain inside the selected project directory. This prevents a user-supplied path from escaping the disposable Docker workspace.

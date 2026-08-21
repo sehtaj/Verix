@@ -162,19 +162,19 @@
 
 ## V0.12
 
-- [ ] Define an explicit approval/apply request contract
-- [ ] Apply an approved validated patch only in a disposable workspace
-- [ ] Rerun the relevant repository tests after applying the patch
-- [ ] Return verified post-patch results without changing GitHub
-- [ ] Add deterministic regression tests for approved patch execution
-- [ ] Test the complete V0.12 flow
-- [ ] Update documentation during the V0.12 Review Phase
+- [x] Define an explicit approval/apply request contract
+- [x] Apply an approved validated patch only in a disposable workspace
+- [x] Rerun the relevant repository tests after applying the patch
+- [x] Return verified post-patch results without changing GitHub
+- [x] Add deterministic regression tests for approved patch execution
+- [x] Test the complete V0.12 flow
+- [x] Update documentation during the V0.12 Review Phase
 
 ---
 
 ## Current Task
 
-**Define an explicit approval/apply request contract**
+**V0.12 Review Phase complete — choose the V1.0 milestone before implementation**
 
 ---
 

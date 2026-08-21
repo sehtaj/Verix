@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Verix is a small client-server application. Version 0.11 can generate and safely run pytest tests for pasted Python code. For public Python repositories, it supports a validated branch, tag, or commit reference; a validated project subdirectory; a verified source-target choice; a bounded Gemini-context preview; safe Docker execution; a bounded investigation explanation; and one validated, review-only source-fix proposal.
+Verix is a small client-server application. Version 0.12 can generate and safely run pytest tests for pasted Python code. For public Python repositories, it supports a validated branch, tag, or commit reference; a validated project subdirectory; a verified source-target choice; a bounded Gemini-context preview; safe Docker execution; a bounded investigation explanation; a reviewed source-fix proposal; and explicit temporary verification of that proposal.
 
 ## Current architecture
 
@@ -21,6 +21,7 @@ repository workflow hook -> typed API client
   | POST /repository/generate         Gemini API
   | POST /repository/investigate      |
   | POST /repository/fix-proposal     |
+  | POST /repository/fix-verify       |
   v                                      |
 FastAPI backend                          | generated pytest code
   |                                      v
@@ -44,6 +45,16 @@ separate original and generated results
   |
   v
 bounded evidence -> deterministic outcome -> Gemini explanation
+  |
+  | reviewed proposal + explicit approval
+  v
+fresh temporary repository copy -> patch validation and application
+  |
+  v
+dependency setup and patched test suite in Docker
+  |
+  v
+verified result; temporary copy removed; GitHub unchanged
 ```
 
 The frontend owns form state and rendering. The backend API owns HTTP validation and response translation, workflows coordinate use cases, services handle external systems and execution policies, and domain models carry internal data between those boundaries. Submitted, generated, repository, dependency-build, and test code are never executed directly by a host Python process.
@@ -99,6 +110,8 @@ verix/
 │   │   ├── test_repository_fix_prompt.py
 │   │   ├── test_repository_fix_proposal.py
 │   │   ├── test_repository_fix_validation.py
+│   │   ├── test_repository_fix_application.py
+│   │   ├── test_repository_fix_verification.py
 │   │   ├── test_repository_prompt.py
 │   │   ├── test_repository_test_commands.py
 │   │   ├── test_repository_workflow.py
@@ -107,7 +120,9 @@ verix/
 │   │   ├── __init__.py
 │   │   ├── repository_execution.py
 │   │   ├── repository_investigation.py
-│   │   └── repository_fix_proposal.py
+│   │   ├── repository_fix_application.py
+│   │   ├── repository_fix_proposal.py
+│   │   └── repository_fix_verification.py
 │   ├── requirements.txt
 │   ├── .env.example
 │   └── .gitignore
@@ -146,7 +161,7 @@ The route declarations remain together in `backend/main.py`, and the browser sti
 
 `backend/main.py` creates the FastAPI application, permits the local frontend through CORS, declares the routes, and translates expected failures into HTTP responses. `backend/api/schemas.py` owns Pydantic request models, including validated repository references, subdirectories, and source targets. `backend/api/presenters.py` converts internal repository models into JSON-ready response dictionaries. Invalid repository input becomes HTTP 422. Safe GitHub, Gemini, archive, preparation, or Docker infrastructure failures become HTTP 502. A missing Gemini key produces HTTP 503 on generation routes.
 
-`backend/workflows/repository_execution.py` coordinates repository preparation, dependency installation, and existing/generated test execution. `backend/workflows/repository_investigation.py` coordinates one plan-generate-execute-classify-explain pass without retrying or modifying code. `backend/workflows/repository_fix_proposal.py` coordinates one investigation, bounded failure-context selection, Gemini patch generation, and in-memory validation without writing files. `backend/models/repository.py`, `backend/models/execution.py`, `backend/models/investigation.py`, and `backend/models/fix_proposal.py` carry internal data between those boundaries.
+`backend/workflows/repository_execution.py` coordinates repository preparation, dependency installation, and existing/generated test execution. `backend/workflows/repository_investigation.py` coordinates one plan-generate-execute-classify-explain pass without retrying or modifying code. `backend/workflows/repository_fix_proposal.py` coordinates one investigation, bounded failure-context selection, Gemini patch generation, and in-memory validation without writing files. `backend/workflows/repository_fix_application.py` creates one writable temporary copy and applies an exact approved patch inside it. `backend/workflows/repository_fix_verification.py` runs dependency setup and the selected test runner while that copy exists, then lets cleanup remove it. `backend/models/repository.py`, `backend/models/execution.py`, `backend/models/investigation.py`, and `backend/models/fix_proposal.py` carry internal data between those boundaries.
 
 ### GitHub evidence, planning, and generation context
 
@@ -182,7 +197,7 @@ GitHub access uses `certifi` for its CA bundle. It remains unauthenticated and s
 
 `backend/services/repository_investigation.py` turns completed installation and test facts into bounded evidence and one deterministic outcome. `backend/services/repository_investigation_prompt.py` sends that outcome and no more than 2,000 characters of output per command to Gemini. Repository data and command output are marked as untrusted evidence, not instructions.
 
-`backend/services/repository_fix_context.py` selects only the pinned target source, failure evidence, investigation explanation, and bounded related files for a fix proposal. `backend/services/repository_fix_prompt.py` requests one source-only unified diff. `backend/services/repository_fix_validation.py` applies that diff in memory, requires exact target headers and source context, rejects changes outside the selected file, and parses the resulting Python without writing to the repository.
+`backend/services/repository_fix_context.py` selects only the pinned target source, failure evidence, investigation explanation, and bounded related files for a fix proposal. `backend/services/repository_fix_prompt.py` requests one source-only unified diff. `backend/services/repository_fix_validation.py` validates and applies that diff in memory, requires exact target headers and source context, rejects changes outside the selected file, and parses the resulting Python. The application workflow writes only that already-validated result into its disposable copy.
 
 ### Repository preparation
 
@@ -223,7 +238,7 @@ Dependency installation is intentionally less restrictive because package downlo
 
 ## Frontend responsibilities
 
-`frontend/app/page.tsx` composes the pasted-code, repository execution, repository generation, V0.9 investigation, V0.10 targeting, and V0.11 fix-proposal workflows. Its supporting modules are:
+`frontend/app/page.tsx` composes the pasted-code, repository execution, repository generation, V0.9 investigation, V0.10 targeting, V0.11 fix-proposal, and V0.12 approved-fix-verification workflows. Its supporting modules are:
 
 - `frontend/hooks/use-repository-workflow.ts`, which owns repository form state and user actions.
 - `frontend/lib/api.ts`, which owns typed backend HTTP calls and API-error extraction.
@@ -239,6 +254,7 @@ Together they provide:
 - An explicit action to prepare and run the repository's existing tests.
 - An explicit action to send focused repository contents to Gemini, then prepare and run original and generated tests separately.
 - An explicit **Investigate repository** action that performs one full V0.9 pass and displays a classified outcome with its Gemini explanation.
+- A review-only source-fix proposal followed by an explicit **Approve and verify in temporary workspace** action that reports the patched-suite result separately.
 - Optional reference and project-folder inputs, a verified source-target selector, and a preview of the bounded Gemini context before repository generation.
 - Preparation, dependency installation, skipped, failure, timeout, generated-code, and test-output states.
 - Pasted Python input with Gemini generation and Docker execution results.
@@ -375,13 +391,19 @@ Accepts `url`, a required verified `target_path`, and optional `reference` and `
 
 The endpoint never writes repository files, changes GitHub, applies the patch, retries tests, or claims that the proposal fixes the failure. It returns HTTP 422 when the outcome is not fixable or the proposal is invalid, HTTP 502 for external or infrastructure failures, and HTTP 503 when Gemini is not configured.
 
+### `POST /repository/fix-verify`
+
+Accepts `url`, an exact 40-character pinned `revision`, optional `subdirectory`, required `target_path`, the exact reviewed unified `patch`, and `approved: true`. It does not call Gemini. The backend validates the approval again, downloads the pinned repository archive, copies the selected project to a writable temporary workspace, applies the patch only there, installs dependencies, and runs the backend-selected `pytest` or `tox` command in Docker.
+
+The response returns the pinned selection, the runner, installation result, and patched-suite execution result. It always reports `applied_in_disposable_workspace: true` and `github_changed: false`. The temporary workspace is removed when the request finishes. Invalid or source-mismatched patches return HTTP 422; archive or Docker infrastructure failures return HTTP 502.
+
 ## Configuration
 
 The frontend uses `NEXT_PUBLIC_API_URL` and defaults to `http://localhost:8000`. The backend permits `http://localhost:3000` and `http://127.0.0.1:3000` through CORS.
 
-`backend/.env.example` documents `LLM_API_KEY`; the ignored `backend/.env` holds the local Gemini key. The key is required by `/generate`, `/repository/generate`, `/repository/investigate`, and `/repository/fix-proposal`, but not by repository inspection or `/repository/test-run`. The Docker image must exist locally as `verix-test-runner:dev`, and Docker Desktop must be running.
+`backend/.env.example` documents `LLM_API_KEY`; the ignored `backend/.env` holds the local Gemini key. The key is required by `/generate`, `/repository/generate`, `/repository/investigate`, and `/repository/fix-proposal`, but not by repository inspection, `/repository/test-run`, or `/repository/fix-verify`. The Docker image must exist locally as `verix-test-runner:dev`, and Docker Desktop must be running.
 
-## V0.11 boundaries
+## V0.12 boundaries
 
 - Public GitHub repositories only; no token, private repository, or pull-request integration.
 - Python projects only, with dependency declarations and runner configuration at the selected project root.
@@ -390,11 +412,12 @@ The frontend uses `NEXT_PUBLIC_API_URL` and defaults to `http://localhost:8000`.
 - Repository context, generation, test execution, and investigation resolve the requested reference to one commit SHA before their selected work begins.
 - Generated tests are temporary, are not committed back, and are not guaranteed to be logically correct.
 - Investigation explanations are limited to the collected evidence; they are not guaranteed root-cause diagnoses.
-- No coverage measurement, automatic retry, patch application, or multi-step agent loop.
+- An approved patch is applied only to a temporary copy; Verix does not modify GitHub, a local checkout, a branch, or a pull request.
+- No coverage measurement, automatic retry, automatic real-world patch application, or multi-step agent loop.
 - No database, Redis, queue, authentication, or background job system.
 - Requests are synchronous, and one backend process coordinates the local Docker daemon directly.
 - Docker isolation is intended for local development, not as a production-grade multi-tenant security boundary.
 
 ## Next evolution
 
-Applying an explicitly approved patch in a disposable workspace and rerunning relevant tests remain V1.0 work.
+V1.0 can build on this verified-patch evidence with quality reports and merge-confidence information, without weakening the explicit-approval or disposable-workspace boundary.

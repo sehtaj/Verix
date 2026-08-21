@@ -311,6 +311,23 @@ Features:
 
 V0.11 never writes to the repository, applies a patch, retries tests, or claims that a proposed patch fixes the failure. Fix proposals are review artifacts only and are produced only for deterministic failure outcomes with sufficient evidence.
 
+## V0.12 — Complete
+
+Goal:
+
+Let a developer explicitly approve one reviewed fix proposal, verify it safely, and receive the result without changing GitHub.
+
+Features:
+
+- Requires an explicit approval request containing the exact pinned commit, project folder, target file, and reviewed unified diff.
+- Revalidates the approved patch before use and applies it only to a writable disposable copy of the selected repository.
+- Runs the selected repository test runner after patch application in the existing bounded Docker environment.
+- Returns dependency-installation and patched-suite results, clearly stating that the patch was applied only in a disposable workspace and GitHub was unchanged.
+- Adds deterministic tests for patch validation, temporary-workspace cleanup, execution coordination, and safe API errors.
+- Adds an explicit frontend action to approve and verify a reviewed proposal, then displays the patched-suite result separately.
+
+V0.12 does not push a commit, open a pull request, modify a local checkout, retry automatically, or claim that a passing test suite proves the patch is correct. The developer still reviews the diff and decides whether to make a real repository change.
+
 ---
 
 # Roadmap
@@ -366,8 +383,6 @@ V0.11 never writes to the repository, applies a patch, retries tests, or claims 
 
 ## V1.0
 
-- Apply an explicitly approved patch only in a disposable workspace
-- Rerun relevant tests and report verified results
 - Produce quality reports and merge-confidence evidence
 
 ## After V1.0
