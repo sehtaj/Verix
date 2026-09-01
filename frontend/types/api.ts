@@ -136,8 +136,3 @@ export type RepositoryFixVerificationRun = {
   installation: RepositoryExecution;
   execution: RepositoryExecution;
 };
-
-export type PastedCodeGenerationRun = {
-  tests: string;
-  execution: TestExecution;
-};
