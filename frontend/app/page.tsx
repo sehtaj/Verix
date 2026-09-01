@@ -1,191 +1,324 @@
 "use client";
 
-import { PastedCodeGenerator } from "../components/pasted-code-generator";
+import { AppShell } from "@/components/verix/app-shell";
+import { Button } from "@/components/ui/button";
+import { ContextPreviewDialog } from "@/components/verix/context-preview-dialog";
+import { FixReviewPanel } from "@/components/verix/fix-review-panel";
+import { GenerationResultPanel } from "@/components/verix/generation-result-panel";
+import { InvestigationPanel } from "@/components/verix/investigation-panel";
+import { NewVerificationForm } from "@/components/verix/new-verification-form";
+import { ReadyWorkspace } from "@/components/verix/ready-workspace";
+import { TestResultPanel } from "@/components/verix/test-result-panel";
+import { VerificationResultPanel } from "@/components/verix/verification-result-panel";
 import {
-  RepositoryGenerationResult,
-  RepositoryFixProposalResult,
-  RepositoryFixVerificationResult,
-  RepositoryInvestigationResult,
-  RepositoryTestRunResult,
-} from "../components/repository-execution-results";
-import {
-  RepositoryContextPreview,
-  RepositorySummary,
-  RepositoryTestPlanPanel,
-  RepositoryTreeView,
-} from "../components/repository-inspection";
-import { useRepositoryWorkflow } from "../hooks/use-repository-workflow";
+  WorkflowActivityBanner,
+  WorkflowLoadingPanel,
+} from "@/components/verix/workflow-loading-panel";
+import { useRepositoryWorkflow } from "@/hooks/use-repository-workflow";
+import { getExecutionStatus } from "@/lib/repository-results";
+import type { WorkflowScreen } from "@/types/workflow";
+
+const loadingScreens = new Set<WorkflowScreen>([
+  "loading_context",
+  "running_existing_tests",
+  "generating_tests",
+  "investigating",
+  "proposing_fix",
+  "verifying_fix",
+]);
+
+const screenAnnouncements: Record<WorkflowScreen, string> = {
+  new_verification: "New verification form ready.",
+  loading_context: "Repository context request started.",
+  ready_existing_tests: "Repository context loaded. Existing tests are ready to run.",
+  ready_generate_tests: "Repository context loaded. Focused tests are ready to generate.",
+  running_existing_tests: "Existing test run started.",
+  showing_test_result: "Existing test evidence is ready for review.",
+  generating_tests: "Focused test generation started.",
+  showing_generation_result: "Generated tests and execution evidence are ready for review.",
+  investigating: "Evidence investigation started.",
+  showing_investigation: "Investigation evidence is ready for review.",
+  proposing_fix: "Source proposal request started.",
+  reviewing_fix: "Source proposal is ready for explicit review.",
+  verifying_fix: "Disposable patch verification started.",
+  showing_verification_result: "Disposable verification evidence is ready for review.",
+};
 
 export default function Home() {
-  const {
-    repositoryUrl,
-    setRepositoryUrl,
-    repositoryReference,
-    setRepositoryReference,
-    repositorySubdirectory,
-    setRepositorySubdirectory,
-    repositoryContext,
-    repository,
-    repositoryTree,
-    repositoryTestPlan,
-    isRepositoryLoading,
-    repositoryError,
-    selectedTargetPath,
-    repositoryContextPreview,
-    isRepositoryContextPreviewLoading,
-    repositoryContextPreviewError,
-    repositoryTestRun,
-    isRepositoryTestRunning,
-    repositoryTestError,
-    repositoryGenerationRun,
-    isRepositoryGenerationRunning,
-    repositoryGenerationError,
-    repositoryInvestigationRun,
-    isRepositoryInvestigationRunning,
-    repositoryInvestigationError,
-    repositoryFixProposalRun,
-    isRepositoryFixProposalRunning,
-    repositoryFixProposalError,
-    repositoryFixVerificationRun,
-    isRepositoryFixVerificationRunning,
-    repositoryFixVerificationError,
-    handleRepositorySubmit,
-    handleRepositoryTargetChange,
-    handleRepositoryContextPreview,
-    handleRepositoryTestRun,
-    handleRepositoryGeneration,
-    handleRepositoryInvestigation,
-    handleRepositoryFixProposal,
-    handleRepositoryFixVerification,
-  } = useRepositoryWorkflow();
+  const workflow = useRepositoryWorkflow();
 
-  const isRepositoryBusy =
-    isRepositoryLoading ||
-    isRepositoryContextPreviewLoading ||
-    isRepositoryTestRunning ||
-    isRepositoryGenerationRunning ||
-    isRepositoryInvestigationRunning ||
-    isRepositoryFixProposalRunning ||
-    isRepositoryFixVerificationRunning;
+  function renderPreservedEvidence() {
+    if (workflow.activeRequestOrigin === "showing_test_result" && workflow.repositoryTestRun) {
+      return (
+        <TestResultPanel
+          result={workflow.repositoryTestRun}
+          error={workflow.repositoryTestError ?? workflow.repositoryInvestigationError}
+          isActionBusy
+          onRetry={workflow.handleRepositoryTestRun}
+          onGenerate={workflow.handleRepositoryGeneration}
+          onInvestigate={workflow.handleRepositoryInvestigation}
+        />
+      );
+    }
+    if (workflow.activeRequestOrigin === "showing_generation_result" && workflow.repositoryGenerationRun) {
+      return (
+        <GenerationResultPanel
+          result={workflow.repositoryGenerationRun}
+          error={workflow.repositoryGenerationError ?? workflow.repositoryInvestigationError}
+          isActionBusy
+          onRegenerate={workflow.handleRepositoryGeneration}
+          onInvestigate={workflow.handleRepositoryInvestigation}
+        />
+      );
+    }
+    if (workflow.activeRequestOrigin === "showing_investigation" && workflow.repositoryInvestigationRun) {
+      return (
+        <InvestigationPanel
+          result={workflow.repositoryInvestigationRun}
+          error={workflow.repositoryInvestigationError ?? workflow.repositoryFixProposalError}
+          isActionBusy
+          onRetry={workflow.handleRepositoryInvestigation}
+          onProposeFix={workflow.handleRepositoryFixProposal}
+        />
+      );
+    }
+    if (workflow.activeRequestOrigin === "reviewing_fix" && workflow.repositoryFixProposalRun) {
+      return (
+        <FixReviewPanel
+          result={workflow.repositoryFixProposalRun}
+          error={workflow.repositoryFixVerificationError}
+          isActionBusy
+          onBack={workflow.handleBackToInvestigation}
+          onApproveAndVerify={workflow.handleRepositoryFixVerification}
+        />
+      );
+    }
+    if (workflow.activeRequestOrigin === "showing_verification_result" && workflow.repositoryFixVerificationRun) {
+      return (
+        <VerificationResultPanel
+          result={workflow.repositoryFixVerificationRun}
+          error={workflow.repositoryFixVerificationError}
+          isActionBusy
+          onRetry={workflow.handleRepositoryFixVerification}
+        />
+      );
+    }
+    if (workflow.repositoryFixVerificationRun) {
+      return (
+        <VerificationResultPanel
+          result={workflow.repositoryFixVerificationRun}
+          error={workflow.repositoryFixVerificationError}
+          isActionBusy
+          onRetry={workflow.handleRepositoryFixVerification}
+        />
+      );
+    }
+    if (workflow.repositoryFixProposalRun) {
+      return (
+        <FixReviewPanel
+          result={workflow.repositoryFixProposalRun}
+          error={workflow.repositoryFixVerificationError}
+          isActionBusy
+          onBack={workflow.handleBackToInvestigation}
+          onApproveAndVerify={workflow.handleRepositoryFixVerification}
+        />
+      );
+    }
+    if (workflow.repositoryInvestigationRun) {
+      return (
+        <InvestigationPanel
+          result={workflow.repositoryInvestigationRun}
+          error={workflow.repositoryInvestigationError ?? workflow.repositoryFixProposalError}
+          isActionBusy
+          onRetry={workflow.handleRepositoryInvestigation}
+          onProposeFix={workflow.handleRepositoryFixProposal}
+        />
+      );
+    }
+    if (workflow.repositoryGenerationRun) {
+      return (
+        <GenerationResultPanel
+          result={workflow.repositoryGenerationRun}
+          error={workflow.repositoryGenerationError ?? workflow.repositoryInvestigationError}
+          isActionBusy
+          onRegenerate={workflow.handleRepositoryGeneration}
+          onInvestigate={workflow.handleRepositoryInvestigation}
+        />
+      );
+    }
+    if (workflow.repositoryTestRun) {
+      return (
+        <TestResultPanel
+          result={workflow.repositoryTestRun}
+          error={workflow.repositoryTestError ?? workflow.repositoryInvestigationError}
+          isActionBusy
+          onRetry={workflow.handleRepositoryTestRun}
+          onGenerate={workflow.handleRepositoryGeneration}
+          onInvestigate={workflow.handleRepositoryInvestigation}
+        />
+      );
+    }
+    return null;
+  }
+
+  let content;
+  if (workflow.screen === "new_verification") {
+    content = (
+      <NewVerificationForm
+        repositoryUrl={workflow.repositoryUrl}
+        repositoryReference={workflow.repositoryReference}
+        repositorySubdirectory={workflow.repositorySubdirectory}
+        isLoading={workflow.isRepositoryLoading}
+        error={workflow.repositoryError}
+        onRepositoryUrlChange={workflow.setRepositoryUrl}
+        onRepositoryReferenceChange={workflow.setRepositoryReference}
+        onRepositorySubdirectoryChange={workflow.setRepositorySubdirectory}
+        onSubmit={workflow.handleRepositorySubmit}
+      />
+    );
+  } else if (loadingScreens.has(workflow.screen)) {
+    const preservedEvidence = renderPreservedEvidence();
+    content = preservedEvidence ? (
+      <>
+        <WorkflowActivityBanner screen={workflow.screen} />
+        {preservedEvidence}
+      </>
+    ) : (
+      <WorkflowLoadingPanel screen={workflow.screen} />
+    );
+  } else if (
+    workflow.repositoryContext &&
+    (workflow.screen === "ready_existing_tests" || workflow.screen === "ready_generate_tests")
+  ) {
+    content = (
+      <ReadyWorkspace
+        context={workflow.repositoryContext}
+        selectedTargetPath={workflow.selectedTargetPath}
+        mode={workflow.screen === "ready_existing_tests" ? "existing" : "generate"}
+        error={workflow.repositoryTestError ?? workflow.repositoryGenerationError ?? workflow.repositoryError}
+        onRunExisting={workflow.handleRepositoryTestRun}
+        onGenerate={workflow.handleRepositoryGeneration}
+        onPreview={workflow.handleRepositoryContextPreview}
+        onSelectTarget={workflow.handleRepositoryTargetChange}
+        priorTestRun={workflow.repositoryTestRun}
+      />
+    );
+  } else if (workflow.screen === "showing_test_result" && workflow.repositoryTestRun) {
+    content = (
+      <TestResultPanel
+        result={workflow.repositoryTestRun}
+        error={workflow.repositoryTestError ?? workflow.repositoryInvestigationError}
+        onRetry={workflow.handleRepositoryTestRun}
+        onGenerate={workflow.handleRepositoryGeneration}
+        onInvestigate={workflow.handleRepositoryInvestigation}
+      />
+    );
+  } else if (
+    workflow.screen === "showing_generation_result" &&
+    workflow.repositoryGenerationRun
+  ) {
+    content = (
+      <GenerationResultPanel
+        result={workflow.repositoryGenerationRun}
+        error={workflow.repositoryGenerationError ?? workflow.repositoryInvestigationError}
+        onRegenerate={workflow.handleRepositoryGeneration}
+        onInvestigate={workflow.handleRepositoryInvestigation}
+      />
+    );
+  } else if (
+    workflow.screen === "showing_investigation" &&
+    workflow.repositoryInvestigationRun
+  ) {
+    content = (
+      <InvestigationPanel
+        result={workflow.repositoryInvestigationRun}
+        error={workflow.repositoryInvestigationError ?? workflow.repositoryFixProposalError}
+        onRetry={workflow.handleRepositoryInvestigation}
+        onProposeFix={workflow.handleRepositoryFixProposal}
+      />
+    );
+  } else if (workflow.screen === "reviewing_fix" && workflow.repositoryFixProposalRun) {
+    content = (
+      <FixReviewPanel
+        result={workflow.repositoryFixProposalRun}
+        error={workflow.repositoryFixVerificationError}
+        onBack={workflow.handleBackToInvestigation}
+        onApproveAndVerify={workflow.handleRepositoryFixVerification}
+      />
+    );
+  } else if (
+    workflow.screen === "showing_verification_result" &&
+    workflow.repositoryFixVerificationRun
+  ) {
+    content = (
+      <VerificationResultPanel
+        result={workflow.repositoryFixVerificationRun}
+        error={workflow.repositoryFixVerificationError}
+        onRetry={workflow.handleRepositoryFixVerification}
+      />
+    );
+  } else {
+    content = (
+      <section className="mx-auto max-w-3xl border border-destructive bg-destructive/5 p-6" role="alert">
+        <h1 className="font-heading text-2xl font-bold text-destructive">Workflow State Could Not Be Displayed</h1>
+        <p className="mt-3 text-muted-foreground">
+          The browser is missing evidence required for this screen. Start a new verification to recover safely.
+        </p>
+        <Button className="mt-5" onClick={() => workflow.resetWorkflow(true)}>
+          Return to New Verification
+        </Button>
+      </section>
+    );
+  }
 
   return (
-    <main>
-      <section className="generator">
-        <h1>Verix</h1>
-        <p>Look up a public GitHub repository or generate tests for pasted Python code.</p>
-        <form onSubmit={handleRepositorySubmit}>
-          <label htmlFor="repository-url">GitHub repository URL</label>
-          <input
-            id="repository-url"
-            name="repository-url"
-            placeholder="https://github.com/owner/repository"
-            type="url"
-            value={repositoryUrl}
-            disabled={isRepositoryBusy}
-            onChange={(event) => setRepositoryUrl(event.target.value)}
-          />
-          <p className="field-hint">Use an HTTPS URL for a public repository.</p>
-          <label htmlFor="repository-reference">Branch, tag, or commit (optional)</label>
-          <input
-            id="repository-reference"
-            name="repository-reference"
-            placeholder="main, release-1.0, or a commit SHA"
-            type="text"
-            value={repositoryReference}
-            disabled={isRepositoryBusy}
-            onChange={(event) => setRepositoryReference(event.target.value)}
-          />
-          <p className="field-hint">
-            Leave empty to use the repository&apos;s default branch.
+    <AppShell
+      screen={workflow.screen}
+      stepEvidence={{
+        existingStatus: workflow.repositoryGenerationRun
+          ? getExecutionStatus(workflow.repositoryGenerationRun.existing_execution)
+          : workflow.repositoryTestRun
+            ? getExecutionStatus(workflow.repositoryTestRun.execution)
+            : undefined,
+        generatedStatus: workflow.repositoryGenerationRun
+          ? getExecutionStatus(workflow.repositoryGenerationRun.generated_execution)
+          : undefined,
+        investigationOutcome: workflow.repositoryInvestigationRun?.investigation.outcome,
+        verificationStatus: workflow.repositoryFixVerificationRun
+          ? getExecutionStatus(workflow.repositoryFixVerificationRun.execution)
+          : undefined,
+        verificationSafetyConfirmed: workflow.repositoryFixVerificationRun
+          ? workflow.repositoryFixVerificationRun.applied_in_disposable_workspace &&
+            !workflow.repositoryFixVerificationRun.github_changed
+          : undefined,
+      }}
+      context={workflow.repositoryContext}
+      selectedTargetPath={workflow.selectedTargetPath}
+      isBusy={workflow.isRepositoryBusy}
+      isPreviewLoading={workflow.isRepositoryContextPreviewLoading}
+      previewError={workflow.repositoryContextPreviewError}
+      onNewVerification={() => workflow.resetWorkflow()}
+      onSelectTarget={workflow.handleRepositoryTargetChange}
+      onPreviewContext={workflow.handleRepositoryContextPreview}
+    >
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {screenAnnouncements[workflow.screen]}
+      </p>
+      {workflow.repositoryError &&
+        workflow.screen !== "new_verification" &&
+        workflow.screen !== "ready_existing_tests" &&
+        workflow.screen !== "ready_generate_tests" && (
+          <p className="mx-auto mb-5 max-w-5xl border border-destructive bg-destructive/10 p-3 text-sm text-destructive" role="alert">
+            {workflow.repositoryError}
           </p>
-          <label htmlFor="repository-subdirectory">Python project folder (optional)</label>
-          <input
-            id="repository-subdirectory"
-            name="repository-subdirectory"
-            placeholder="packages/payments"
-            type="text"
-            value={repositorySubdirectory}
-            disabled={isRepositoryBusy}
-            onChange={(event) => setRepositorySubdirectory(event.target.value)}
-          />
-          <p className="field-hint">
-            Use a repository-relative folder path for a nested Python project.
-          </p>
-          <button disabled={isRepositoryBusy} type="submit">
-            {isRepositoryLoading ? "Fetching..." : "Fetch repository"}
-          </button>
-          {repositoryError && (
-            <p className="error" role="alert">
-              {repositoryError}
-            </p>
-          )}
-        </form>
-        {repository !== null && (
-          <RepositorySummary repository={repository} />
         )}
-        {repositoryTree !== null && (
-          <RepositoryTreeView tree={repositoryTree} />
-        )}
-        {repositoryContext !== null && repositoryTestPlan !== null && (
-          <RepositoryContextPreview
-            sourcePaths={repositoryTestPlan.source_paths}
-            selectedTargetPath={selectedTargetPath}
-            preview={repositoryContextPreview}
-            isLoading={isRepositoryContextPreviewLoading}
-            isDisabled={
-              isRepositoryLoading ||
-              isRepositoryTestRunning ||
-              isRepositoryGenerationRunning ||
-              isRepositoryInvestigationRunning ||
-              isRepositoryFixProposalRunning ||
-              isRepositoryFixVerificationRunning
-            }
-            error={repositoryContextPreviewError}
-            onTargetChange={handleRepositoryTargetChange}
-            onPreview={handleRepositoryContextPreview}
-          />
-        )}
-        {repositoryTestPlan !== null && (
-          <RepositoryTestPlanPanel
-            plan={repositoryTestPlan}
-            isRepositoryLoading={isRepositoryLoading}
-            isRepositoryTestRunning={isRepositoryTestRunning}
-            isRepositoryGenerationRunning={isRepositoryGenerationRunning}
-            isRepositoryInvestigationRunning={isRepositoryInvestigationRunning}
-            isRepositoryFixProposalRunning={isRepositoryFixProposalRunning}
-            isRepositoryFixVerificationRunning={isRepositoryFixVerificationRunning}
-            repositoryTestError={repositoryTestError}
-            repositoryGenerationError={repositoryGenerationError}
-            repositoryInvestigationError={repositoryInvestigationError}
-            repositoryFixProposalError={repositoryFixProposalError}
-            onRunRepositoryTests={handleRepositoryTestRun}
-            onGenerateRepositoryTests={handleRepositoryGeneration}
-            onInvestigateRepository={handleRepositoryInvestigation}
-            onProposeRepositoryFix={handleRepositoryFixProposal}
-          />
-        )}
-        {repositoryTestRun !== null && (
-          <RepositoryTestRunResult result={repositoryTestRun} />
-        )}
-        {repositoryGenerationRun !== null && (
-          <RepositoryGenerationResult result={repositoryGenerationRun} />
-        )}
-        {repositoryInvestigationRun !== null && (
-          <RepositoryInvestigationResult result={repositoryInvestigationRun} />
-        )}
-        {repositoryFixProposalRun !== null && (
-          <RepositoryFixProposalResult
-            result={repositoryFixProposalRun}
-            isVerificationRunning={isRepositoryFixVerificationRunning}
-            verificationError={repositoryFixVerificationError}
-            onVerify={handleRepositoryFixVerification}
-          />
-        )}
-        {repositoryFixVerificationRun !== null && (
-          <RepositoryFixVerificationResult result={repositoryFixVerificationRun} />
-        )}
-        <PastedCodeGenerator />
-      </section>
-    </main>
+      {content}
+      <ContextPreviewDialog
+        preview={workflow.repositoryContextPreview}
+        isLoading={workflow.isRepositoryContextPreviewLoading}
+        error={workflow.repositoryContextPreviewError}
+        onClose={workflow.closeRepositoryContextPreview}
+      />
+    </AppShell>
   );
 }
