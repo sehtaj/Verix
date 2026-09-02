@@ -1,4 +1,4 @@
-import type { RepositoryExecution, RepositoryInvestigationRun } from "@/types/api";
+import type { RepositoryContext, RepositoryExecution } from "@/types/api";
 import type {
   WorkflowScreen,
   WorkflowStep,
@@ -15,10 +15,40 @@ export type ExecutionStatus =
 export type WorkflowStepEvidence = {
   existingStatus?: ExecutionStatus;
   generatedStatus?: ExecutionStatus;
-  investigationOutcome?: RepositoryInvestigationRun["investigation"]["outcome"];
   verificationStatus?: ExecutionStatus;
   verificationSafetyConfirmed?: boolean;
 };
+
+export function getReadyScreen(context: RepositoryContext): WorkflowScreen {
+  return context.test_plan.test_paths.length > 0
+    ? "ready_existing_tests"
+    : "ready_generate_tests";
+}
+
+export function getActionRecoveryScreen(
+  previousScreen: WorkflowScreen,
+  context: RepositoryContext,
+  evidenceScreens: WorkflowScreen[],
+): WorkflowScreen {
+  return evidenceScreens.includes(previousScreen) ? previousScreen : getReadyScreen(context);
+}
+
+export function getVerificationRecoveryScreen(previousScreen: WorkflowScreen): WorkflowScreen {
+  return previousScreen === "showing_verification_result"
+    ? "showing_verification_result"
+    : "reviewing_fix";
+}
+
+export function getWorkflowStepStatusLabel(status: WorkflowStepStatus): string {
+  return {
+    upcoming: "Upcoming",
+    active: "Current",
+    running: "In Progress",
+    complete: "Completed",
+    warning: "Completed with Warnings",
+    failed: "Failed",
+  }[status];
+}
 
 export function getExecutionStatus(execution: RepositoryExecution): ExecutionStatus {
   if (execution.skipped) return "skipped";
@@ -43,7 +73,7 @@ export function didInstallationSucceed(execution: RepositoryExecution): boolean 
 }
 
 export function getOutcomeLabel(
-  outcome: RepositoryInvestigationRun["investigation"]["outcome"],
+  outcome: import("@/types/api").RepositoryInvestigationRun["investigation"]["outcome"],
 ): string {
   return {
     setup_failed: "Setup Failed",
@@ -61,8 +91,10 @@ function statusForIndex(
   activeIndex: number,
   running: boolean,
   failedIndex: number | null,
+  warningIndex: number | null,
 ): WorkflowStepStatus {
   if (failedIndex === index) return "failed";
+  if (warningIndex === index) return "warning";
   if (index < activeIndex) return "complete";
   if (index === activeIndex) return running ? "running" : "active";
   return "upcoming";
@@ -75,6 +107,7 @@ export function getWorkflowSteps(
   let activeIndex = 0;
   let running = false;
   let failedIndex: number | null = null;
+  let warningIndex: number | null = null;
 
   if (screen === "loading_context") running = true;
   if (screen === "ready_existing_tests" || screen === "ready_generate_tests") {
@@ -122,6 +155,15 @@ export function getWorkflowSteps(
     }
   }
 
+  const runStatuses = [evidence.existingStatus, evidence.generatedStatus].filter(
+    (status): status is ExecutionStatus => status !== undefined,
+  );
+  if (runStatuses.some((status) => status === "failed" || status === "timed_out")) {
+    failedIndex = 1;
+  } else if (runStatuses.some((status) => status === "skipped" || status === "no_tests")) {
+    warningIndex = 1;
+  }
+
   const definitions: Array<Pick<WorkflowStep, "id" | "label">> = [
     { id: "context", label: "Context" },
     { id: "run", label: "Run Tests" },
@@ -132,6 +174,6 @@ export function getWorkflowSteps(
 
   return definitions.map((definition, index) => ({
     ...definition,
-    status: statusForIndex(index, activeIndex, running, failedIndex),
+    status: statusForIndex(index, activeIndex, running, failedIndex, warningIndex),
   }));
 }

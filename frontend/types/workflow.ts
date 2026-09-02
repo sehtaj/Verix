@@ -19,6 +19,7 @@ export type WorkflowStepStatus =
   | "active"
   | "running"
   | "complete"
+  | "warning"
   | "failed";
 
 export type WorkflowStep = {

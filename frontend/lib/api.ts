@@ -12,6 +12,20 @@ import type {
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+const commitShaPattern = /^[0-9a-f]{40}$/i;
+
+export type ApiField = "url" | "reference" | "subdirectory" | "target_path";
+
+export class ApiError extends Error {
+  field: ApiField | null;
+
+  constructor(message: string, field: ApiField | null = null) {
+    super(message);
+    this.name = "ApiError";
+    this.field = field;
+  }
+}
+
 type RepositoryTargeting = {
   reference?: string;
   subdirectory?: string;
@@ -30,23 +44,32 @@ function repositoryRequestBody(
   };
 }
 
-function describeApiDetail(detail: unknown): string | null {
-  if (typeof detail === "string") return detail;
+function describeApiDetail(detail: unknown): { message: string; field: ApiField | null } | null {
+  if (typeof detail === "string") return { message: detail, field: null };
   if (!Array.isArray(detail)) return null;
 
-  const messages = detail
+  const details = detail
     .map((item) => {
       if (typeof item !== "object" || item === null || !("msg" in item)) return null;
       const message = String(item.msg);
-      const location =
+      const locationParts: string[] =
         "loc" in item && Array.isArray(item.loc)
-          ? item.loc.filter((part: unknown) => part !== "body").join(" → ")
-          : "";
-      return location ? `${location}: ${message}` : message;
+          ? item.loc.filter((part: unknown) => part !== "body").map(String)
+          : [];
+      const field = locationParts.find((part: string): part is ApiField =>
+        ["url", "reference", "subdirectory", "target_path"].includes(part),
+      ) ?? null;
+      const location = locationParts.join(" → ");
+      return { message: location ? `${location}: ${message}` : message, field };
     })
-    .filter((message): message is string => message !== null);
+    .filter((item): item is { message: string; field: ApiField | null } => item !== null);
 
-  return messages.length > 0 ? messages.join(". ") : null;
+  if (details.length === 0) return null;
+  const fields = new Set(details.map((item) => item.field).filter(Boolean));
+  return {
+    message: details.map((item) => item.message).join(". "),
+    field: fields.size === 1 ? ([...fields][0] ?? null) : null,
+  };
 }
 
 async function postJson<T>(
@@ -63,14 +86,14 @@ async function postJson<T>(
       body: JSON.stringify(body),
     });
   } catch {
-    throw new Error("Unable to reach the Verix API. Confirm that the backend is running.");
+    throw new ApiError("Unable to reach the Verix API. Confirm that the backend is running.");
   }
 
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    throw new Error(response.ok ? fallbackError : `The Verix API returned HTTP ${response.status}.`);
+    throw new ApiError(response.ok ? fallbackError : `The Verix API returned HTTP ${response.status}.`);
   }
 
   if (!response.ok) {
@@ -78,10 +101,10 @@ async function postJson<T>(
       typeof payload === "object" && payload !== null && "detail" in payload
         ? describeApiDetail(payload.detail)
         : null;
-    throw new Error(detail ?? fallbackError);
+    throw new ApiError(detail?.message ?? fallbackError, detail?.field ?? null);
   }
 
-  if (!isExpectedResponse(payload)) throw new Error(fallbackError);
+  if (!isExpectedResponse(payload)) throw new ApiError(fallbackError);
   return payload;
 }
 
@@ -97,22 +120,68 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isCommitSha(value: unknown): value is string {
+  return typeof value === "string" && commitShaPattern.test(value);
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return Number.isInteger(value) && typeof value === "number" && value >= 0;
+}
+
+function isReturnCode(value: unknown): value is number | null {
+  return value === null || (typeof value === "number" && Number.isInteger(value));
+}
+
+function isTestRunner(value: unknown): value is "pytest" | "tox" {
+  return value === "pytest" || value === "tox";
+}
+
+function repositoryIdentity(value: string): string | null {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:" || parsed.hostname.toLowerCase() !== "github.com") return null;
+    const parts = parsed.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
+    if (parts.length !== 2) return null;
+    return `${parts[0].toLowerCase()}/${parts[1].replace(/\.git$/i, "").toLowerCase()}`;
+  } catch {
+    return null;
+  }
+}
+
+function matchesRepositoryUrl(actual: string, requested: string): boolean {
+  const actualIdentity = repositoryIdentity(actual);
+  return actualIdentity !== null && actualIdentity === repositoryIdentity(requested);
+}
+
+function matchesSubdirectory(actual: string | null, requested?: string): boolean {
+  return actual === (requested ?? null);
+}
+
+function matchesPinnedReference(revision: string, reference?: string): boolean {
+  return !reference || !commitShaPattern.test(reference) || revision.toLowerCase() === reference.toLowerCase();
+}
+
 function isExecution(value: unknown): value is RepositoryExecution {
   return (
     isRecord(value) &&
-    (typeof value.return_code === "number" || value.return_code === null) &&
+    isReturnCode(value.return_code) &&
     typeof value.output === "string" &&
     typeof value.timed_out === "boolean" &&
-    typeof value.skipped === "boolean"
+    typeof value.skipped === "boolean" &&
+    !(value.skipped && value.timed_out)
   );
 }
 
 function isPreparation(value: unknown): value is RepositoryPreparation {
   return (
     isRecord(value) &&
-    typeof value.file_count === "number" &&
-    typeof value.total_bytes === "number" &&
-    typeof value.skipped_entries === "number"
+    isNonNegativeInteger(value.file_count) &&
+    isNonNegativeInteger(value.total_bytes) &&
+    isNonNegativeInteger(value.skipped_entries)
   );
 }
 
@@ -122,7 +191,7 @@ function isConfigurationFile(value: unknown): value is { path: string; content: 
 
 function isFileContent(value: unknown): value is { path: string; content: string; byte_count: number } {
   if (!isRecord(value) || !isConfigurationFile(value)) return false;
-  return typeof (value as unknown as Record<string, unknown>).byte_count === "number";
+  return isNonNegativeInteger((value as unknown as Record<string, unknown>).byte_count);
 }
 
 function isSelection(value: unknown): value is RepositoryContext["generation_selection"] {
@@ -157,8 +226,8 @@ function isTestPlan(value: unknown): value is RepositoryContext["test_plan"] {
 
 function isRepositoryContext(value: unknown): value is RepositoryContext {
   if (!isRecord(value) || !isRecord(value.metadata) || !isRecord(value.tree)) return false;
-  return (
-    typeof value.revision === "string" &&
+  const hasExpectedShape = (
+    isCommitSha(value.revision) &&
     isNullableString(value.subdirectory) &&
     typeof value.metadata.name === "string" &&
     typeof value.metadata.owner === "string" &&
@@ -176,12 +245,17 @@ function isRepositoryContext(value: unknown): value is RepositoryContext {
     isTestPlan(value.test_plan) &&
     isSelection(value.generation_selection)
   );
+  if (!hasExpectedShape) return false;
+
+  const context = value as unknown as RepositoryContext;
+  const targetPath = context.generation_selection.target_path;
+  return targetPath === null || context.test_plan.source_paths.includes(targetPath);
 }
 
 function isContextPreview(value: unknown): value is RepositoryGenerationContextPreview {
-  return (
+  const hasExpectedShape = (
     isRecord(value) &&
-    typeof value.revision === "string" &&
+    isCommitSha(value.revision) &&
     isNullableString(value.subdirectory) &&
     isSelection(value.selection) &&
     (value.source_file === null || isFileContent(value.source_file)) &&
@@ -192,6 +266,16 @@ function isContextPreview(value: unknown): value is RepositoryGenerationContextP
     isStringArray(value.skipped_paths) &&
     typeof value.total_bytes === "number"
   );
+  if (!hasExpectedShape) return false;
+
+  const preview = value as unknown as RepositoryGenerationContextPreview;
+  return (
+    preview.selection.target_path !== null &&
+    preview.source_file !== null &&
+    preview.selection.target_path === preview.source_file.path &&
+    preview.test_files.every((file) => preview.selection.related_test_paths.includes(file.path)) &&
+    preview.configuration_files.every((file) => preview.selection.configuration_paths.includes(file.path))
+  );
 }
 
 function isTestRun(value: unknown): value is RepositoryTestRun {
@@ -199,7 +283,7 @@ function isTestRun(value: unknown): value is RepositoryTestRun {
     isRecord(value) &&
     isPreparation(value.preparation) &&
     isExecution(value.installation) &&
-    typeof value.test_runner === "string" &&
+    isTestRunner(value.test_runner) &&
     isExecution(value.execution)
   );
 }
@@ -207,11 +291,11 @@ function isTestRun(value: unknown): value is RepositoryTestRun {
 function isGenerationRun(value: unknown): value is RepositoryGenerationRun {
   return (
     isRecord(value) &&
-    typeof value.target_path === "string" &&
-    typeof value.generated_tests === "string" &&
+    isNonEmptyString(value.target_path) &&
+    isNonEmptyString(value.generated_tests) &&
     isPreparation(value.preparation) &&
     isExecution(value.installation) &&
-    typeof value.test_runner === "string" &&
+    isTestRunner(value.test_runner) &&
     isExecution(value.existing_execution) &&
     isExecution(value.generated_execution)
   );
@@ -244,26 +328,27 @@ function isFixProposalRun(value: unknown): value is RepositoryFixProposalRun {
   const proposal = (value as unknown as Record<string, unknown>).proposal;
   return (
     isRecord(proposal) &&
-    typeof proposal.revision === "string" &&
+    isCommitSha(proposal.revision) &&
     isNullableString(proposal.subdirectory) &&
-    typeof proposal.target_path === "string" &&
-    typeof proposal.summary === "string" &&
-    typeof proposal.patch === "string" &&
-    typeof proposal.validated === "boolean" &&
-    typeof proposal.approval_required === "boolean" &&
-    typeof proposal.applied === "boolean"
+    isNonEmptyString(proposal.target_path) &&
+    isNonEmptyString(proposal.summary) &&
+    isNonEmptyString(proposal.patch) &&
+    proposal.validated === true &&
+    proposal.approval_required === true &&
+    proposal.applied === false &&
+    proposal.target_path === value.target_path
   );
 }
 
 function isFixVerificationRun(value: unknown): value is RepositoryFixVerificationRun {
   return (
     isRecord(value) &&
-    typeof value.revision === "string" &&
+    isCommitSha(value.revision) &&
     isNullableString(value.subdirectory) &&
-    typeof value.target_path === "string" &&
+    isNonEmptyString(value.target_path) &&
     value.approved === true &&
-    typeof value.applied_in_disposable_workspace === "boolean" &&
-    typeof value.github_changed === "boolean" &&
+    value.applied_in_disposable_workspace === true &&
+    value.github_changed === false &&
     (value.test_runner === "pytest" || value.test_runner === "tox") &&
     isExecution(value.installation) &&
     isExecution(value.execution)
@@ -277,7 +362,12 @@ export function fetchRepositoryContext(
   return postJson(
     "/repository/context",
     repositoryRequestBody(repositoryUrl, targeting),
-    isRepositoryContext,
+    (payload): payload is RepositoryContext =>
+      isRepositoryContext(payload) &&
+      matchesRepositoryUrl(payload.metadata.url, repositoryUrl) &&
+      matchesSubdirectory(payload.subdirectory, targeting.subdirectory) &&
+      matchesPinnedReference(payload.revision, targeting.reference) &&
+      (!targeting.targetPath || payload.generation_selection.target_path === targeting.targetPath),
     "Unable to fetch repository context.",
   );
 }
@@ -289,7 +379,11 @@ export function previewRepositoryGenerationContext(
   return postJson(
     "/repository/context/preview",
     repositoryRequestBody(repositoryUrl, targeting),
-    isContextPreview,
+    (payload): payload is RepositoryGenerationContextPreview =>
+      isContextPreview(payload) &&
+      matchesSubdirectory(payload.subdirectory, targeting.subdirectory) &&
+      matchesPinnedReference(payload.revision, targeting.reference) &&
+      payload.selection.target_path === targeting.targetPath,
     "Unable to preview the selected context.",
   );
 }
@@ -313,7 +407,9 @@ export function generateRepositoryTests(
   return postJson(
     "/repository/generate",
     repositoryRequestBody(repositoryUrl, targeting),
-    isGenerationRun,
+    (payload): payload is RepositoryGenerationRun =>
+      isGenerationRun(payload) &&
+      (!targeting.targetPath || payload.target_path === targeting.targetPath),
     "Unable to generate focused tests.",
   );
 }
@@ -325,7 +421,9 @@ export function investigateRepository(
   return postJson(
     "/repository/investigate",
     repositoryRequestBody(repositoryUrl, targeting),
-    isInvestigationRun,
+    (payload): payload is RepositoryInvestigationRun =>
+      isInvestigationRun(payload) &&
+      (!targeting.targetPath || payload.target_path === targeting.targetPath),
     "Unable to investigate the repository.",
   );
 }
@@ -337,7 +435,11 @@ export function proposeRepositoryFix(
   return postJson(
     "/repository/fix-proposal",
     repositoryRequestBody(repositoryUrl, targeting),
-    isFixProposalRun,
+    (payload): payload is RepositoryFixProposalRun =>
+      isFixProposalRun(payload) &&
+      (!targeting.targetPath || payload.target_path === targeting.targetPath) &&
+      matchesSubdirectory(payload.proposal.subdirectory, targeting.subdirectory) &&
+      matchesPinnedReference(payload.proposal.revision, targeting.reference),
     "Unable to propose a source fix.",
   );
 }
@@ -356,7 +458,11 @@ export function verifyRepositoryFix(
       patch: proposal.patch,
       approved: true,
     },
-    isFixVerificationRun,
+    (payload): payload is RepositoryFixVerificationRun =>
+      isFixVerificationRun(payload) &&
+      payload.revision.toLowerCase() === proposal.revision.toLowerCase() &&
+      payload.target_path === proposal.target_path &&
+      payload.subdirectory === proposal.subdirectory,
     "Unable to verify the approved patch.",
   );
 }

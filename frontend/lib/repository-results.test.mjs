@@ -3,10 +3,14 @@ import test from "node:test";
 
 import {
   didInstallationSucceed,
+  getActionRecoveryScreen,
   getExecutionLabel,
   getExecutionStatus,
   getOutcomeLabel,
+  getReadyScreen,
+  getVerificationRecoveryScreen,
   getWorkflowSteps,
+  getWorkflowStepStatusLabel,
 } from "./repository-results.ts";
 
 const execution = (overrides = {}) => ({
@@ -79,5 +83,54 @@ test("derives coherent progress states for every workflow stage", () => {
       verificationSafetyConfirmed: true,
     }).map((step) => step.status),
     ["complete", "complete", "complete", "complete", "failed"],
+  );
+});
+
+test("keeps action failures attached to the evidence screen that launched them", () => {
+  const contextWithTests = {
+    test_plan: { test_paths: ["tests/test_example.py"] },
+  };
+  const contextWithoutTests = {
+    test_plan: { test_paths: [] },
+  };
+
+  assert.equal(getReadyScreen(contextWithTests), "ready_existing_tests");
+  assert.equal(getReadyScreen(contextWithoutTests), "ready_generate_tests");
+  assert.equal(
+    getActionRecoveryScreen("showing_test_result", contextWithTests, ["showing_test_result"]),
+    "showing_test_result",
+  );
+  assert.equal(
+    getActionRecoveryScreen("generating_tests", contextWithoutTests, ["showing_generation_result"]),
+    "ready_generate_tests",
+  );
+  assert.equal(
+    getVerificationRecoveryScreen("showing_verification_result"),
+    "showing_verification_result",
+  );
+  assert.equal(getVerificationRecoveryScreen("reviewing_fix"), "reviewing_fix");
+});
+
+test("provides an assistive label for every workflow step state", () => {
+  assert.equal(getWorkflowStepStatusLabel("upcoming"), "Upcoming");
+  assert.equal(getWorkflowStepStatusLabel("active"), "Current");
+  assert.equal(getWorkflowStepStatusLabel("running"), "In Progress");
+  assert.equal(getWorkflowStepStatusLabel("complete"), "Completed");
+  assert.equal(getWorkflowStepStatusLabel("warning"), "Completed with Warnings");
+  assert.equal(getWorkflowStepStatusLabel("failed"), "Failed");
+});
+
+test("marks failed and inconclusive run evidence without hiding later workflow progress", () => {
+  assert.equal(
+    getWorkflowSteps("showing_investigation", { existingStatus: "failed", generatedStatus: "passed" })[1].status,
+    "failed",
+  );
+  assert.equal(
+    getWorkflowSteps("showing_investigation", { existingStatus: "no_tests", generatedStatus: "passed" })[1].status,
+    "warning",
+  );
+  assert.equal(
+    getWorkflowSteps("showing_investigation", { existingStatus: "passed", generatedStatus: "passed" })[2].status,
+    "active",
   );
 });

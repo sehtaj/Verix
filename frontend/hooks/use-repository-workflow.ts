@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import {
   fetchRepositoryContext,
@@ -10,8 +10,15 @@ import {
   proposeRepositoryFix,
   runRepositoryTests,
   verifyRepositoryFix,
+  ApiError,
+  type ApiField,
 } from "@/lib/api";
-import { getExecutionStatus } from "@/lib/repository-results";
+import {
+  getActionRecoveryScreen,
+  getExecutionStatus,
+  getReadyScreen,
+  getVerificationRecoveryScreen,
+} from "@/lib/repository-results";
 import type {
   RepositoryContext,
   RepositoryFixProposalRun,
@@ -41,10 +48,11 @@ function isPublicGitHubRepositoryUrl(value: string): boolean {
   }
 }
 
-function readyScreen(context: RepositoryContext): WorkflowScreen {
-  return context.test_plan.test_paths.length > 0
-    ? "ready_existing_tests"
-    : "ready_generate_tests";
+type RepositoryFormField = Exclude<ApiField, "target_path">;
+
+function formFieldForError(error: unknown): RepositoryFormField | null {
+  if (!(error instanceof ApiError) || error.field === "target_path") return null;
+  return error.field;
 }
 
 export function useRepositoryWorkflow() {
@@ -53,6 +61,7 @@ export function useRepositoryWorkflow() {
   const activeRequest = useRef(false);
   const activePreviewRequest = useRef(false);
   const activeRequestOrigin = useRef<WorkflowScreen | null>(null);
+  const previewReturnFocus = useRef<HTMLElement | null>(null);
   const [screen, setScreen] = useState<WorkflowScreen>("new_verification");
   const [repositoryUrl, setRepositoryUrl] = useState("");
   const [repositoryReference, setRepositoryReference] = useState("");
@@ -61,6 +70,8 @@ export function useRepositoryWorkflow() {
   const [selectedTargetPath, setSelectedTargetPath] = useState("");
 
   const [repositoryError, setRepositoryError] = useState<string | null>(null);
+  const [repositoryErrorField, setRepositoryErrorField] =
+    useState<RepositoryFormField | null>(null);
   const [repositoryContextPreview, setRepositoryContextPreview] =
     useState<RepositoryGenerationContextPreview | null>(null);
   const [isRepositoryContextPreviewLoading, setIsRepositoryContextPreviewLoading] =
@@ -95,12 +106,41 @@ export function useRepositoryWorkflow() {
     "verifying_fix",
   ].includes(screen) || isRepositoryContextPreviewLoading;
 
+  useEffect(() => {
+    const hasUnreviewedProposal = repositoryFixProposalRun !== null && repositoryFixVerificationRun === null;
+    const hasDraftTargeting =
+      screen === "new_verification" &&
+      Boolean(
+        repositoryUrl.trim() ||
+          repositoryReference.trim() ||
+          repositorySubdirectory.trim(),
+      );
+    if (!isRepositoryBusy && !hasUnreviewedProposal && !hasDraftTargeting) return;
+
+    function warnBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [
+    isRepositoryBusy,
+    repositoryFixProposalRun,
+    repositoryFixVerificationRun,
+    repositoryReference,
+    repositorySubdirectory,
+    repositoryUrl,
+    screen,
+  ]);
+
   function requestBecameStale(epoch: number): boolean {
     return requestEpoch.current !== epoch;
   }
 
   function clearActionErrors() {
     setRepositoryError(null);
+    setRepositoryErrorField(null);
     setRepositoryContextPreviewError(null);
     setRepositoryTestError(null);
     setRepositoryGenerationError(null);
@@ -119,8 +159,16 @@ export function useRepositoryWorkflow() {
     clearActionErrors();
   }
 
+  function hasPendingProposal(): boolean {
+    return repositoryFixProposalRun !== null && repositoryFixVerificationRun === null;
+  }
+
+  function confirmProposalReplacement(message: string): boolean {
+    return !hasPendingProposal() || window.confirm(message);
+  }
+
   function resetWorkflow(force = false): boolean {
-    const hasUnreviewedProposal = repositoryFixProposalRun !== null && repositoryFixVerificationRun === null;
+    const hasUnreviewedProposal = hasPendingProposal();
     if (
       !force &&
       (activeRequest.current || activePreviewRequest.current || isRepositoryBusy || hasUnreviewedProposal) &&
@@ -153,6 +201,7 @@ export function useRepositoryWorkflow() {
       setRepositoryError(
         "Enter a public GitHub repository URL, such as https://github.com/owner/repository.",
       );
+      setRepositoryErrorField("url");
       return;
     }
     if (activeRequest.current) return;
@@ -173,7 +222,7 @@ export function useRepositoryWorkflow() {
       setRepositoryUrl(context.metadata.url);
       setRepositoryContext(context);
       setSelectedTargetPath(context.generation_selection.target_path ?? "");
-      setScreen(readyScreen(context));
+      setScreen(getReadyScreen(context));
     } catch (error) {
       if (requestBecameStale(epoch)) return;
       setRepositoryError(
@@ -181,6 +230,7 @@ export function useRepositoryWorkflow() {
           ? error.message
           : "Unable to fetch repository details. Please try again.",
       );
+      setRepositoryErrorField(formFieldForError(error));
       setScreen("new_verification");
     } finally {
       if (!requestBecameStale(epoch)) {
@@ -192,13 +242,13 @@ export function useRepositoryWorkflow() {
 
   async function handleRepositoryTargetChange(targetPath: string) {
     if (repositoryContext === null || targetPath === selectedTargetPath || activeRequest.current) return;
+    if (!confirmProposalReplacement("Select a different target and replace the unreviewed source proposal?")) return;
 
     activeRequest.current = true;
-    const previousTarget = selectedTargetPath;
     const previousScreen = screen;
     activeRequestOrigin.current = previousScreen;
-    setSelectedTargetPath(targetPath);
     setRepositoryError(null);
+    setRepositoryErrorField(null);
     setScreen("loading_context");
     const epoch = requestEpoch.current;
 
@@ -212,10 +262,9 @@ export function useRepositoryWorkflow() {
       clearEvidence();
       setRepositoryContext(context);
       setSelectedTargetPath(context.generation_selection.target_path ?? targetPath);
-      setScreen(readyScreen(context));
+      setScreen(getReadyScreen(context));
     } catch (error) {
       if (requestBecameStale(epoch)) return;
-      setSelectedTargetPath(previousTarget);
       setRepositoryError(
         error instanceof Error ? error.message : "Unable to select that source target.",
       );
@@ -237,6 +286,9 @@ export function useRepositoryWorkflow() {
     }
     if (activePreviewRequest.current) return;
 
+    previewReturnFocus.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
     activePreviewRequest.current = true;
     setRepositoryContextPreviewError(null);
     setRepositoryContextPreview(null);
@@ -269,6 +321,10 @@ export function useRepositoryWorkflow() {
 
   async function handleRepositoryTestRun() {
     if (repositoryContext === null || activeRequest.current) return;
+    if (!selectedTargetPath) {
+      setRepositoryTestError("Select a verified Python source target before running this verification.");
+      return;
+    }
     activeRequest.current = true;
     const previousScreen = screen;
     activeRequestOrigin.current = previousScreen;
@@ -293,7 +349,7 @@ export function useRepositoryWorkflow() {
       setRepositoryTestError(
         error instanceof Error ? error.message : "Unable to run repository tests.",
       );
-      setScreen(previousScreen === "showing_test_result" ? previousScreen : readyScreen(repositoryContext));
+      setScreen(getActionRecoveryScreen(previousScreen, repositoryContext, ["showing_test_result"]));
     } finally {
       if (!requestBecameStale(epoch)) {
         activeRequest.current = false;
@@ -303,7 +359,11 @@ export function useRepositoryWorkflow() {
   }
 
   async function handleRepositoryGeneration() {
-    if (repositoryContext === null || !selectedTargetPath || activeRequest.current) return;
+    if (repositoryContext === null || activeRequest.current) return;
+    if (!selectedTargetPath) {
+      setRepositoryGenerationError("Select a verified Python source target before generating focused tests.");
+      return;
+    }
     activeRequest.current = true;
     const previousScreen = screen;
     activeRequestOrigin.current = previousScreen;
@@ -325,11 +385,10 @@ export function useRepositoryWorkflow() {
       setRepositoryGenerationError(
         error instanceof Error ? error.message : "Unable to generate focused tests.",
       );
-      setScreen(
-        previousScreen === "showing_test_result" || previousScreen === "showing_generation_result"
-          ? previousScreen
-          : readyScreen(repositoryContext),
-      );
+      setScreen(getActionRecoveryScreen(previousScreen, repositoryContext, [
+        "showing_test_result",
+        "showing_generation_result",
+      ]));
     } finally {
       if (!requestBecameStale(epoch)) {
         activeRequest.current = false;
@@ -339,7 +398,12 @@ export function useRepositoryWorkflow() {
   }
 
   async function handleRepositoryInvestigation() {
-    if (repositoryContext === null || !selectedTargetPath || activeRequest.current) return;
+    if (repositoryContext === null || activeRequest.current) return;
+    if (!selectedTargetPath) {
+      setRepositoryInvestigationError("Select a verified Python source target before investigating evidence.");
+      return;
+    }
+    if (!confirmProposalReplacement("Run a new investigation and replace the unreviewed source proposal?")) return;
     activeRequest.current = true;
     const previousScreen = screen;
     activeRequestOrigin.current = previousScreen;
@@ -354,6 +418,8 @@ export function useRepositoryWorkflow() {
         targetPath: selectedTargetPath,
       });
       if (requestBecameStale(epoch)) return;
+      setRepositoryFixProposalRun(null);
+      setRepositoryFixVerificationRun(null);
       setRepositoryInvestigationRun(result);
       setScreen("showing_investigation");
     } catch (error) {
@@ -361,13 +427,11 @@ export function useRepositoryWorkflow() {
       setRepositoryInvestigationError(
         error instanceof Error ? error.message : "Unable to investigate the repository.",
       );
-      setScreen(
-        previousScreen === "showing_test_result" ||
-          previousScreen === "showing_generation_result" ||
-          previousScreen === "showing_investigation"
-          ? previousScreen
-          : readyScreen(repositoryContext),
-      );
+      setScreen(getActionRecoveryScreen(previousScreen, repositoryContext, [
+        "showing_test_result",
+        "showing_generation_result",
+        "showing_investigation",
+      ]));
     } finally {
       if (!requestBecameStale(epoch)) {
         activeRequest.current = false;
@@ -412,7 +476,8 @@ export function useRepositoryWorkflow() {
   async function handleRepositoryFixVerification() {
     if (repositoryContext === null || repositoryFixProposalRun === null || activeRequest.current) return;
     activeRequest.current = true;
-    activeRequestOrigin.current = screen;
+    const previousScreen = screen;
+    activeRequestOrigin.current = previousScreen;
     clearActionErrors();
     setScreen("verifying_fix");
     const epoch = requestEpoch.current;
@@ -430,7 +495,7 @@ export function useRepositoryWorkflow() {
       setRepositoryFixVerificationError(
         error instanceof Error ? error.message : "Unable to verify the approved patch.",
       );
-      setScreen("reviewing_fix");
+      setScreen(getVerificationRecoveryScreen(previousScreen));
     } finally {
       if (!requestBecameStale(epoch)) {
         activeRequest.current = false;
@@ -443,18 +508,29 @@ export function useRepositoryWorkflow() {
     if (repositoryInvestigationRun !== null) setScreen("showing_investigation");
   }
 
+  function handleEditRepositoryTargeting() {
+    requestEpoch.current += 1;
+    previewRequestEpoch.current += 1;
+    activeRequest.current = false;
+    activePreviewRequest.current = false;
+    activeRequestOrigin.current = null;
+    setScreen("new_verification");
+    setRepositoryContext(null);
+    setSelectedTargetPath("");
+    setIsRepositoryContextPreviewLoading(false);
+    clearEvidence();
+  }
+
   return {
     screen,
     activeRequestOrigin: activeRequestOrigin.current,
     repositoryUrl,
-    setRepositoryUrl,
     repositoryReference,
-    setRepositoryReference,
     repositorySubdirectory,
-    setRepositorySubdirectory,
     repositoryContext,
     selectedTargetPath,
     repositoryError,
+    repositoryErrorField,
     repositoryContextPreview,
     repositoryContextPreviewError,
     repositoryTestRun,
@@ -479,12 +555,37 @@ export function useRepositoryWorkflow() {
     handleRepositoryFixProposal,
     handleRepositoryFixVerification,
     handleBackToInvestigation,
+    handleEditRepositoryTargeting,
+    setRepositoryUrl: (value: string) => {
+      setRepositoryUrl(value);
+      if (repositoryErrorField === "url") {
+        setRepositoryError(null);
+        setRepositoryErrorField(null);
+      }
+    },
+    setRepositoryReference: (value: string) => {
+      setRepositoryReference(value);
+      if (repositoryErrorField === "reference") {
+        setRepositoryError(null);
+        setRepositoryErrorField(null);
+      }
+    },
+    setRepositorySubdirectory: (value: string) => {
+      setRepositorySubdirectory(value);
+      if (repositoryErrorField === "subdirectory") {
+        setRepositoryError(null);
+        setRepositoryErrorField(null);
+      }
+    },
     closeRepositoryContextPreview: () => {
       previewRequestEpoch.current += 1;
       activePreviewRequest.current = false;
       setIsRepositoryContextPreviewLoading(false);
       setRepositoryContextPreview(null);
       setRepositoryContextPreviewError(null);
+      const returnTarget = previewReturnFocus.current;
+      previewReturnFocus.current = null;
+      window.requestAnimationFrame(() => returnTarget?.focus());
     },
     resetWorkflow,
   };
