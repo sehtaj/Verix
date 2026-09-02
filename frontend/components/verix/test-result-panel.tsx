@@ -11,9 +11,11 @@ type TestResultPanelProps = {
   result: RepositoryTestRun;
   error: string | null;
   isActionBusy?: boolean;
+  canUseTarget: boolean;
   onRetry: () => void;
   onGenerate: () => void;
   onInvestigate: () => void;
+  onEditRepository: () => void;
 };
 
 function FailureMasterDetail({ result }: { result: RepositoryTestRun }) {
@@ -39,7 +41,7 @@ function FailureMasterDetail({ result }: { result: RepositoryTestRun }) {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="border border-destructive bg-destructive/5 p-3">
-          <p className="font-heading text-[10px] uppercase text-muted-foreground">Selected Failure</p>
+          <p className="font-heading text-[10px] uppercase text-muted-foreground">Log Summary</p>
           <p className="mt-2 break-words font-heading text-xs text-destructive">{failureSummary}</p>
           <p className="mt-4 text-xs text-muted-foreground">Full bounded output is preserved in the detail panel.</p>
         </aside>
@@ -71,8 +73,7 @@ function FailureMasterDetail({ result }: { result: RepositoryTestRun }) {
   );
 }
 
-export function TestResultPanel({ result, error, isActionBusy = false, onRetry, onGenerate, onInvestigate }: TestResultPanelProps) {
-  const installationStatus = getExecutionStatus(result.installation);
+export function TestResultPanel({ result, error, isActionBusy = false, canUseTarget, onRetry, onGenerate, onInvestigate, onEditRepository }: TestResultPanelProps) {
   const executionStatus = getExecutionStatus(result.execution);
   const setupFailed = !didInstallationSucceed(result.installation);
   const failed = !setupFailed && executionStatus === "failed";
@@ -125,11 +126,21 @@ export function TestResultPanel({ result, error, isActionBusy = false, onRetry, 
       <div className="mt-6 border border-dashed border-outline-variant bg-surface p-4">
         <div className="flex flex-wrap gap-3">
           <Button variant="outline" disabled={isActionBusy} onClick={onRetry}>Retry Existing Tests</Button>
-          <Button variant="outline" disabled={isActionBusy} onClick={onGenerate}><WandSparkles /> Generate Focused Tests</Button>
+          <Button variant="outline" disabled={isActionBusy || !canUseTarget} onClick={onGenerate}><WandSparkles /> Generate Focused Tests</Button>
           {!passed && (
-            <Button disabled={isActionBusy} onClick={onInvestigate}><Search /> Investigate Evidence</Button>
+            <Button disabled={isActionBusy || !canUseTarget} onClick={onInvestigate}><Search /> Investigate Evidence</Button>
+          )}
+          {setupFailed && (
+            <Button variant="outline" disabled={isActionBusy} onClick={onEditRepository}>
+              Change Project Folder
+            </Button>
           )}
         </div>
+        {!canUseTarget && (
+          <p className="mt-4 text-xs text-destructive">
+            Select a verified Python source target before generating or investigating focused evidence.
+          </p>
+        )}
         {!passed && (
           <p className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
             <ShieldAlert className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { AlertTriangle, Check, CheckCircle2, ChevronDown, Clock3, Copy, MinusCircle, TerminalSquare, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ type ExecutionEvidenceProps = {
 };
 
 export function ExecutionEvidence({ title, execution, defaultExpanded = false }: ExecutionEvidenceProps) {
+  const outputId = useId();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const status = getExecutionStatus(execution);
   const presentation = statusPresentation[status];
@@ -53,6 +54,7 @@ export function ExecutionEvidence({ title, execution, defaultExpanded = false }:
           type="button"
           className="flex min-w-0 flex-1 items-center justify-between gap-4 p-2 text-left hover:bg-white/5"
           aria-expanded={expanded}
+          aria-controls={outputId}
           onClick={() => setExpanded((value) => !value)}
         >
           <span className="flex min-w-0 items-center gap-3">
@@ -82,7 +84,12 @@ export function ExecutionEvidence({ title, execution, defaultExpanded = false }:
         </span>
       </div>
       {expanded && (
-        <pre className="max-h-80 overflow-auto whitespace-pre-wrap border-t border-current/30 bg-surface-lowest p-4 font-heading text-xs leading-5 text-foreground">
+        <pre
+          id={outputId}
+          tabIndex={0}
+          aria-label={`${title} output`}
+          className="max-h-80 overflow-auto whitespace-pre-wrap border-t border-current/30 bg-surface-lowest p-4 font-heading text-xs leading-5 text-foreground"
+        >
           <code>{execution.output || "No output was returned."}</code>
         </pre>
       )}
@@ -110,21 +117,28 @@ export function PreparationEvidence({ preparation }: { preparation: RepositoryPr
 }
 
 export function CodeEvidence({ title, code }: { title: string; code: string }) {
+  const codeId = useId();
   const [expanded, setExpanded] = useState(true);
   const { copy, copyStatus } = useCopyText();
 
   return (
     <section className="border border-dashed border-outline-variant bg-surface-lowest">
       <header className="flex flex-col gap-3 border-b border-dashed border-outline-variant px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="flex items-center gap-2 font-heading text-xs uppercase text-primary">
+        <h2 className="flex items-center gap-2 font-heading text-xs uppercase text-primary">
           <TerminalSquare className="size-4" aria-hidden="true" /> {title}
-        </h3>
+        </h2>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="ghost" onClick={() => copy(code)}>
             {copyStatus === "copied" ? <Check aria-hidden="true" /> : copyStatus === "failed" ? <AlertTriangle className="text-destructive" aria-hidden="true" /> : <Copy aria-hidden="true" />}
             {copyStatus === "copied" ? "Copied" : copyStatus === "failed" ? "Copy Failed" : "Copy Code"}
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setExpanded((value) => !value)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-expanded={expanded}
+            aria-controls={codeId}
+            onClick={() => setExpanded((value) => !value)}
+          >
             {expanded ? "Collapse" : "Expand"}
           </Button>
         </div>
@@ -133,8 +147,13 @@ export function CodeEvidence({ title, code }: { title: string; code: string }) {
         {copyStatus === "copied" ? `${title} copied.` : copyStatus === "failed" ? `Could not copy ${title}.` : ""}
       </span>
       {expanded && (
-        <pre className="max-h-[28rem] overflow-auto whitespace-pre p-4 font-heading text-xs leading-5">
-          <code>{code}</code>
+        <pre
+          id={codeId}
+          tabIndex={0}
+          aria-label={title}
+          className="max-h-[28rem] overflow-auto whitespace-pre p-4 font-heading text-xs leading-5"
+        >
+          <code>{code || "No generated code was returned."}</code>
         </pre>
       )}
     </section>

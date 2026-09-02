@@ -24,6 +24,7 @@ type InvestigationPanelProps = {
   isActionBusy?: boolean;
   onRetry: () => void;
   onProposeFix: () => void;
+  onEditRepository: () => void;
 };
 
 const fixEligibleOutcomes = new Set<RepositoryInvestigationRun["investigation"]["outcome"]>([
@@ -47,6 +48,7 @@ export function InvestigationPanel({
   isActionBusy = false,
   onRetry,
   onProposeFix,
+  onEditRepository,
 }: InvestigationPanelProps) {
   const passed = result.investigation.outcome === "tests_passed";
   const failed = failureOutcomes.has(result.investigation.outcome);
@@ -71,7 +73,7 @@ export function InvestigationPanel({
           <div>
             <p className="font-heading text-xs uppercase tracking-[0.12em] text-muted-foreground">Authoritative Outcome</p>
             <h2 className="mt-1 font-heading text-xl font-bold">{getOutcomeLabel(result.investigation.outcome)}</h2>
-            <p className="mt-3 max-w-3xl text-foreground">{result.investigation.explanation}</p>
+            <p className="mt-3 max-w-3xl break-words text-foreground">{result.investigation.explanation}</p>
           </div>
         </div>
       </section>
@@ -110,7 +112,7 @@ export function InvestigationPanel({
 
       <section className="mt-5 border border-dashed border-outline-variant bg-surface-low p-4">
         <h2 className="font-heading text-xs font-bold uppercase text-muted-foreground">Detected Test Plan</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="border border-dashed border-outline-variant p-3 text-sm">
             <span className="text-muted-foreground">Project tool:</span>{" "}
             {result.test_plan.setup.project_tool ?? "Not detected"}
@@ -119,7 +121,39 @@ export function InvestigationPanel({
             <span className="text-muted-foreground">Test runner:</span>{" "}
             {result.test_plan.setup.test_runner ?? result.test_runner}
           </div>
+          <div className="border border-dashed border-outline-variant p-3 text-sm">
+            <span className="text-muted-foreground">Source files:</span>{" "}
+            {result.test_plan.source_paths.length}
+          </div>
+          <div className="border border-dashed border-outline-variant p-3 text-sm">
+            <span className="text-muted-foreground">Test files:</span>{" "}
+            {result.test_plan.test_paths.length}
+          </div>
         </div>
+        {result.test_plan.setup.configuration_files.length > 0 && (
+          <div className="mt-3">
+            <h3 className="font-heading text-[10px] font-bold uppercase text-muted-foreground">Configuration Evidence</h3>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {result.test_plan.setup.configuration_files.map((path) => (
+                <li key={path} className="path-text border border-dashed border-outline-variant px-2 py-1 text-xs">{path}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {result.test_plan.steps.length > 0 && (
+          <ol className="mt-4 space-y-2">
+            {result.test_plan.steps.map((step, index) => (
+              <li key={`${index}:${step.action}`} className="border border-dashed border-outline-variant bg-surface-lowest p-3 text-sm">
+                <p className="font-heading text-xs font-bold text-primary">{index + 1}. {step.action}</p>
+                <p className="mt-1 text-muted-foreground">{step.description}</p>
+                {step.command && <code className="path-text mt-2 block text-xs text-foreground">{step.command}</code>}
+              </li>
+            ))}
+          </ol>
+        )}
+        {result.test_plan.is_truncated && (
+          <p className="mt-3 text-xs text-primary">The bounded repository tree was incomplete, so this plan may omit paths.</p>
+        )}
       </section>
 
       {error && (
@@ -133,6 +167,11 @@ export function InvestigationPanel({
           <Button variant="outline" disabled={isActionBusy} onClick={onRetry}>
             <RefreshCw /> Retry Investigation
           </Button>
+          {result.investigation.outcome === "setup_failed" && (
+            <Button variant="outline" disabled={isActionBusy} onClick={onEditRepository}>
+              Change Project Folder
+            </Button>
+          )}
           {canProposeFix && (
             <Button disabled={isActionBusy} onClick={onProposeFix}>
               <Wrench /> Propose Source Fix

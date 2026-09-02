@@ -17,21 +17,23 @@ import type { RepositoryContext } from "@/types/api";
 type AppHeaderProps = {
   context: RepositoryContext | null;
   selectedTargetPath: string;
+  isBusy: boolean;
   onNewVerification: () => void;
 };
 
-export function AppHeader({ context, selectedTargetPath, onNewVerification }: AppHeaderProps) {
+export function AppHeader({ context, selectedTargetPath, isBusy, onNewVerification }: AppHeaderProps) {
   const repositoryLabel = context
     ? `${context.metadata.owner}/${context.metadata.name}`
     : "No Repository Selected";
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center border-b border-dashed border-outline-variant bg-surface-low px-4 md:px-8">
+    <header className="app-header fixed inset-x-0 top-0 z-50 flex items-center border-b border-dashed border-outline-variant bg-surface-low px-4 md:px-8">
       <div className="flex min-w-0 flex-1 items-center gap-4 xl:gap-8">
         <button
           type="button"
           className="shrink-0 font-heading text-2xl font-bold tracking-[-0.04em] text-primary hover:text-primary-strong"
           aria-label="Start a new verification"
+          disabled={isBusy}
           onClick={onNewVerification}
         >
           Verix
@@ -90,7 +92,7 @@ export function AppHeader({ context, selectedTargetPath, onNewVerification }: Ap
       </div>
 
       <div className="flex shrink-0 items-center gap-2 md:gap-3">
-        <Button size="sm" variant="outline" onClick={onNewVerification}>
+        <Button size="sm" variant="outline" disabled={isBusy} onClick={onNewVerification}>
           <Plus data-icon="inline-start" />
           <span className="hidden sm:inline">New Verification</span>
           <span className="sm:hidden">New</span>

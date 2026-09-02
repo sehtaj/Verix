@@ -1,7 +1,11 @@
-import { Check, LoaderCircle, X } from "lucide-react";
+import { AlertTriangle, Check, LoaderCircle, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { getWorkflowSteps, type WorkflowStepEvidence } from "@/lib/repository-results";
+import {
+  getWorkflowSteps,
+  getWorkflowStepStatusLabel,
+  type WorkflowStepEvidence,
+} from "@/lib/repository-results";
 import type { WorkflowScreen } from "@/types/workflow";
 
 export function WorkflowStepper({ screen, evidence }: { screen: WorkflowScreen; evidence: WorkflowStepEvidence }) {
@@ -10,7 +14,7 @@ export function WorkflowStepper({ screen, evidence }: { screen: WorkflowScreen; 
   return (
     <nav
       aria-label="Verification progress"
-      className="flex shrink-0 items-center overflow-x-auto border-b border-dashed border-outline-variant bg-background px-4 py-4 md:px-8"
+      className="flex w-full min-w-0 max-w-full shrink-0 items-center overflow-x-auto border-b border-dashed border-outline-variant bg-background px-4 py-4 md:px-8"
     >
       <ol className="flex min-w-max items-center gap-2">
         {steps.map((step, index) => {
@@ -24,7 +28,8 @@ export function WorkflowStepper({ screen, evidence }: { screen: WorkflowScreen; 
                   step.status === "complete" && "text-success",
                   (step.status === "active" || step.status === "running") && "text-primary",
                   step.status === "failed" && "text-destructive",
-                  step.status === "upcoming" && "text-muted-foreground/55",
+                  step.status === "warning" && "text-primary",
+                  step.status === "upcoming" && "text-muted-foreground/80",
                 )}
               >
                 <span
@@ -33,6 +38,7 @@ export function WorkflowStepper({ screen, evidence }: { screen: WorkflowScreen; 
                     step.status === "complete" && "border-success",
                     (step.status === "active" || step.status === "running") && "border-primary",
                     step.status === "failed" && "border-destructive",
+                    step.status === "warning" && "border-primary",
                     step.status === "upcoming" && "border-outline-variant",
                   )}
                 >
@@ -42,11 +48,14 @@ export function WorkflowStepper({ screen, evidence }: { screen: WorkflowScreen; 
                     <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
                   ) : step.status === "failed" ? (
                     <X className="size-3.5" aria-hidden="true" />
+                  ) : step.status === "warning" ? (
+                    <AlertTriangle className="size-3.5" aria-hidden="true" />
                   ) : (
                     index + 1
                   )}
                 </span>
                 <span>{step.label}</span>
+                <span className="step-status">Status: {getWorkflowStepStatusLabel(step.status)}</span>
               </div>
               {index < steps.length - 1 && (
                 <span className="h-px w-8 bg-outline-variant" aria-hidden="true" />

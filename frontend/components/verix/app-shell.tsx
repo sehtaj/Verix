@@ -53,16 +53,21 @@ export function AppShell({
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
       <a
         href="#main-content"
         className="fixed left-3 top-3 z-[100] -translate-y-20 border border-primary bg-background px-4 py-2 font-heading text-xs text-primary focus-visible:translate-y-0"
       >
         Skip to Main Content
       </a>
-      <AppHeader context={context} selectedTargetPath={selectedTargetPath} onNewVerification={onNewVerification} />
+      <AppHeader
+        context={context}
+        selectedTargetPath={selectedTargetPath}
+        isBusy={isBusy}
+        onNewVerification={onNewVerification}
+      />
 
-      <div className="viewport-height flex overflow-hidden pt-16">
+      <div className="app-viewport viewport-height flex overflow-hidden">
         <RepositorySidebar {...sidebarProps} id="repository-context-desktop" className="hidden w-64 shrink-0 border-r border-dashed border-outline-variant lg:flex" />
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -70,13 +75,14 @@ export function AppShell({
           <div className="flex flex-col gap-2 border-b border-dashed border-outline-variant px-4 py-2 sm:flex-row sm:items-center sm:justify-between lg:hidden">
             <Dialog.Root open={mobileContextOpen} onOpenChange={setMobileContextOpen}>
               <Dialog.Trigger
+                id="repository-context-trigger"
                 render={<Button variant="outline" size="sm" />}
               >
                 <Menu /> Repository Context
               </Dialog.Trigger>
               <Dialog.Portal>
                 <Dialog.Backdrop className="fixed inset-0 z-[60] bg-black/70" />
-                <Dialog.Viewport className="fixed inset-0 z-[61] flex justify-start overscroll-contain">
+                <Dialog.Viewport className="dialog-safe fixed inset-0 z-[61] flex justify-start overscroll-contain">
                   <Dialog.Popup className="h-full w-[min(88vw,320px)] border-r border-primary bg-surface-low outline-none focus-visible:ring-2 focus-visible:ring-primary">
                     <Dialog.Title className="sr-only">Repository Context</Dialog.Title>
                     <Dialog.Description className="sr-only">
@@ -98,7 +104,10 @@ export function AppShell({
                       }}
                       onPreviewContext={() => {
                         setMobileContextOpen(false);
-                        onPreviewContext();
+                        window.requestAnimationFrame(() => {
+                          document.getElementById("repository-context-trigger")?.focus();
+                          onPreviewContext();
+                        });
                       }}
                     />
                   </Dialog.Popup>

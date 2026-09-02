@@ -25,7 +25,11 @@ type FixReviewPanelProps = {
 
 function DiffView({ patch }: { patch: string }) {
   return (
-    <pre className="max-h-[34rem] overflow-auto border border-outline-variant bg-surface-lowest p-0 font-heading text-xs leading-5">
+    <pre
+      tabIndex={0}
+      aria-label="Proposed unified diff"
+      className="max-h-[34rem] overflow-auto border border-outline-variant bg-surface-lowest p-0 font-heading text-xs leading-5"
+    >
       <code className="block min-w-max">
         {patch.split("\n").map((line, index) => {
           const addition = line.startsWith("+") && !line.startsWith("+++");
@@ -76,7 +80,7 @@ export function FixReviewPanel({
       <section className="mt-6 border border-primary bg-surface">
         <div className="border-b border-dashed border-outline-variant bg-surface-high p-4">
           <p className="font-heading text-xs uppercase tracking-[0.12em] text-muted-foreground">Proposal Summary</p>
-          <h2 className="mt-2 text-lg font-bold text-foreground">{proposal.summary}</h2>
+          <h2 className="mt-2 break-words text-lg font-bold text-foreground">{proposal.summary}</h2>
         </div>
         <dl className="grid gap-px bg-outline-variant sm:grid-cols-2">
           <div className="min-w-0 bg-surface-low p-3">
@@ -155,7 +159,7 @@ export function FixReviewPanel({
       <Dialog.Root open={confirmationOpen} onOpenChange={setConfirmationOpen}>
         <Dialog.Portal>
           <Dialog.Backdrop className="fixed inset-0 z-[80] bg-black/80" />
-          <Dialog.Viewport className="fixed inset-0 z-[81] grid place-items-center overflow-y-auto overscroll-contain p-4">
+          <Dialog.Viewport className="dialog-safe fixed inset-0 z-[81] grid place-items-center overflow-y-auto overscroll-contain p-4">
             <Dialog.Popup className="w-full max-w-xl border border-primary bg-surface outline-none focus-visible:ring-2 focus-visible:ring-primary">
               <header className="flex items-start justify-between gap-4 border-b border-dashed border-outline-variant p-5">
                 <div>

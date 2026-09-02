@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 import { AppShell } from "@/components/verix/app-shell";
 import { Button } from "@/components/ui/button";
 import { ContextPreviewDialog } from "@/components/verix/context-preview-dialog";
@@ -44,19 +46,50 @@ const screenAnnouncements: Record<WorkflowScreen, string> = {
   showing_verification_result: "Disposable verification evidence is ready for review.",
 };
 
+const focusOnArrivalScreens = new Set<WorkflowScreen>([
+  "loading_context",
+  "ready_existing_tests",
+  "ready_generate_tests",
+  "running_existing_tests",
+  "showing_test_result",
+  "generating_tests",
+  "showing_generation_result",
+  "investigating",
+  "showing_investigation",
+  "proposing_fix",
+  "reviewing_fix",
+  "verifying_fix",
+  "showing_verification_result",
+]);
+
 export default function Home() {
   const workflow = useRepositoryWorkflow();
+  const previousScreen = useRef<WorkflowScreen>(workflow.screen);
+
+  useEffect(() => {
+    if (
+      previousScreen.current !== workflow.screen &&
+      focusOnArrivalScreens.has(workflow.screen)
+    ) {
+      window.requestAnimationFrame(() => {
+        document.getElementById("main-content")?.focus({ preventScroll: false });
+      });
+    }
+    previousScreen.current = workflow.screen;
+  }, [workflow.screen]);
 
   function renderPreservedEvidence() {
     if (workflow.activeRequestOrigin === "showing_test_result" && workflow.repositoryTestRun) {
       return (
         <TestResultPanel
           result={workflow.repositoryTestRun}
-          error={workflow.repositoryTestError ?? workflow.repositoryInvestigationError}
+          error={workflow.repositoryTestError ?? workflow.repositoryGenerationError ?? workflow.repositoryInvestigationError}
           isActionBusy
+          canUseTarget={Boolean(workflow.selectedTargetPath)}
           onRetry={workflow.handleRepositoryTestRun}
           onGenerate={workflow.handleRepositoryGeneration}
           onInvestigate={workflow.handleRepositoryInvestigation}
+          onEditRepository={workflow.handleEditRepositoryTargeting}
         />
       );
     }
@@ -79,6 +112,7 @@ export default function Home() {
           isActionBusy
           onRetry={workflow.handleRepositoryInvestigation}
           onProposeFix={workflow.handleRepositoryFixProposal}
+          onEditRepository={workflow.handleEditRepositoryTargeting}
         />
       );
     }
@@ -132,6 +166,7 @@ export default function Home() {
           isActionBusy
           onRetry={workflow.handleRepositoryInvestigation}
           onProposeFix={workflow.handleRepositoryFixProposal}
+          onEditRepository={workflow.handleEditRepositoryTargeting}
         />
       );
     }
@@ -150,11 +185,13 @@ export default function Home() {
       return (
         <TestResultPanel
           result={workflow.repositoryTestRun}
-          error={workflow.repositoryTestError ?? workflow.repositoryInvestigationError}
+          error={workflow.repositoryTestError ?? workflow.repositoryGenerationError ?? workflow.repositoryInvestigationError}
           isActionBusy
+          canUseTarget={Boolean(workflow.selectedTargetPath)}
           onRetry={workflow.handleRepositoryTestRun}
           onGenerate={workflow.handleRepositoryGeneration}
           onInvestigate={workflow.handleRepositoryInvestigation}
+          onEditRepository={workflow.handleEditRepositoryTargeting}
         />
       );
     }
@@ -170,6 +207,7 @@ export default function Home() {
         repositorySubdirectory={workflow.repositorySubdirectory}
         isLoading={workflow.isRepositoryLoading}
         error={workflow.repositoryError}
+        errorField={workflow.repositoryErrorField}
         onRepositoryUrlChange={workflow.setRepositoryUrl}
         onRepositoryReferenceChange={workflow.setRepositoryReference}
         onRepositorySubdirectoryChange={workflow.setRepositorySubdirectory}
@@ -201,16 +239,19 @@ export default function Home() {
         onPreview={workflow.handleRepositoryContextPreview}
         onSelectTarget={workflow.handleRepositoryTargetChange}
         priorTestRun={workflow.repositoryTestRun}
+        onEditRepository={workflow.handleEditRepositoryTargeting}
       />
     );
   } else if (workflow.screen === "showing_test_result" && workflow.repositoryTestRun) {
     content = (
       <TestResultPanel
         result={workflow.repositoryTestRun}
-        error={workflow.repositoryTestError ?? workflow.repositoryInvestigationError}
+        error={workflow.repositoryTestError ?? workflow.repositoryGenerationError ?? workflow.repositoryInvestigationError}
+        canUseTarget={Boolean(workflow.selectedTargetPath)}
         onRetry={workflow.handleRepositoryTestRun}
         onGenerate={workflow.handleRepositoryGeneration}
         onInvestigate={workflow.handleRepositoryInvestigation}
+        onEditRepository={workflow.handleEditRepositoryTargeting}
       />
     );
   } else if (
@@ -235,6 +276,7 @@ export default function Home() {
         error={workflow.repositoryInvestigationError ?? workflow.repositoryFixProposalError}
         onRetry={workflow.handleRepositoryInvestigation}
         onProposeFix={workflow.handleRepositoryFixProposal}
+        onEditRepository={workflow.handleEditRepositoryTargeting}
       />
     );
   } else if (workflow.screen === "reviewing_fix" && workflow.repositoryFixProposalRun) {
@@ -271,19 +313,23 @@ export default function Home() {
     );
   }
 
+  const latestGeneratedEvidence =
+    workflow.repositoryFixProposalRun ??
+    workflow.repositoryInvestigationRun ??
+    workflow.repositoryGenerationRun;
+
   return (
     <AppShell
       screen={workflow.screen}
       stepEvidence={{
-        existingStatus: workflow.repositoryGenerationRun
-          ? getExecutionStatus(workflow.repositoryGenerationRun.existing_execution)
+        existingStatus: latestGeneratedEvidence
+          ? getExecutionStatus(latestGeneratedEvidence.existing_execution)
           : workflow.repositoryTestRun
             ? getExecutionStatus(workflow.repositoryTestRun.execution)
             : undefined,
-        generatedStatus: workflow.repositoryGenerationRun
-          ? getExecutionStatus(workflow.repositoryGenerationRun.generated_execution)
+        generatedStatus: latestGeneratedEvidence
+          ? getExecutionStatus(latestGeneratedEvidence.generated_execution)
           : undefined,
-        investigationOutcome: workflow.repositoryInvestigationRun?.investigation.outcome,
         verificationStatus: workflow.repositoryFixVerificationRun
           ? getExecutionStatus(workflow.repositoryFixVerificationRun.execution)
           : undefined,

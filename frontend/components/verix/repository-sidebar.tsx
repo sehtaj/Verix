@@ -53,9 +53,9 @@ export function RepositorySidebar({
       aria-label="Repository context"
     >
       <div className="flex h-[53px] shrink-0 items-center justify-between border-b border-dashed border-outline-variant px-4">
-        <h2 className="font-heading text-xs font-bold uppercase tracking-[0.1em]">
+        <p className="font-heading text-xs font-bold uppercase tracking-[0.1em]">
           Repository Context
-        </h2>
+        </p>
         <RefreshCw className={cn("size-4 text-muted-foreground", (isBusy || isPreviewLoading) && "animate-spin")} aria-hidden="true" />
       </div>
 
@@ -98,9 +98,10 @@ export function RepositorySidebar({
                         type="button"
                         disabled={isBusy}
                         aria-pressed={isSelected}
+                        aria-label={`${isSelected ? "Selected source target" : "Select source target"}: ${entry.path}`}
                         onClick={() => onSelectTarget(entry.path)}
                         className={cn(
-                          "flex w-full items-center gap-2 border border-transparent px-2 py-1.5 text-left font-heading text-xs text-foreground hover:border-outline-variant hover:bg-surface",
+                          "flex min-h-8 w-full items-center gap-2 border border-transparent px-2 py-1.5 text-left font-heading text-xs text-foreground hover:border-outline-variant hover:bg-surface",
                           isSelected && "border-primary bg-surface-high text-primary",
                         )}
                       >

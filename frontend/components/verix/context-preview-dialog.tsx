@@ -22,7 +22,11 @@ function PreviewFile({ path, content }: { path: string; content: string }) {
         <FileCode2 className="size-4" aria-hidden="true" />
         <span className="path-text">{path}</span>
       </h3>
-      <pre className="max-h-72 overflow-auto whitespace-pre p-4 font-heading text-xs leading-5 text-foreground">
+      <pre
+        tabIndex={0}
+        aria-label={`Contents of ${path}`}
+        className="max-h-72 overflow-auto whitespace-pre p-4 font-heading text-xs leading-5 text-foreground"
+      >
         <code>{content}</code>
       </pre>
     </section>
@@ -41,7 +45,7 @@ export function ContextPreviewDialog({
     <Dialog.Root open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-[70] bg-black/80" />
-        <Dialog.Viewport className="fixed inset-0 z-[71] grid place-items-center overflow-y-auto overscroll-contain p-4">
+        <Dialog.Viewport className="dialog-safe fixed inset-0 z-[71] grid place-items-center overflow-y-auto overscroll-contain p-4">
           <Dialog.Popup className="my-8 w-full max-w-5xl border border-outline bg-surface outline-none focus-visible:ring-2 focus-visible:ring-primary">
             <header className="flex items-start justify-between gap-4 border-b border-dashed border-outline-variant p-5">
               <div>
@@ -60,7 +64,11 @@ export function ContextPreviewDialog({
               </Dialog.Close>
             </header>
 
-            <div className="max-h-[75vh] space-y-4 overflow-y-auto p-5">
+            <div
+              tabIndex={0}
+              aria-label="Context preview content"
+              className="max-h-[75vh] space-y-4 overflow-y-auto p-5"
+            >
               {isLoading && (
                 <div className="flex min-h-64 flex-col items-center justify-center gap-4 text-center">
                   <LoaderCircle className="size-8 animate-spin text-primary" aria-hidden="true" />
@@ -76,6 +84,9 @@ export function ContextPreviewDialog({
 
               {preview && (
                 <>
+                  <p className="sr-only" role="status" aria-live="polite">
+                    Context preview ready with {numberFormatter.format(preview.total_bytes)} bytes.
+                  </p>
                   <dl className="grid gap-px border border-outline-variant bg-outline-variant sm:grid-cols-3">
                     <div className="bg-surface-low p-3">
                       <dt className="font-heading text-[10px] uppercase text-muted-foreground">Revision</dt>

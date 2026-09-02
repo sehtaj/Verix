@@ -12,6 +12,7 @@ type NewVerificationFormProps = {
   repositorySubdirectory: string;
   isLoading: boolean;
   error: string | null;
+  errorField: "url" | "reference" | "subdirectory" | null;
   onRepositoryUrlChange: (value: string) => void;
   onRepositoryReferenceChange: (value: string) => void;
   onRepositorySubdirectoryChange: (value: string) => void;
@@ -24,14 +25,28 @@ export function NewVerificationForm({
   repositorySubdirectory,
   isLoading,
   error,
+  errorField,
   onRepositoryUrlChange,
   onRepositoryReferenceChange,
   onRepositorySubdirectoryChange,
   onSubmit,
 }: NewVerificationFormProps) {
   useEffect(() => {
-    if (error && !isLoading) document.getElementById("repository-url")?.focus();
-  }, [error, isLoading]);
+    if (!error || isLoading) return;
+    const fieldId = {
+      url: "repository-url",
+      reference: "repository-reference",
+      subdirectory: "repository-subdirectory",
+    }[errorField ?? "url"];
+    document.getElementById(errorField ? fieldId : "repository-form-error")?.focus();
+  }, [error, errorField, isLoading]);
+
+  const inlineError = (field: NonNullable<NewVerificationFormProps["errorField"]>) =>
+    error && errorField === field ? (
+      <p id={`repository-${field}-error`} className="mt-2 text-sm text-destructive" role="alert">
+        {error}
+      </p>
+    ) : null;
 
   return (
     <section className="mx-auto w-full max-w-4xl">
@@ -86,15 +101,17 @@ export function NewVerificationForm({
                 name="repository-url"
                 type="url"
                 required
-                autoComplete="url"
-                aria-invalid={Boolean(error)}
-                aria-describedby={error ? "repository-url-hint repository-form-error" : "repository-url-hint"}
+                autoComplete="off"
+                spellCheck={false}
+                aria-invalid={errorField === "url"}
+                aria-describedby={errorField === "url" ? "repository-url-hint repository-url-error" : "repository-url-hint"}
                 value={repositoryUrl}
                 onChange={(event) => onRepositoryUrlChange(event.target.value)}
                 placeholder="https://github.com/owner/repository…"
                 disabled={isLoading}
               />
               <p id="repository-url-hint" className="mt-2 text-sm text-muted-foreground">Public GitHub repositories are currently supported.</p>
+              {inlineError("url")}
             </div>
 
             <div className="border border-dashed border-outline-variant bg-surface-lowest p-4">
@@ -106,12 +123,15 @@ export function NewVerificationForm({
                 name="repository-reference"
                 autoComplete="off"
                 spellCheck={false}
+                aria-invalid={errorField === "reference"}
+                aria-describedby={errorField === "reference" ? "repository-reference-hint repository-reference-error" : "repository-reference-hint"}
                 value={repositoryReference}
                 onChange={(event) => onRepositoryReferenceChange(event.target.value)}
                 placeholder="Default branch…"
                 disabled={isLoading}
               />
-              <p className="mt-2 text-sm text-muted-foreground">Enter a branch, tag, or full commit SHA, or leave blank.</p>
+              <p id="repository-reference-hint" className="mt-2 text-sm text-muted-foreground">Enter a branch, tag, or full commit SHA, or leave blank.</p>
+              {inlineError("reference")}
             </div>
 
             <div className="border border-dashed border-outline-variant bg-surface-lowest p-4">
@@ -123,16 +143,19 @@ export function NewVerificationForm({
                 name="repository-subdirectory"
                 autoComplete="off"
                 spellCheck={false}
+                aria-invalid={errorField === "subdirectory"}
+                aria-describedby={errorField === "subdirectory" ? "repository-subdirectory-hint repository-subdirectory-error" : "repository-subdirectory-hint"}
                 value={repositorySubdirectory}
                 onChange={(event) => onRepositorySubdirectoryChange(event.target.value)}
                 placeholder="packages/payments…"
                 disabled={isLoading}
               />
-              <p className="mt-2 text-sm text-muted-foreground">Use a repository-relative folder for a nested Python project.</p>
+              <p id="repository-subdirectory-hint" className="mt-2 text-sm text-muted-foreground">Use a repository-relative folder for a nested Python project.</p>
+              {inlineError("subdirectory")}
             </div>
 
-            {error && (
-              <p id="repository-form-error" className="border border-destructive bg-destructive/10 p-3 text-sm text-destructive" role="alert">
+            {error && errorField === null && (
+              <p id="repository-form-error" tabIndex={-1} className="border border-destructive bg-destructive/10 p-3 text-sm text-destructive" role="alert">
                 {error}
               </p>
             )}

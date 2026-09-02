@@ -16,6 +16,7 @@ type ReadyWorkspaceProps = {
   onGenerate: () => void;
   onPreview: () => void;
   onSelectTarget: (path: string) => void;
+  onEditRepository: () => void;
   priorTestRun?: RepositoryTestRun | null;
 };
 
@@ -66,6 +67,7 @@ export function ReadyWorkspace({
   onGenerate,
   onPreview,
   onSelectTarget,
+  onEditRepository,
   priorTestRun = null,
 }: ReadyWorkspaceProps) {
   const [targetPickerOpen, setTargetPickerOpen] = useState(false);
@@ -90,7 +92,10 @@ export function ReadyWorkspace({
 
       {!hasTarget && (
         <div className="mb-5 border border-destructive bg-destructive/5 p-4 text-destructive" role="alert">
-          No usable Python source target was found. Choose another repository or project folder.
+          <p>No usable Python source target was found. Choose another repository or project folder.</p>
+          <Button className="mt-3" variant="outline" onClick={onEditRepository}>
+            Edit Repository Details
+          </Button>
         </div>
       )}
 
@@ -116,6 +121,11 @@ export function ReadyWorkspace({
             <p className="mt-3 text-sm text-muted-foreground">
               Generated tests execute only in an isolated temporary Docker workspace. Repository code is not run on the host.
             </p>
+            <dl className="mt-4 grid gap-2 text-xs">
+              <div><dt className="inline text-muted-foreground">Project:</dt> <dd className="path-text inline">{context.subdirectory ?? "Repository root"}</dd></div>
+              <div><dt className="inline text-muted-foreground">Tool:</dt> <dd className="inline">{context.test_plan.setup.project_tool ?? "Not detected"}</dd></div>
+              <div><dt className="inline text-muted-foreground">Runner:</dt> <dd className="inline">{context.test_plan.setup.test_runner ?? "pytest"}</dd></div>
+            </dl>
           </div>
         </section>
       )}
@@ -125,7 +135,7 @@ export function ReadyWorkspace({
       <section className="mt-5 border border-primary/70 bg-surface-low p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
           {isExisting && (
-            <Button size="lg" onClick={onRunExisting}>
+            <Button size="lg" disabled={!hasTarget} onClick={onRunExisting}>
               <span aria-hidden="true">▷</span> Run Existing Tests
             </Button>
           )}
@@ -136,13 +146,20 @@ export function ReadyWorkspace({
             <Eye /> Preview Context
           </Button>
           {!isExisting && (
-            <Button size="lg" variant="outline" onClick={() => setTargetPickerOpen((open) => !open)}>
+            <Button
+              size="lg"
+              variant="outline"
+              disabled={context.test_plan.source_paths.length === 0}
+              aria-expanded={targetPickerOpen}
+              aria-controls="target-picker"
+              onClick={() => setTargetPickerOpen((open) => !open)}
+            >
               <ListTree /> Choose Another Target
             </Button>
           )}
         </div>
         {!isExisting && targetPickerOpen && (
-          <div className="mt-4 border-t border-dashed border-outline-variant pt-4">
+          <div id="target-picker" className="mt-4 border-t border-dashed border-outline-variant pt-4">
             <label htmlFor="target-selector" className="mb-2 block font-heading text-xs font-bold uppercase text-muted-foreground">
               Verified Python Source Target
             </label>

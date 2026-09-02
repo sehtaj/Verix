@@ -3,7 +3,6 @@
 @import "@fontsource/courier-prime/400.css";
 @import "@fontsource/courier-prime/700.css";
 @import "tailwindcss";
-@import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
@@ -89,6 +88,7 @@
 
 html {
   min-width: 320px;
+  overflow-x: hidden;
   background: var(--background);
   font-family: "Courier Prime", Courier, "Courier New", monospace;
 }
@@ -133,6 +133,10 @@ summary:focus-visible,
 ::selection {
   background: var(--primary);
   color: var(--primary-foreground);
+}
+
+[role="alert"] {
+  overflow-wrap: anywhere;
 }
 
 ::-webkit-scrollbar {
@@ -184,6 +188,25 @@ summary:focus-visible,
   height: 100vh;
 }
 
+.app-header {
+  height: calc(4rem + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+.app-viewport {
+  padding-top: calc(4rem + env(safe-area-inset-top));
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.dialog-safe {
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
+}
+
 @supports (height: 100dvh) {
   .viewport-height {
     height: 100dvh;
@@ -194,6 +217,19 @@ summary:focus-visible,
   text-wrap: balance;
 }
 
+.step-status {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -202,5 +238,17 @@ summary:focus-visible,
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (pointer: coarse) {
+  button,
+  summary,
+  select {
+    min-height: 44px;
+  }
+
+  button[aria-label] {
+    min-width: 44px;
   }
 }
