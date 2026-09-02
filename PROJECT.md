@@ -80,7 +80,8 @@ Given code or a repository, Verix will eventually:
 - Next.js
 - React
 - TypeScript
-- CSS
+- Tailwind CSS
+- Base UI primitives
 
 ## Backend
 
@@ -325,6 +326,10 @@ Features:
 - Returns dependency-installation and patched-suite results, clearly stating that the patch was applied only in a disposable workspace and GitHub was unchanged.
 - Adds deterministic tests for patch validation, temporary-workspace cleanup, execution coordination, and safe API errors.
 - Adds an explicit frontend action to approve and verify a reviewed proposal, then displays the patched-suite result separately.
+- Replaces the earlier prototype page with a responsive repository-verification workspace derived from the approved Stitch command-center design.
+- Preserves separate existing, generated, investigation, proposal, and disposable-verification evidence across follow-up actions and safe recovery states.
+- Validates successful API payloads and pinned target facts at the frontend boundary before displaying them.
+- Supports keyboard navigation, visible focus, semantic forms and dialogs, live status announcements, reduced motion, coarse-pointer targets, and desktop/tablet/mobile layouts.
 
 V1.0 does not push a commit, open a pull request, modify a local checkout, retry automatically, or claim that a passing test suite proves the patch is correct. The developer still reviews the diff and decides whether to make a real repository change.
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Verix is a small client-server application. Version 1.0 can generate and safely run pytest tests for pasted Python code. For public Python repositories, it supports a validated branch, tag, or commit reference; a validated project subdirectory; a verified source-target choice; a bounded Gemini-context preview; safe Docker execution; a bounded investigation explanation; a reviewed source-fix proposal; and explicit temporary verification of that proposal.
+Verix is a small client-server application. The current browser interface is a responsive verification workspace for public Python repositories. It supports a validated branch, tag, or commit reference; a validated project subdirectory; a backend-verified source-target choice; a bounded Gemini-context preview; safe Docker execution; a bounded investigation explanation; a reviewed source-fix proposal; and explicit temporary verification of that proposal. The backend also retains the earlier pasted-code generation route for API clients.
 
 ## Current architecture
 
@@ -127,20 +127,42 @@ verix/
 │   ├── .env.example
 │   └── .gitignore
 ├── frontend/
+│   ├── FLOWS.md
+│   ├── PLAN.md
 │   ├── app/
 │   │   ├── globals.css
 │   │   ├── layout.tsx
 │   │   └── page.tsx
 │   ├── components/
-│   │   ├── pasted-code-generator.tsx
-│   │   ├── repository-execution-results.tsx
-│   │   └── repository-inspection.tsx
+│   │   ├── ui/
+│   │   │   ├── button.tsx
+│   │   │   └── input.tsx
+│   │   └── verix/
+│   │       ├── app-header.tsx
+│   │       ├── app-shell.tsx
+│   │       ├── context-preview-dialog.tsx
+│   │       ├── execution-evidence.tsx
+│   │       ├── fix-review-panel.tsx
+│   │       ├── generation-result-panel.tsx
+│   │       ├── investigation-panel.tsx
+│   │       ├── new-verification-form.tsx
+│   │       ├── ready-workspace.tsx
+│   │       ├── repository-sidebar.tsx
+│   │       ├── test-result-panel.tsx
+│   │       ├── verification-result-panel.tsx
+│   │       ├── workflow-loading-panel.tsx
+│   │       └── workflow-stepper.tsx
 │   ├── hooks/
 │   │   └── use-repository-workflow.ts
 │   ├── lib/
-│   │   └── api.ts
+│   │   ├── api.ts
+│   │   ├── api.test.mjs
+│   │   ├── repository-results.ts
+│   │   ├── repository-results.test.mjs
+│   │   └── utils.ts
 │   ├── types/
-│   │   └── api.ts
+│   │   ├── api.ts
+│   │   └── workflow.ts
 │   ├── package.json
 │   ├── package-lock.json
 │   ├── next-env.d.ts
@@ -238,29 +260,31 @@ Dependency installation is intentionally less restrictive because package downlo
 
 ## Frontend responsibilities
 
-`frontend/app/page.tsx` composes the pasted-code, repository execution, repository generation, V0.9 investigation, V0.10 targeting, V0.11 fix-proposal, and V1.0 approved-fix-verification workflows. Its supporting modules are:
+`frontend/app/page.tsx` composes one responsive repository-verification workspace. It selects the presentational screen for context loading, test execution, focused generation, investigation, fix review, and disposable verification. Its supporting modules are:
 
-- `frontend/hooks/use-repository-workflow.ts`, which owns repository form state and user actions.
-- `frontend/lib/api.ts`, which owns typed backend HTTP calls and API-error extraction.
-- `frontend/types/api.ts`, which defines response types shared by the hook and components.
-- `frontend/components/repository-inspection.tsx`, which renders metadata, the bounded tree, and the test plan.
-- `frontend/components/repository-execution-results.tsx`, which renders existing and generated execution results separately.
-- `frontend/components/pasted-code-generator.tsx`, which owns the pasted-code form, request state, and results.
+- `frontend/hooks/use-repository-workflow.ts`, which owns browser-held workflow state, user actions, stale-request rejection, recovery, and reset confirmation.
+- `frontend/lib/api.ts`, which owns typed backend HTTP calls, safe API-error extraction, and runtime validation of success payloads and pinned targeting facts.
+- `frontend/lib/repository-results.ts`, which contains deterministic display-only mappings for execution status, workflow steps, and recovery screens.
+- `frontend/types/api.ts` and `frontend/types/workflow.ts`, which define API evidence and interface-state contracts.
+- `frontend/components/verix/`, whose typed components render the shell, repository tree, forms, dialogs, loading states, separate execution evidence, investigation, patch review, and verification result.
+- `frontend/components/ui/`, which contains the small shared button and input primitives.
+- `frontend/FLOWS.md` and `frontend/PLAN.md`, which document the intended user journeys and implementation boundaries without introducing release labels.
 
 Together they provide:
 
 - Public GitHub URL validation and repository-context loading.
-- Metadata, bounded file-tree, and test-plan rendering.
-- An explicit action to prepare and run the repository's existing tests.
-- An explicit action to send focused repository contents to Gemini, then prepare and run original and generated tests separately.
-- An explicit **Investigate repository** action that performs one full V0.9 pass and displays a classified outcome with its Gemini explanation.
-- A review-only source-fix proposal followed by an explicit **Approve and verify in temporary workspace** action that reports the patched-suite result separately.
+- Repository/revision/project-folder targeting, a bounded file tree, and a backend-verified source-target selector.
+- An explicit **Run Existing Tests** action that prepares the repository and runs its configured suite.
+- An explicit **Generate Focused Tests** action that sends only bounded selected context to Gemini, then runs existing and generated suites separately.
+- An explicit **Investigate Evidence** action that performs one bounded pass and displays the deterministic outcome with its Gemini explanation.
+- A review-only source-fix proposal followed by an explicit **Approve & Verify Temporarily** confirmation flow that reports the patched-suite result separately.
 - Optional reference and project-folder inputs, a verified source-target selector, and a preview of the bounded Gemini context before repository generation.
-- Preparation, dependency installation, skipped, failure, timeout, generated-code, and test-output states.
-- Pasted Python input with Gemini generation and Docker execution results.
+- Preparation, dependency installation, no-test, skipped, pass, failure, timeout, generated-code, and test-output states.
+- Preserved evidence while a follow-up request runs, inline recovery errors, and confirmation before clearing active or unreviewed work.
+- Desktop sidebar, tablet/mobile repository drawer, keyboard focus management, live status announcements, reduced-motion handling, touch targets, and long-content containment.
 - Requests to `NEXT_PUBLIC_API_URL`, defaulting to `http://localhost:8000`.
 
-`frontend/app/globals.css` contains the page styling. The split keeps request/state logic separate from result rendering without introducing a state library or additional framework.
+The current browser interface intentionally focuses on the repository flow. The backend still exposes `POST /generate` for pasted-code API clients, but the redesigned page does not render the old pasted-code form. `frontend/app/globals.css` contains the Stitch-derived terminal command-center tokens and responsive styling. The split keeps API transport, workflow coordination, deterministic display logic, and presentation separate without introducing a state library.
 
 ## Main request flows
 
@@ -276,7 +300,7 @@ The older focused repository endpoints remain available, but the frontend uses t
 
 ### Repository test run
 
-1. The user explicitly selects **Run repository tests**.
+1. The user explicitly selects **Run Existing Tests**.
 2. `POST /repository/test-run` resolves and downloads the repository's default-branch archive.
 3. The preparer safely extracts and validates it in a temporary directory.
 4. The runner creates a writable disposable copy and a `.verix-venv` when dependencies are declared.
@@ -287,7 +311,7 @@ The older focused repository endpoints remain available, but the frontend uses t
 
 ### Repository-aware generation
 
-1. The user explicitly selects **Generate repository tests**.
+1. The user explicitly selects **Generate Focused Tests**.
 2. `POST /repository/generate` uses the selected SHA, optional project directory, and verified source target to fetch only the selected source, related tests, and configuration contents.
 3. The prompt builder marks repository data as untrusted evidence and asks Gemini for one focused pytest module.
 4. The backend validates the generated module's content, size, and Python syntax.
@@ -302,7 +326,7 @@ Ordinary test assertion failures return HTTP 200 with a non-zero return code. In
 
 ### Repository investigation
 
-1. The user explicitly selects **Investigate repository**.
+1. The user explicitly selects **Investigate Evidence** or **Investigate Complete Evidence** after collecting test evidence.
 2. `POST /repository/investigate` fetches the planned generation context, resolving the default branch to one immutable commit SHA.
 3. Gemini generates one focused pytest module; Verix validates it before any repository setup.
 4. The archive for that same SHA is safely prepared; Docker uses the selected project folder as its workspace when one was chosen, and both suites run separately.
