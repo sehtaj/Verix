@@ -105,14 +105,24 @@ The release is complete only when every item below has current evidence:
   `499 != 0` at the exact threshold. This is not accepted as isolated release
   evidence because Docker Desktop was not running; the Docker API socket was
   absent. The fixtures still require a runner-image execution check.
+- 2026-09-16: Added a machine-readable example catalog pinned to clean local
+  commit `20419fc368506f086eb6a973dfa43a1e5f67af7c`. It records safe project and
+  target paths, explicit specification sources, expected outcomes, required
+  normal/boundary/invalid/error cases, black-box/gray-box strategies,
+  assumptions, untested areas, and per-file SHA-256 integrity hashes. Four
+  deterministic tests validate that data without executing fixture code.
+- 2026-09-16 publication check: `https://github.com/sehtaj/Verix` returned HTTP
+  200 without authentication, confirming the repository is public. The pinned
+  fixture commit has not been pushed, so the catalog honestly reports
+  `pending_approved_push`; the examples are not yet publicly runnable.
 
 ### Exact next action
 
-After approval to commit the deterministic fixture files, use that commit's
-40-character SHA as their immutable public revision in a machine-readable
-catalog. Add deterministic catalog/integrity checks, then run the examples in
-the Verix Docker runner when Docker Desktop is available. Keep pushing or other
-external publication as a later approval-gated action.
+Commit the pinned catalog and integrity checks. Then add expected-behavior
+provenance and explicit AI-assumption fields to generated-test evidence using
+the catalog vocabulary as the contract. Docker verification remains pending
+until Docker Desktop is available; pushing the pinned examples remains an
+explicitly approval-gated action.
 
 ### Decisions that will require the user later
 

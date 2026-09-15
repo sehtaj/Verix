@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "repository_url": "https://github.com/sehtaj/Verix",
+  "revision": "20419fc368506f086eb6a973dfa43a1e5f67af7c",
+  "publication_status": "pending_approved_push",
+  "examples": [
+    {
+      "id": "refund-boundary",
+      "name": "Refund boundary missed by passing suite",
+      "subdirectory": "examples/python/refund_boundary",
+      "target_path": "examples/python/refund_boundary/refunds.py",
+      "behavior_source": {
+        "kind": "explicit_specification",
+        "path": "examples/python/refund_boundary/README.md"
+      },
+      "known_bug": "A purchase exactly 30 days old receives a half refund instead of a full refund.",
+      "expected_existing_outcome": "passed",
+      "expected_exposing_outcome": "failed",
+      "required_test_cases": [
+        {"category": "normal", "strategy": "black_box", "behavior": "A recent purchase receives a full refund."},
+        {"category": "boundary", "strategy": "gray_box", "behavior": "Day 30 remains inside the inclusive full-refund window."},
+        {"category": "invalid_input", "strategy": "black_box", "behavior": "Non-positive amounts and negative ages are rejected."},
+        {"category": "error_handling", "strategy": "black_box", "behavior": "Non-integer and boolean inputs raise TypeError."}
+      ],
+      "assumptions": [],
+      "untested": ["currency conversion", "time zones", "concurrent updates", "persistence"],
+      "files": {
+        "README.md": "6b301afd88ba813074f15a79963f5f7695d15a72370a7502878c650ee977d3ab",
+        "refunds.py": "e8a00e9bfc32060d314ea115a29b1f371f645af02e8a1af37858266ff37c94c0",
+        "setup.cfg": "d057028f6553817cd96edb521a3bde90395766a3ef62028be66dde0e80493a58",
+        "tests/test_refunds.py": "8024c7932131cfc8d2134610f4a173237a3d43349175da80e4b8514843909962"
+      }
+    },
+    {
+      "id": "shipping-threshold",
+      "name": "Shipping threshold exposed by existing suite",
+      "subdirectory": "examples/python/shipping_threshold",
+      "target_path": "examples/python/shipping_threshold/shipping.py",
+      "behavior_source": {
+        "kind": "explicit_specification",
+        "path": "examples/python/shipping_threshold/README.md"
+      },
+      "known_bug": "An order exactly at 5,000 cents pays shipping instead of receiving free shipping.",
+      "expected_existing_outcome": "failed",
+      "expected_exposing_outcome": "failed",
+      "required_test_cases": [
+        {"category": "normal", "strategy": "black_box", "behavior": "An order below the threshold pays the standard fee."},
+        {"category": "boundary", "strategy": "gray_box", "behavior": "Totals 4,999, 5,000, and 5,001 distinguish both threshold branches."},
+        {"category": "invalid_input", "strategy": "black_box", "behavior": "A negative total is rejected."},
+        {"category": "error_handling", "strategy": "black_box", "behavior": "Non-integer and boolean totals raise TypeError."}
+      ],
+      "assumptions": [],
+      "untested": ["taxes", "discounts", "currencies", "shipment destinations"],
+      "files": {
+        "README.md": "8f70bcb946785ded9c2733291b8fd3e07822d1bcb96d80b200444ea285ead2f9",
+        "setup.cfg": "d057028f6553817cd96edb521a3bde90395766a3ef62028be66dde0e80493a58",
+        "shipping.py": "db140137aa4e31c1ee4b08b58e068afb6eb2c1259d71db9805bd47445918e21c",
+        "tests/test_shipping.py": "8691e6c9959cf0bee0f9333873e84a45722aafb7ce9e72a1bec2f191d587dbd9"
+      }
+    },
+    {
+      "id": "inventory-reservation",
+      "name": "Inventory boundary with no existing tests",
+      "subdirectory": "examples/python/inventory_reservation",
+      "target_path": "examples/python/inventory_reservation/inventory.py",
+      "behavior_source": {
+        "kind": "explicit_specification",
+        "path": "examples/python/inventory_reservation/README.md"
+      },
+      "known_bug": "A request exactly equal to available stock is rejected.",
+      "expected_existing_outcome": "no_tests",
+      "expected_exposing_outcome": "failed",
+      "required_test_cases": [
+        {"category": "normal", "strategy": "black_box", "behavior": "A request smaller than available stock succeeds."},
+        {"category": "boundary", "strategy": "gray_box", "behavior": "A request exactly equal to available stock succeeds."},
+        {"category": "invalid_input", "strategy": "black_box", "behavior": "Negative stock, over-reservation, and non-positive requests are rejected."},
+        {"category": "error_handling", "strategy": "black_box", "behavior": "Non-integer and boolean values raise TypeError."}
+      ],
+      "assumptions": [],
+      "untested": ["concurrent reservations", "persistence", "replenishment", "inventory identifiers"],
+      "files": {
+        "README.md": "f024dc82e96daa2a7563abde3ce2e351786c3e99dbe40807efc5c81bf42b5cdb",
+        "inventory.py": "e89869466bd0e3e877049af26c97d156525600915159e4ef23fbbd638998988c",
+        "setup.cfg": "d057028f6553817cd96edb521a3bde90395766a3ef62028be66dde0e80493a58"
+      }
+    }
+  ]
+}
