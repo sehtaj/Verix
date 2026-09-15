@@ -39,6 +39,7 @@ export type RepositoryGenerationSelection = {
   target_path: string | null;
   related_test_paths: string[];
   configuration_paths: string[];
+  documentation_paths: string[];
   is_truncated: boolean;
 };
 
@@ -67,6 +68,7 @@ export type RepositoryGenerationContextPreview = {
   selection: RepositoryGenerationSelection;
   source_file: RepositoryFileContent | null;
   test_files: RepositoryFileContent[];
+  documentation_files: RepositoryFileContent[];
   configuration_files: RepositoryConfigurationFile[];
   skipped_paths: string[];
   total_bytes: number;

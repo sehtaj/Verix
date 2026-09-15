@@ -99,12 +99,18 @@ export function ContextPreviewDialog({
                     <div className="bg-surface-low p-3">
                       <dt className="font-heading text-[10px] uppercase text-muted-foreground">Files</dt>
                       <dd className="mt-1 text-sm">
-                        {(preview.source_file ? 1 : 0) + preview.test_files.length + preview.configuration_files.length}
+                        {(preview.source_file ? 1 : 0) + preview.documentation_files.length + preview.test_files.length + preview.configuration_files.length}
                       </dd>
                     </div>
                   </dl>
 
                   {preview.source_file && <PreviewFile {...preview.source_file} />}
+                  {preview.documentation_files.length > 0 && (
+                    <section className="space-y-3">
+                      <h3 className="font-heading text-xs uppercase text-muted-foreground">Behavior documentation</h3>
+                      {preview.documentation_files.map((file) => <PreviewFile key={file.path} {...file} />)}
+                    </section>
+                  )}
                   {preview.test_files.map((file) => <PreviewFile key={file.path} {...file} />)}
                   {preview.configuration_files.map((file) => <PreviewFile key={file.path} {...file} />)}
 

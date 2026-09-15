@@ -175,7 +175,7 @@
 ## Recruiter-ready Python release
 
 - [x] Verify an approved patch against both the exact generated exposing test and the existing repository suite
-- [ ] Create deterministic Python demonstration repositories with pinned revisions, documented contracts, and known defects
+- [x] Create deterministic Python demonstration repositories with pinned revisions, documented contracts, and known defects
 - [ ] Record expected-behavior sources and explicit AI assumptions in generated-test evidence
 - [ ] Classify generated tests as normal, boundary, invalid-input, or error-handling cases using black-box and gray-box design
 - [ ] Measure branch coverage for the existing suite and the incremental coverage from generated tests
@@ -192,7 +192,7 @@
 
 ## Current Task
 
-**Create deterministic Python demonstration repositories with pinned revisions, documented contracts, and known defects**
+**Record expected-behavior sources and explicit AI assumptions in generated-test evidence**
 
 ---
 

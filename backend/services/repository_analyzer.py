@@ -14,6 +14,12 @@ from models.repository import (
 
 MAX_GENERATION_TEST_PATHS = 3
 MAX_GENERATION_CONFIGURATION_PATHS = 3
+MAX_GENERATION_DOCUMENTATION_PATHS = 1
+DOCUMENTATION_FILENAMES = (
+    "README.md",
+    "README.rst",
+    "README.txt",
+)
 CONFIGURATION_FILENAMES = (
     "pyproject.toml",
     "requirements.txt",
@@ -112,6 +118,7 @@ class RepositoryAnalyzer:
         paths: RepositoryPaths,
         configuration_files: list[RepositoryConfigurationFile],
         target_path: str | None = None,
+        documentation_paths: list[str] | None = None,
     ) -> RepositoryGenerationSelection:
         """Select one source target and a small, deterministic context set."""
         if target_path is not None:
@@ -171,7 +178,32 @@ class RepositoryAnalyzer:
             related_test_paths=related_test_paths,
             configuration_paths=configuration_paths,
             is_truncated=paths.is_truncated,
+            documentation_paths=(documentation_paths or [])[
+                :MAX_GENERATION_DOCUMENTATION_PATHS
+            ],
         )
+
+    @classmethod
+    def select_behavior_documentation(
+        cls,
+        tree: RepositoryTree,
+        subdirectory: str | None = None,
+    ) -> list[str]:
+        """Select a project-root README as bounded behavioral evidence."""
+        paths_by_name = {
+            cls._project_relative_path(entry.path, subdirectory).lower(): entry.path
+            for entry in tree.entries
+            if entry.type == "blob"
+            and (
+                subdirectory is None
+                or entry.path.startswith(f"{subdirectory}/")
+            )
+        }
+        return [
+            paths_by_name[filename.lower()]
+            for filename in DOCUMENTATION_FILENAMES
+            if filename.lower() in paths_by_name
+        ][:MAX_GENERATION_DOCUMENTATION_PATHS]
 
     @staticmethod
     def is_direct_test_for_source(test_path: str, source_path: str) -> bool:

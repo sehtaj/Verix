@@ -200,6 +200,7 @@ function isSelection(value: unknown): value is RepositoryContext["generation_sel
     isNullableString(value.target_path) &&
     isStringArray(value.related_test_paths) &&
     isStringArray(value.configuration_paths) &&
+    isStringArray(value.documentation_paths) &&
     typeof value.is_truncated === "boolean"
   );
 }
@@ -261,6 +262,8 @@ function isContextPreview(value: unknown): value is RepositoryGenerationContextP
     (value.source_file === null || isFileContent(value.source_file)) &&
     Array.isArray(value.test_files) &&
     value.test_files.every(isFileContent) &&
+    Array.isArray(value.documentation_files) &&
+    value.documentation_files.every(isFileContent) &&
     Array.isArray(value.configuration_files) &&
     value.configuration_files.every(isConfigurationFile) &&
     isStringArray(value.skipped_paths) &&
@@ -274,6 +277,7 @@ function isContextPreview(value: unknown): value is RepositoryGenerationContextP
     preview.source_file !== null &&
     preview.selection.target_path === preview.source_file.path &&
     preview.test_files.every((file) => preview.selection.related_test_paths.includes(file.path)) &&
+    preview.documentation_files.every((file) => preview.selection.documentation_paths.includes(file.path)) &&
     preview.configuration_files.every((file) => preview.selection.configuration_paths.includes(file.path))
   );
 }

@@ -61,11 +61,17 @@ The release is complete only when every item below has current evidence:
 - The verification screen shows existing-suite and exposing-test evidence
   separately. A successful verification requires the exposing test to pass and
   permits the existing side only to pass or honestly report no collected tests.
+- Three deterministic Python fixtures and a machine-readable integrity catalog
+  now define explicit contracts, known defects, expected outcomes, test-design
+  categories, assumptions, and immutable local revisions.
+- Project-root README behavior documentation is now selected deterministically,
+  fetched under the existing per-file and total-context limits, included in the
+  untrusted Gemini context, and shown distinctly in the context preview.
 
 ### Proposed work for this goal
 
-- Add deterministic demonstration fixtures and a repeatable LLM evaluation
-  harness instead of relying on changing third-party repositories.
+- Add a repeatable LLM evaluation harness instead of relying on changing
+  third-party repositories.
 - Add expected-behavior provenance, test-intent classification, branch coverage
   deltas, and an honest evidence summary to backend contracts and the frontend.
 - Add small, cohesive public-demo controls without introducing authentication,
@@ -115,14 +121,22 @@ The release is complete only when every item below has current evidence:
   200 without authentication, confirming the repository is public. The pinned
   fixture commit has not been pushed, so the catalog honestly reports
   `pending_approved_push`; the examples are not yet publicly runnable.
+- 2026-09-16: Added bounded behavior-documentation context. A selected
+  project-root README now flows through deterministic path selection, size-
+  limited GitHub fetching, prompt construction, API presentation and runtime
+  validation, and the frontend preview. Repository text remains untrusted data.
+- 2026-09-16 verification evidence: 161 backend unit tests passed; 15 frontend
+  tests passed; backend compilation and the Next.js production build with
+  TypeScript validation passed.
 
 ### Exact next action
 
-Commit the pinned catalog and integrity checks. Then add expected-behavior
-provenance and explicit AI-assumption fields to generated-test evidence using
-the catalog vocabulary as the contract. Docker verification remains pending
-until Docker Desktop is available; pushing the pinned examples remains an
-explicitly approval-gated action.
+Define and validate a structured generated-test report that cites bounded
+expected-behavior sources, separates explicit evidence from AI assumptions,
+and records normal, boundary, invalid-input, and error-handling intent with
+black-box or gray-box strategy. Docker verification remains pending until
+Docker Desktop is available; pushing the pinned examples remains an explicitly
+approval-gated action.
 
 ### Decisions that will require the user later
 

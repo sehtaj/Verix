@@ -44,6 +44,7 @@ function repositoryContext(overrides = {}) {
       target_path: "src/example.py",
       related_test_paths: [],
       configuration_paths: [],
+      documentation_paths: [],
       is_truncated: false,
     },
     ...overrides,
@@ -135,6 +136,7 @@ test("rejects a context whose selected target is not in the verified source path
         target_path: "src/other.py",
         related_test_paths: [],
         configuration_paths: [],
+        documentation_paths: [],
         is_truncated: false,
       },
     }));

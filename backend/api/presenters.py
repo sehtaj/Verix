@@ -90,6 +90,7 @@ def present_generation_selection(
         "target_path": selection.target_path,
         "related_test_paths": selection.related_test_paths,
         "configuration_paths": selection.configuration_paths,
+        "documentation_paths": selection.documentation_paths,
         "is_truncated": selection.is_truncated,
     }
 
@@ -120,6 +121,10 @@ def present_repository_generation_context(
         ),
         "test_files": [
             present_repository_file_content(file) for file in context.test_files
+        ],
+        "documentation_files": [
+            present_repository_file_content(file)
+            for file in context.documentation_files
         ],
         "configuration_files": present_configuration_files(
             context.configuration_files

@@ -29,6 +29,7 @@ class RepositoryPromptTests(unittest.TestCase):
             related_test_paths=["tests/test_calculator.py"],
             configuration_paths=["pyproject.toml"],
             is_truncated=True,
+            documentation_paths=["README.md"],
         )
         source = RepositoryFileContent(
             path="src/sample/calculator.py",
@@ -44,6 +45,11 @@ class RepositoryPromptTests(unittest.TestCase):
             path="pyproject.toml",
             content="[tool.pytest.ini_options]\naddopts = '-q'\n",
         )
+        documentation = RepositoryFileContent(
+            path="README.md",
+            content="Division by zero raises ZeroDivisionError.\n",
+            byte_count=48,
+        )
         return RepositoryGenerationContext(
             selection=selection,
             source_file=source,
@@ -51,6 +57,7 @@ class RepositoryPromptTests(unittest.TestCase):
             configuration_files=[configuration],
             skipped_paths=["tests/test_large.py"],
             total_bytes=114,
+            documentation_files=[documentation],
         )
 
     def test_prompt_contains_rules_and_exact_repository_context(self) -> None:
@@ -73,6 +80,15 @@ class RepositoryPromptTests(unittest.TestCase):
         self.assertEqual(
             [file["path"] for file in payload["existing_tests"]],
             ["tests/test_calculator.py"],
+        )
+        self.assertEqual(
+            payload["behavior_documentation"],
+            [
+                {
+                    "path": "README.md",
+                    "content": "Division by zero raises ZeroDivisionError.\n",
+                }
+            ],
         )
         self.assertEqual(
             [file["path"] for file in payload["configuration"]],

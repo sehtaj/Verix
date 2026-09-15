@@ -194,6 +194,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
                 "target_path": "src/sample.py",
                 "related_test_paths": ["tests/test_sample.py"],
                 "configuration_paths": ["requirements.txt"],
+                "documentation_paths": [],
                 "is_truncated": False,
             },
         )
@@ -444,6 +445,22 @@ class GitHubRepositoryContextTests(unittest.TestCase):
         )
         self.assertTrue(selection.is_truncated)
 
+    def test_behavior_documentation_selects_only_the_project_root_readme(self) -> None:
+        tree = RepositoryTree(
+            entries=[
+                RepositoryTreeEntry("packages/sample/README.md", "blob"),
+                RepositoryTreeEntry("packages/sample/docs/README.md", "blob"),
+                RepositoryTreeEntry("README.md", "blob"),
+            ],
+            is_truncated=False,
+        )
+
+        selection = GitHubRepositoryService._select_behavior_documentation(
+            tree, "packages/sample"
+        )
+
+        self.assertEqual(selection, ["packages/sample/README.md"])
+
     def test_generation_selection_handles_missing_source_candidates(self) -> None:
         selection = GitHubRepositoryService._select_generation_context(
             RepositoryPaths(
@@ -516,6 +533,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             ],
             configuration_paths=["packages/sample/pyproject.toml"],
             is_truncated=False,
+            documentation_paths=["packages/sample/README.md"],
         )
         repository_context = SimpleNamespace(
             generation_selection=selection,
@@ -529,6 +547,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
         )
         contents = {
             "packages/sample/src/sample.py": b"def add(a, b):\n    return a + b\n",
+            "packages/sample/README.md": b"Addition returns the numeric sum.\n",
             "packages/sample/tests/test_sample.py": b"def test_add():\n    assert True\n",
             "packages/sample/tests/test_other.py": b"def test_other():\n    assert True\n",
         }
@@ -569,6 +588,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             [call.args[2] for call in fetch_file.call_args_list],
             [
                 "packages/sample/src/sample.py",
+                "packages/sample/README.md",
                 "packages/sample/tests/test_sample.py",
                 "packages/sample/tests/test_other.py",
             ],
@@ -577,6 +597,10 @@ class GitHubRepositoryContextTests(unittest.TestCase):
         self.assertEqual(context.revision, REPOSITORY_REVISION)
         self.assertEqual(context.subdirectory, "packages/sample")
         self.assertIn("return a + b", context.source_file.content)
+        self.assertEqual(
+            [file.path for file in context.documentation_files],
+            ["packages/sample/README.md"],
+        )
         self.assertEqual(
             [file.path for file in context.test_files],
             [
@@ -606,6 +630,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             ],
             configuration_paths=["pyproject.toml"],
             is_truncated=False,
+            documentation_paths=["README.md"],
         )
         repository_context = SimpleNamespace(
             generation_selection=selection,
@@ -615,6 +640,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
         )
         contents = {
             "src/sample.py": b"12345",
+            "README.md": b"1234",
             "tests/test_small.py": b"123456",
             "tests/test_large.py": b"12345678901",
             "tests/test_extra.py": b"12345",
@@ -633,7 +659,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             patch.object(service, "fetch_context", return_value=repository_context),
             patch.object(service, "_fetch_file_data", side_effect=file_data),
             patch("services.github_service.MAX_GENERATION_FILE_BYTES", 10),
-            patch("services.github_service.MAX_GENERATION_CONTEXT_BYTES", 15),
+            patch("services.github_service.MAX_GENERATION_CONTEXT_BYTES", 18),
         ):
             context = service.fetch_generation_context(REPOSITORY_URL)
 
@@ -646,10 +672,14 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             ["tests/test_large.py", "tests/test_extra.py"],
         )
         self.assertEqual(
+            [file.path for file in context.documentation_files],
+            ["README.md"],
+        )
+        self.assertEqual(
             [file.path for file in context.configuration_files],
             ["pyproject.toml"],
         )
-        self.assertEqual(context.total_bytes, 14)
+        self.assertEqual(context.total_bytes, 18)
 
     def test_generation_context_rejects_an_oversized_source_target(self) -> None:
         service = GitHubRepositoryService()

@@ -29,6 +29,10 @@ def build_repository_test_prompt(context: RepositoryGenerationContext) -> str:
             {"path": file.path, "content": file.content}
             for file in context.test_files
         ],
+        "behavior_documentation": [
+            {"path": file.path, "content": file.content}
+            for file in context.documentation_files
+        ],
         "configuration": [
             {"path": file.path, "content": file.content}
             for file in context.configuration_files
@@ -54,6 +58,7 @@ Rules:
 - Return only Python test code. Do not use Markdown fences or add an explanation.
 - Test the target file only. Do not modify source code or generate a patch.
 - Follow import style, fixtures, naming, and pytest conventions shown by the provided evidence.
+- Treat explicit behavior contracts in the provided documentation as expected-behavior evidence, while reporting no certainty beyond what the evidence supports.
 - Cover useful normal behavior, boundary cases, and error behavior justified by the source.
 - Avoid duplicating behavior already covered by the existing tests.
 - Keep tests deterministic. Do not make real network calls or depend on real time, randomness, or external services.
