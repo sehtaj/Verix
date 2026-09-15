@@ -201,10 +201,16 @@ def present_repository_fix_verification(
             "timed_out": verification.installation.timed_out,
             "skipped": verification.installation.skipped,
         },
-        "execution": {
-            "return_code": verification.execution.return_code,
-            "output": verification.execution.output,
-            "timed_out": verification.execution.timed_out,
-            "skipped": verification.execution.skipped,
+        "existing_execution": {
+            "return_code": verification.existing_execution.return_code,
+            "output": verification.existing_execution.output,
+            "timed_out": verification.existing_execution.timed_out,
+            "skipped": verification.existing_execution.skipped,
+        },
+        "exposing_execution": {
+            "return_code": verification.exposing_execution.return_code,
+            "output": verification.exposing_execution.output,
+            "timed_out": verification.exposing_execution.timed_out,
+            "skipped": verification.exposing_execution.skipped,
         },
     }

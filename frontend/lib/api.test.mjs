@@ -81,20 +81,24 @@ test("rejects verification payloads that omit required safety facts", async () =
       approved: true,
       test_runner: "pytest",
       installation: { return_code: 0, output: "", timed_out: false, skipped: true },
-      execution: { return_code: 0, output: "passed", timed_out: false, skipped: false },
+      existing_execution: { return_code: 0, output: "passed", timed_out: false, skipped: false },
+      exposing_execution: { return_code: 0, output: "passed", timed_out: false, skipped: false },
     });
 
   try {
     await assert.rejects(
       verifyRepositoryFix("https://github.com/acme/payments", {
-        revision: "abc",
-        subdirectory: null,
-        target_path: "src/example.py",
-        summary: "Example",
-        patch: "--- a/src/example.py\n+++ b/src/example.py",
-        validated: true,
-        approval_required: true,
-        applied: false,
+        generated_tests: "def test_exposing_behavior():\n    assert True\n",
+        proposal: {
+          revision: "abc",
+          subdirectory: null,
+          target_path: "src/example.py",
+          summary: "Example",
+          patch: "--- a/src/example.py\n+++ b/src/example.py",
+          validated: true,
+          approval_required: true,
+          applied: false,
+        },
       }),
       /Unable to verify the approved patch/,
     );
@@ -231,6 +235,50 @@ test("rejects malformed execution and preparation facts", async () => {
       runRepositoryTests("https://github.com/owner/project"),
       /Unable to run repository tests/,
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("sends the exact displayed exposing test and accepts separate verification evidence", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody;
+  const generatedTests = "def test_exposing_behavior():\n    assert add(2, 3) == 5\n";
+  globalThis.fetch = async (_url, options) => {
+    requestBody = JSON.parse(options.body);
+    return jsonResponse({
+      revision,
+      subdirectory: null,
+      target_path: "src/example.py",
+      approved: true,
+      applied_in_disposable_workspace: true,
+      github_changed: false,
+      test_runner: "pytest",
+      installation: { return_code: 0, output: "installed", timed_out: false, skipped: false },
+      existing_execution: { return_code: 0, output: "8 passed", timed_out: false, skipped: false },
+      exposing_execution: { return_code: 0, output: "1 passed", timed_out: false, skipped: false },
+    });
+  };
+
+  try {
+    const result = await verifyRepositoryFix("https://github.com/owner/project", {
+      generated_tests: generatedTests,
+      proposal: {
+        revision,
+        subdirectory: null,
+        target_path: "src/example.py",
+        summary: "Correct addition.",
+        patch: "--- a/src/example.py\n+++ b/src/example.py",
+        validated: true,
+        approval_required: true,
+        applied: false,
+      },
+    });
+
+    assert.equal(requestBody.generated_tests, generatedTests);
+    assert.equal(requestBody.approved, true);
+    assert.equal(result.existing_execution.return_code, 0);
+    assert.equal(result.exposing_execution.return_code, 0);
   } finally {
     globalThis.fetch = originalFetch;
   }

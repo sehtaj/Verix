@@ -14,10 +14,12 @@ BACKEND_DIRECTORY = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIRECTORY))
 
+from models.execution import RepositoryTestResults
 from models.execution import TestExecutionResult as ExecutionResult
 from models.fix_proposal import RepositoryApprovedFix
 import main as main_module
 from services.repository_preparer import PreparedRepository
+from services.repository_workspace import GeneratedTestsValidationError
 from workflows.repository_fix_application import AppliedRepositoryFixWorkspace
 from workflows.repository_fix_application import RepositoryFixApplicationWorkflow
 from workflows.repository_fix_verification import (
@@ -43,9 +45,9 @@ class RepositoryFixVerificationWorkflowTests(unittest.TestCase):
             test_runner.install_repository_dependencies.return_value = (
                 ExecutionResult(return_code=0, output="Installed dependencies.")
             )
-            test_runner.run_repository_tests.return_value = ExecutionResult(
-                return_code=0,
-                output="1 passed\n",
+            test_runner.run_repository_test_sets.return_value = RepositoryTestResults(
+                existing=ExecutionResult(return_code=0, output="8 passed\n"),
+                generated=ExecutionResult(return_code=0, output="1 passed\n"),
             )
             workflow = RepositoryFixVerificationWorkflow(
                 application_workflow,
@@ -65,12 +67,18 @@ class RepositoryFixVerificationWorkflowTests(unittest.TestCase):
             test_runner.install_repository_dependencies.assert_called_once_with(
                 Path(workspace)
             )
-            test_runner.run_repository_tests.assert_called_once_with(
+            test_runner.validate_generated_tests.assert_called_once_with(
+                approved_fix.generated_tests
+            )
+            test_runner.run_repository_test_sets.assert_called_once_with(
                 Path(workspace),
+                "src/sample.py",
+                approved_fix.generated_tests,
                 "pytest",
             )
             self.assertEqual(result.test_runner, "pytest")
-            self.assertEqual(result.execution.return_code, 0)
+            self.assertEqual(result.existing_execution.return_code, 0)
+            self.assertEqual(result.exposing_execution.return_code, 0)
 
     def test_skips_patched_tests_when_dependency_installation_fails(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:
@@ -99,10 +107,35 @@ class RepositoryFixVerificationWorkflowTests(unittest.TestCase):
                 self.make_approved_fix(),
             )
 
-            test_runner.run_repository_tests.assert_not_called()
-            self.assertTrue(result.execution.skipped)
-            self.assertIsNone(result.execution.return_code)
-            self.assertIn("dependency installation failed", result.execution.output)
+            test_runner.run_repository_test_sets.assert_not_called()
+            self.assertTrue(result.existing_execution.skipped)
+            self.assertTrue(result.exposing_execution.skipped)
+            self.assertIsNone(result.existing_execution.return_code)
+            self.assertIsNone(result.exposing_execution.return_code)
+            self.assertIn(
+                "dependency installation failed",
+                result.existing_execution.output,
+            )
+
+    def test_rejects_invalid_exposing_tests_before_repository_application(self) -> None:
+        application_workflow = Mock()
+        test_runner = Mock()
+        test_runner.validate_generated_tests.side_effect = GeneratedTestsValidationError(
+            "Generated tests are not valid Python."
+        )
+        workflow = RepositoryFixVerificationWorkflow(
+            application_workflow,
+            test_runner,
+        )
+        approved_fix = self.make_approved_fix()
+
+        with self.assertRaisesRegex(
+            GeneratedTestsValidationError,
+            "not valid Python",
+        ):
+            workflow.run("https://github.com/example/sample", approved_fix)
+
+        application_workflow.apply.assert_not_called()
 
     def test_runs_the_patched_copy_and_removes_it_after_execution(self) -> None:
         """Exercise application and verification together without Docker or GitHub."""
@@ -137,16 +170,32 @@ class RepositoryFixVerificationWorkflowTests(unittest.TestCase):
             )
             observed_workspaces: list[Path] = []
 
-            def run_patched_tests(workspace: Path, runner: str) -> ExecutionResult:
+            generated_tests = (
+                "from src.sample import add\n\n"
+                "def test_addition_contract():\n"
+                "    assert add(2, 3) == 5\n"
+            )
+
+            def run_patched_tests(
+                workspace: Path,
+                target_path: str,
+                tests: str,
+                runner: str,
+            ) -> RepositoryTestResults:
                 observed_workspaces.append(workspace)
                 self.assertEqual(runner, "pytest")
+                self.assertEqual(target_path, "src/sample.py")
+                self.assertEqual(tests, generated_tests)
                 self.assertEqual(
                     (workspace / "src" / "sample.py").read_text(encoding="utf-8"),
                     "def add(a, b):\n    return a + b\n",
                 )
-                return ExecutionResult(return_code=0, output="1 passed\n")
+                return RepositoryTestResults(
+                    existing=ExecutionResult(return_code=0, output="8 passed\n"),
+                    generated=ExecutionResult(return_code=0, output="1 passed\n"),
+                )
 
-            test_runner.run_repository_tests.side_effect = run_patched_tests
+            test_runner.run_repository_test_sets.side_effect = run_patched_tests
             workflow = RepositoryFixVerificationWorkflow(
                 RepositoryFixApplicationWorkflow(preparer),
                 test_runner,
@@ -159,10 +208,12 @@ class RepositoryFixVerificationWorkflowTests(unittest.TestCase):
                     subdirectory=None,
                     target_path="src/sample.py",
                     patch=patch_text,
+                    generated_tests=generated_tests,
                 ),
             )
 
-            self.assertEqual(result.execution.return_code, 0)
+            self.assertEqual(result.existing_execution.return_code, 0)
+            self.assertEqual(result.exposing_execution.return_code, 0)
             self.assertEqual(source_path.read_text(encoding="utf-8"), source)
             self.assertEqual(len(observed_workspaces), 1)
             self.assertFalse(observed_workspaces[0].exists())
@@ -174,6 +225,7 @@ class RepositoryFixVerificationWorkflowTests(unittest.TestCase):
             subdirectory=None,
             target_path="src/sample.py",
             patch="--- a/src/sample.py\n+++ b/src/sample.py\n",
+            generated_tests="def test_exposing_behavior():\n    assert True\n",
         )
 
 
@@ -185,13 +237,15 @@ class RepositoryFixVerificationApiTests(unittest.TestCase):
         workflow.run.return_value = RepositoryFixVerificationRun(
             test_runner="pytest",
             installation=ExecutionResult(return_code=0, output="Installed."),
-            execution=ExecutionResult(return_code=0, output="1 passed\n"),
+            existing_execution=ExecutionResult(return_code=0, output="8 passed\n"),
+            exposing_execution=ExecutionResult(return_code=0, output="1 passed\n"),
         )
         request = main_module.RepositoryFixApplyRequest(
             url="https://github.com/example/sample",
             revision="a" * 40,
             target_path="src/sample.py",
             patch="--- a/src/sample.py\n+++ b/src/sample.py\n",
+            generated_tests="def test_exposing_behavior():\n    assert True\n",
             approved=True,
         )
 
@@ -208,7 +262,9 @@ class RepositoryFixVerificationApiTests(unittest.TestCase):
         self.assertTrue(response["approved"])
         self.assertTrue(response["applied_in_disposable_workspace"])
         self.assertFalse(response["github_changed"])
-        self.assertEqual(response["execution"]["return_code"], 0)
+        self.assertEqual(approved_fix.generated_tests, request.generated_tests)
+        self.assertEqual(response["existing_execution"]["return_code"], 0)
+        self.assertEqual(response["exposing_execution"]["return_code"], 0)
 
     def test_endpoint_maps_execution_failures_to_safe_statuses(self) -> None:
         request = main_module.RepositoryFixApplyRequest(
@@ -216,6 +272,7 @@ class RepositoryFixVerificationApiTests(unittest.TestCase):
             revision="a" * 40,
             target_path="src/sample.py",
             patch="--- a/src/sample.py\n+++ b/src/sample.py\n",
+            generated_tests="def test_exposing_behavior():\n    assert True\n",
             approved=True,
         )
 

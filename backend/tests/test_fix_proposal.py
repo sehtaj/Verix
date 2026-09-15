@@ -99,6 +99,7 @@ class RepositoryFixProposalTests(unittest.TestCase):
             subdirectory="packages/sample",
             target_path="packages/sample/src/sample.py",
             patch="--- a/packages/sample/src/sample.py\n+++ b/packages/sample/src/sample.py\n",
+            generated_tests="def test_exposing_behavior():\n    assert True\n",
         )
 
         self.assertTrue(approved_fix.approved)
@@ -113,6 +114,7 @@ class RepositoryFixProposalTests(unittest.TestCase):
             "subdirectory": None,
             "target_path": "src/sample.py",
             "patch": "--- a/src/sample.py\n+++ b/src/sample.py\n",
+            "generated_tests": "def test_exposing_behavior():\n    assert True\n",
         }
 
         invalid_overrides = (
@@ -120,6 +122,7 @@ class RepositoryFixProposalTests(unittest.TestCase):
             {"target_path": "README.md"},
             {"patch": ""},
             {"patch": "patch\x00hidden"},
+            {"generated_tests": ""},
         )
 
         for override in invalid_overrides:

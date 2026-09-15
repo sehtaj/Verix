@@ -14,7 +14,8 @@ class RepositoryFixVerificationRun:
 
     test_runner: str
     installation: TestExecutionResult
-    execution: TestExecutionResult
+    existing_execution: TestExecutionResult
+    exposing_execution: TestExecutionResult
 
 
 class RepositoryFixVerificationWorkflow:
@@ -33,7 +34,8 @@ class RepositoryFixVerificationWorkflow:
         repository_url: str,
         approved_fix: RepositoryApprovedFix,
     ) -> RepositoryFixVerificationRun:
-        """Run configured tests only while the patched copy exists temporarily."""
+        """Run existing and exposing tests while the patched copy exists."""
+        self.test_runner.validate_generated_tests(approved_fix.generated_tests)
         with self.application_workflow.apply(
             repository_url,
             approved_fix,
@@ -45,22 +47,35 @@ class RepositoryFixVerificationWorkflow:
                 applied_workspace.path
             )
             if installation.return_code != 0 or installation.timed_out:
-                execution = TestExecutionResult(
+                existing_execution = TestExecutionResult(
                     return_code=None,
                     output=(
-                        "Patched repository tests were not run because dependency "
+                        "Existing repository tests were not run because dependency "
+                        "installation failed."
+                    ),
+                    skipped=True,
+                )
+                exposing_execution = TestExecutionResult(
+                    return_code=None,
+                    output=(
+                        "The generated exposing test was not run because dependency "
                         "installation failed."
                     ),
                     skipped=True,
                 )
             else:
-                execution = self.test_runner.run_repository_tests(
+                test_results = self.test_runner.run_repository_test_sets(
                     applied_workspace.path,
+                    applied_workspace.target_path,
+                    approved_fix.generated_tests,
                     selected_runner,
                 )
+                existing_execution = test_results.existing
+                exposing_execution = test_results.generated
 
         return RepositoryFixVerificationRun(
             test_runner=selected_runner,
             installation=installation,
-            execution=execution,
+            existing_execution=existing_execution,
+            exposing_execution=exposing_execution,
         )

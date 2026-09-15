@@ -485,7 +485,7 @@ export function useRepositoryWorkflow() {
     try {
       const result = await verifyRepositoryFix(
         repositoryContext.metadata.url,
-        repositoryFixProposalRun.proposal,
+        repositoryFixProposalRun,
       );
       if (requestBecameStale(epoch)) return;
       setRepositoryFixVerificationRun(result);

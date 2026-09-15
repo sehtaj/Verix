@@ -244,6 +244,7 @@ class RepositoryFixApplyRequestTests(unittest.TestCase):
                 "--- a/packages/sample/src/sample.py\n"
                 "+++ b/packages/sample/src/sample.py\n"
             ),
+            generated_tests="def test_exposing_behavior():\n    assert True\n",
             approved=True,
         )
 
@@ -258,6 +259,7 @@ class RepositoryFixApplyRequestTests(unittest.TestCase):
             "subdirectory": None,
             "target_path": "src/sample.py",
             "patch": "--- a/src/sample.py\n+++ b/src/sample.py\n",
+            "generated_tests": "def test_exposing_behavior():\n    assert True\n",
             "approved": True,
         }
         invalid_overrides = (
@@ -266,6 +268,7 @@ class RepositoryFixApplyRequestTests(unittest.TestCase):
             {"target_path": ".verix-venv/site.py"},
             {"patch": ""},
             {"patch": "patch\x00hidden"},
+            {"generated_tests": ""},
             {"approved": False},
             {"reference": "main"},
         )

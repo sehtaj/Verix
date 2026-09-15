@@ -351,7 +351,8 @@ function isFixVerificationRun(value: unknown): value is RepositoryFixVerificatio
     value.github_changed === false &&
     (value.test_runner === "pytest" || value.test_runner === "tox") &&
     isExecution(value.installation) &&
-    isExecution(value.execution)
+    isExecution(value.existing_execution) &&
+    isExecution(value.exposing_execution)
   );
 }
 
@@ -446,8 +447,9 @@ export function proposeRepositoryFix(
 
 export function verifyRepositoryFix(
   repositoryUrl: string,
-  proposal: RepositoryFixProposalRun["proposal"],
+  proposalRun: RepositoryFixProposalRun,
 ): Promise<RepositoryFixVerificationRun> {
+  const { proposal } = proposalRun;
   return postJson(
     "/repository/fix-verify",
     {
@@ -456,6 +458,7 @@ export function verifyRepositoryFix(
       ...(proposal.subdirectory ? { subdirectory: proposal.subdirectory } : {}),
       target_path: proposal.target_path,
       patch: proposal.patch,
+      generated_tests: proposalRun.generated_tests,
       approved: true,
     },
     (payload): payload is RepositoryFixVerificationRun =>

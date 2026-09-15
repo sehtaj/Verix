@@ -194,6 +194,11 @@ class RepositoryFixApplyRequest(RepositoryRequest):
         max_length=128 * 1024,
         description="Exact unified diff previously shown to the developer.",
     )
+    generated_tests: str = Field(
+        min_length=1,
+        max_length=128 * 1024,
+        description="Exact generated pytest module that exposed the reviewed failure.",
+    )
     approved: Literal[True] = Field(
         description="Must be true to explicitly authorize later disposable application.",
     )

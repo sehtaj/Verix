@@ -17,7 +17,10 @@ import {
   WorkflowLoadingPanel,
 } from "@/components/verix/workflow-loading-panel";
 import { useRepositoryWorkflow } from "@/hooks/use-repository-workflow";
-import { getExecutionStatus } from "@/lib/repository-results";
+import {
+  getExecutionStatus,
+  getFixVerificationStatus,
+} from "@/lib/repository-results";
 import type { WorkflowScreen } from "@/types/workflow";
 
 const loadingScreens = new Set<WorkflowScreen>([
@@ -331,7 +334,7 @@ export default function Home() {
           ? getExecutionStatus(latestGeneratedEvidence.generated_execution)
           : undefined,
         verificationStatus: workflow.repositoryFixVerificationRun
-          ? getExecutionStatus(workflow.repositoryFixVerificationRun.execution)
+          ? getFixVerificationStatus(workflow.repositoryFixVerificationRun)
           : undefined,
         verificationSafetyConfirmed: workflow.repositoryFixVerificationRun
           ? workflow.repositoryFixVerificationRun.applied_in_disposable_workspace &&

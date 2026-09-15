@@ -1,4 +1,8 @@
-import type { RepositoryContext, RepositoryExecution } from "@/types/api";
+import type {
+  RepositoryContext,
+  RepositoryExecution,
+  RepositoryFixVerificationRun,
+} from "@/types/api";
 import type {
   WorkflowScreen,
   WorkflowStep,
@@ -70,6 +74,16 @@ export function getExecutionLabel(status: ExecutionStatus): string {
 
 export function didInstallationSucceed(execution: RepositoryExecution): boolean {
   return !execution.timed_out && execution.return_code === 0;
+}
+
+export function getFixVerificationStatus(
+  result: RepositoryFixVerificationRun,
+): ExecutionStatus {
+  const exposingStatus = getExecutionStatus(result.exposing_execution);
+  if (exposingStatus !== "passed") return exposingStatus;
+
+  const existingStatus = getExecutionStatus(result.existing_execution);
+  return existingStatus === "no_tests" ? "passed" : existingStatus;
 }
 
 export function getOutcomeLabel(

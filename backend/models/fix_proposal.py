@@ -106,6 +106,7 @@ class RepositoryApprovedFix:
     subdirectory: str | None
     target_path: str
     patch: str
+    generated_tests: str
     approved: bool = field(default=True, init=False)
     applied: bool = field(default=False, init=False)
 
@@ -115,6 +116,8 @@ class RepositoryApprovedFix:
             raise ValueError("Repository fix approval requires a full commit SHA.")
         validate_fix_target_path(self.target_path, self.subdirectory)
         validate_fix_patch(self.patch)
+        if not self.generated_tests.strip():
+            raise ValueError("Repository fix approval requires the exposing test.")
 
 
 @dataclass(frozen=True)

@@ -22,11 +22,17 @@ type VerificationResultPanelProps = {
 
 export function VerificationResultPanel({ result, error, isActionBusy = false, onRetry }: VerificationResultPanelProps) {
   const installationStatus = getExecutionStatus(result.installation);
-  const executionStatus = getExecutionStatus(result.execution);
+  const existingStatus = getExecutionStatus(result.existing_execution);
+  const exposingStatus = getExecutionStatus(result.exposing_execution);
   const installationSucceeded = didInstallationSucceed(result.installation);
   const safetyConfirmed = result.applied_in_disposable_workspace && !result.github_changed;
-  const passed = safetyConfirmed && installationSucceeded && executionStatus === "passed";
-  const failed = !safetyConfirmed || !installationSucceeded || executionStatus === "failed";
+  const existingAccepted = existingStatus === "passed" || existingStatus === "no_tests";
+  const passed = safetyConfirmed && installationSucceeded && existingAccepted && exposingStatus === "passed";
+  const failed =
+    !safetyConfirmed ||
+    !installationSucceeded ||
+    existingStatus === "failed" ||
+    exposingStatus === "failed";
   const ResultIcon = passed ? CheckCircle2 : failed ? XCircle : AlertTriangle;
   const resultColor = passed ? "text-success" : failed ? "text-destructive" : "text-primary";
 
@@ -37,13 +43,13 @@ export function VerificationResultPanel({ result, error, isActionBusy = false, o
           <ResultIcon className="size-9" aria-hidden="true" />
           <h1 className="text-balance font-heading text-3xl font-bold">
             {passed
-              ? "Patched Suite Passed in the Temporary Workspace"
+              ? "Approved Patch Passed Required Verification"
               : "Patch Verification Needs Review"}
           </h1>
         </div>
         <p className="mt-3 max-w-3xl text-muted-foreground">
           {passed
-            ? "The approved patch produced passing test evidence in the disposable environment. This is evidence for human review, not proof that the change is correct."
+            ? "The exact generated test that exposed the defect passed after the patch, and the existing suite did not regress. This is evidence for human review, not proof that the change is correct."
             : "The approved patch was tested, but the returned evidence does not establish a passing result."}
         </p>
       </header>
@@ -87,9 +93,14 @@ export function VerificationResultPanel({ result, error, isActionBusy = false, o
           defaultExpanded={installationStatus !== "passed"}
         />
         <ExecutionEvidence
-          title="Patched Test Suite"
-          execution={result.execution}
-          defaultExpanded={!passed}
+          title="Existing Suite After Patch"
+          execution={result.existing_execution}
+          defaultExpanded={existingStatus !== "passed"}
+        />
+        <ExecutionEvidence
+          title="Generated Exposing Test After Patch"
+          execution={result.exposing_execution}
+          defaultExpanded={exposingStatus !== "passed"}
         />
       </div>
 

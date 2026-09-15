@@ -6,6 +6,7 @@ import {
   getActionRecoveryScreen,
   getExecutionLabel,
   getExecutionStatus,
+  getFixVerificationStatus,
   getOutcomeLabel,
   getReadyScreen,
   getVerificationRecoveryScreen,
@@ -31,6 +32,36 @@ test("classifies every repository execution state without treating no tests as p
   assert.equal(didInstallationSucceed(execution({ skipped: true })), true);
   assert.equal(didInstallationSucceed(execution({ return_code: 1 })), false);
   assert.equal(didInstallationSucceed(execution({ timed_out: true })), false);
+});
+
+test("requires the generated exposing test and any existing suite to pass verification", () => {
+  const result = {
+    existing_execution: execution(),
+    exposing_execution: execution(),
+  };
+
+  assert.equal(getFixVerificationStatus(result), "passed");
+  assert.equal(
+    getFixVerificationStatus({
+      ...result,
+      existing_execution: execution({ return_code: 5 }),
+    }),
+    "passed",
+  );
+  assert.equal(
+    getFixVerificationStatus({
+      ...result,
+      existing_execution: execution({ return_code: 1 }),
+    }),
+    "failed",
+  );
+  assert.equal(
+    getFixVerificationStatus({
+      ...result,
+      exposing_execution: execution({ return_code: 1 }),
+    }),
+    "failed",
+  );
 });
 
 test("maps all seven investigation outcomes to distinct user-facing labels", () => {

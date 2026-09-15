@@ -134,5 +134,6 @@ export type RepositoryFixVerificationRun = {
   github_changed: false;
   test_runner: "pytest" | "tox";
   installation: RepositoryExecution;
-  execution: RepositoryExecution;
+  existing_execution: RepositoryExecution;
+  exposing_execution: RepositoryExecution;
 };

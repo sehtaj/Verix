@@ -495,6 +495,7 @@ def verify_approved_repository_fix(
             subdirectory=request.subdirectory,
             target_path=request.target_path,
             patch=request.patch,
+            generated_tests=request.generated_tests,
         )
         application_workflow = RepositoryFixApplicationWorkflow(repository_preparer)
         workflow = RepositoryFixVerificationWorkflow(application_workflow, test_runner)

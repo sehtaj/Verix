@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { CodeEvidence } from "@/components/verix/execution-evidence";
 import { cn } from "@/lib/utils";
 import type { RepositoryFixProposalRun } from "@/types/api";
 
@@ -99,6 +100,13 @@ export function FixReviewPanel({
         <DiffView patch={proposal.patch} />
       </section>
 
+      <div className="mt-5">
+        <CodeEvidence
+          title="Generated Test That Exposed the Failure"
+          code={result.generated_tests}
+        />
+      </div>
+
       <section className="mt-5 grid gap-3 sm:grid-cols-3">
         <div className={cn("border p-3", proposal.validated ? "border-success bg-success/5" : "border-destructive bg-destructive/5")}>
           <p className="font-heading text-[10px] uppercase text-muted-foreground">Validation</p>
@@ -165,7 +173,7 @@ export function FixReviewPanel({
                 <div>
                   <Dialog.Title className="font-heading text-xl font-bold text-primary">Confirm Disposable Verification</Dialog.Title>
                   <Dialog.Description className="mt-2 text-sm text-muted-foreground">
-                    Verix will test the exact reviewed patch against the pinned revision.
+                    Verix will test the exact reviewed patch against the pinned revision, the existing suite, and the generated test shown above.
                   </Dialog.Description>
                 </div>
                 <Dialog.Close aria-label="Cancel verification" className="grid size-9 shrink-0 place-items-center border border-outline hover:border-primary hover:text-primary">
@@ -175,6 +183,7 @@ export function FixReviewPanel({
               <ul className="space-y-3 p-5 text-sm">
                 <li className="border border-dashed border-outline-variant p-3"><strong>Revision:</strong> <span className="path-text">{proposal.revision}</span></li>
                 <li className="border border-dashed border-outline-variant p-3"><strong>Changed file:</strong> <span className="path-text text-primary">{proposal.target_path}</span></li>
+                <li className="border border-dashed border-outline-variant p-3">The existing repository suite and the exact displayed exposing test run as separate evidence.</li>
                 <li className="border border-dashed border-outline-variant p-3">The patch is applied only inside a disposable workspace.</li>
                 <li className="border border-dashed border-outline-variant p-3">No GitHub or local-checkout write is performed.</li>
               </ul>
