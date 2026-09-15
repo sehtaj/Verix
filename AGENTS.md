@@ -57,7 +57,7 @@ Unless the user explicitly enters a Review Phase or gives different instructions
    - mark the completed task;
    - set the next incomplete task as Current Task.
 6. Do not update `PROJECT.md`, `ARCHITECTURE.md`, or `README.md` during development.
-7. Do not commit or push unless the user explicitly asks.
+7. Create small, verified commits as logical units are completed. Do not push unless the user explicitly asks.
 8. Stop after the Current Task is complete.
 
 If the user explicitly requests several remaining tasks or a complete version, those tasks become the authorized scope. Do not expand beyond that version.
@@ -74,7 +74,7 @@ During review:
 4. Synchronize `PROJECT.md`, `ARCHITECTURE.md`, and `README.md` with the verified code.
 5. Mark the reviewed version complete in `TODO.md` and prepare the next version's task list and Current Task.
 6. Summarize tests, bugs, fixes, documentation changes, limitations, and suggestions.
-7. Do not commit or push unless the user explicitly asks.
+7. Create the approved review commits after verification. Do not push unless the user explicitly asks.
 8. Stop after the review is complete.
 
 The project's Definition of Done is satisfied across both phases: implementation is verified during development, while documentation synchronization and final commits happen during review and its approved handoff.
@@ -85,8 +85,8 @@ The project's Definition of Done is satisfied across both phases: implementation
 - The user currently prefers `main`; do not create a branch without discussing why it is useful.
 - Preserve unrelated or pre-existing changes.
 - Never discard changes with destructive Git commands unless the user explicitly requests it.
-- Never commit, push, rewrite history, or open a pull request without explicit permission.
-- Before making a set of version/review commits, propose the number and logical split, then wait for approval.
+- The user has authorized autonomous local commits; no per-commit approval is required.
+- Never push, rewrite history, or open a pull request without explicit permission.
 - Keep commits small, meaningful, and ordered so each commit has a clear purpose.
 - Never commit `.env`, API keys, credentials, temporary workspaces, build output, or dependency directories.
 

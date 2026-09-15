@@ -697,9 +697,10 @@ three review commits created locally were:
 - `2eccdee` — `fix(frontend): complete accessible responsive verification UI`
 - `dd481cf` — `docs(frontend): synchronize reviewed workspace documentation`
 
-They should be inspected and pushed only with explicit user approval. Do not
-commit `.env` files, API keys, dependency directories, temporary workspaces,
-build output, or unrelated `.DS_Store` changes.
+Local commits are now authorized without per-commit approval. They should be
+inspected and pushed only with explicit user approval. Do not commit `.env`
+files, API keys, dependency directories, temporary workspaces, build output,
+or unrelated `.DS_Store` changes.
 
 ## How a new Codex chat should begin
 
@@ -711,8 +712,9 @@ NEXT_STEPS.md completely. We are finishing the deployable Python-only Verix
 MVP. Do not add future features such as private repositories, extra languages,
 authentication, databases, CI integration, or autonomous patching. Preserve
 the Docker safety boundary. First inspect the branch and working tree, then
-propose the smallest next task from NEXT_STEPS.md. Do not commit, push, or make
-an external deployment without asking me first.
+propose the smallest next task from NEXT_STEPS.md. You may create small,
+verified local commits without asking. Do not push or make an external
+deployment without asking me first.
 ```
 
 ## Important principles to preserve
