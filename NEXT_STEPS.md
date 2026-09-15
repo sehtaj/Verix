@@ -94,14 +94,25 @@ The release is complete only when every item below has current evidence:
   tests passed; the Next.js production build and TypeScript validation passed;
   `python3 -m compileall backend` and `git diff --check` passed. No live Docker,
   GitHub, Gemini, or browser journey was claimed for this slice.
+- 2026-09-16: Created three dependency-free controlled Python project fixtures:
+  a passing existing suite that misses a refund boundary defect, an existing
+  shipping suite with one deterministic threshold failure, and an inventory
+  project with no tests whose documented exact-stock boundary is defective.
+  Each project records its explicit behavior contract, known bug, expected
+  evidence, useful black-box/gray-box cases, assumptions, and exclusions.
+- 2026-09-16 fixture observation: local pytest produced the documented exit
+  codes `0`, `1`, and `5` respectively, with the shipping failure reporting
+  `499 != 0` at the exact threshold. This is not accepted as isolated release
+  evidence because Docker Desktop was not running; the Docker API socket was
+  absent. The fixtures still require a runner-image execution check.
 
 ### Exact next action
 
-After approval to commit the completed exposing-test slice, create a small set
-of deterministic local Python demonstration repositories and a machine-readable
-manifest. Each example must document its public behavior contract, known defect,
-expected existing/generated outcomes, target path, and immutable content
-revision. Keep external publication as a later approval-gated action.
+After approval to commit the deterministic fixture files, use that commit's
+40-character SHA as their immutable public revision in a machine-readable
+catalog. Add deterministic catalog/integrity checks, then run the examples in
+the Verix Docker runner when Docker Desktop is available. Keep pushing or other
+external publication as a later approval-gated action.
 
 ### Decisions that will require the user later
 
