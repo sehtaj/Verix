@@ -180,7 +180,7 @@
 - [x] Classify generated tests as normal, boundary, invalid-input, or error-handling cases using black-box and gray-box design
 - [x] Measure branch coverage for the existing suite and the incremental coverage from generated tests
 - [x] Present a bounded evidence summary of passed, failed, assumed, and untested behavior
-- [ ] Validate the complete investigation and approval journey against the deterministic examples
+- [x] Validate the complete investigation and approval journey against the deterministic examples
 - [ ] Add public-demo request-size, concurrency, rate, cost, and cleanup controls
 - [ ] Benchmark the configured LLM on the deterministic examples before deciding whether to change model or provider
 - [ ] Run a complete recruiter-release Review Phase and synchronize project documentation
@@ -192,7 +192,7 @@
 
 ## Current Task
 
-**Validate the complete investigation and approval journey against the deterministic examples**
+**Add public-demo request-size, concurrency, rate, cost, and cleanup controls**
 
 ---
 

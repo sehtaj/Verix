@@ -178,13 +178,30 @@ The release is complete only when every item below has current evidence:
   production build with TypeScript validation passed. No new live Gemini,
   GitHub, Docker, or browser journey was claimed for this deterministic UI/API
   aggregation slice.
+- 2026-09-16: Added a repeatable Docker-backed recruiter-journey validator for
+  every pinned example. It integrity-checks catalog files, preserves documented
+  behavior provenance, covers normal, boundary, invalid-input, and
+  error-handling cases with black-box and gray-box design, runs pre-fix evidence,
+  classifies the outcome deterministically, validates one review-only patch,
+  records explicit approval, and reruns both existing and exposing tests in a
+  disposable copy without changing the fixture or GitHub.
+- 2026-09-16 controlled journey evidence: `refund-boundary` preserved a passing
+  existing suite and a failing generated boundary test; `shipping-threshold`
+  preserved an existing-suite failure; `inventory-reservation` preserved the
+  no-tests result. All three exposing tests passed after their exact reviewed
+  patches, the source fixtures remained unchanged, and branch coverage was
+  collected for every pre-fix run. The complete backend suite passed 178 tests;
+  backend compilation and `git diff --check` passed. This validation used
+  pinned deterministic generation artifacts, not live Gemini output; provider
+  quality remains the separate benchmark task and is not being claimed here.
 
 ### Exact next action
 
-Validate the complete context, generation, execution, investigation, proposal,
-approval, and disposable verification journey against the deterministic Python
-examples. Record where live Gemini output meets or misses the fixture catalog.
-Pushing the pinned examples remains an explicitly approval-gated action.
+Add the smallest public-demo safety layer that bounds request payloads,
+concurrent executions, request rate, LLM spending exposure, and stale-workspace
+cleanup without adding authentication, a database, Redis, or a queue. Preserve
+the existing Docker isolation and keep provider benchmarking as the following
+task. Pushing the pinned examples remains an explicitly approval-gated action.
 
 ### Decisions that will require the user later
 
