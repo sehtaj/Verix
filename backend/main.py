@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.presenters import (
+    present_evidence_summary,
     present_generated_test_report,
     present_configuration_files,
     present_python_project_setup,
@@ -26,6 +27,7 @@ from api.schemas import (
     RepositoryTargetRequest,
 )
 from services.github_service import GitHubRepositoryService
+from services.evidence_summary import build_evidence_summary
 from services.llm_service import GeminiLLMService
 from services.repository_preparer import PublicRepositoryPreparer
 from services.docker_runner import DockerTestRunner, GeneratedTestsValidationError
@@ -389,6 +391,9 @@ def generate_repository_test_suite(
         "generated_tests": generated_tests,
         "generated_test_report": present_generated_test_report(
             generated_test_report
+        ),
+        "evidence_summary": present_evidence_summary(
+            build_evidence_summary(generated_test_report, execution_results)
         ),
         **execution_results,
     }

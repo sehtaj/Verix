@@ -45,6 +45,19 @@ function branchCoverage() {
   };
 }
 
+function evidenceSummary(overrides = {}) {
+  return {
+    assessment: "incomplete",
+    passed: ["Generated focused suite passed."],
+    failed: [],
+    assumed: [],
+    untested: ["1 of 4 selected-source branches remains untested."],
+    behavior_sources: [{ kind: "source_code", path: "src/example.py" }],
+    disclaimer: "Observed evidence does not prove that the code is error-free.",
+    ...overrides,
+  };
+}
+
 function repositoryContext(overrides = {}) {
   return {
     revision,
@@ -273,6 +286,7 @@ test("accepts separated branch coverage and rejects impossible measurements", as
     existing_execution: { return_code: 0, output: "1 passed", timed_out: false, skipped: false },
     generated_execution: { return_code: 0, output: "1 passed", timed_out: false, skipped: false },
     branch_coverage: branchCoverage(),
+    evidence_summary: evidenceSummary(),
   };
 
   try {
@@ -290,6 +304,37 @@ test("accepts separated branch coverage and rejects impossible measurements", as
         existing: { covered_branches: 5, total_branches: 4, percent: 125 },
       },
     });
+    await assert.rejects(
+      generateRepositoryTests(
+        "https://github.com/owner/project",
+        { targetPath: "src/example.py" },
+      ),
+      /Unable to generate focused tests/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("rejects evidence summaries whose assessment contradicts their buckets", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => jsonResponse({
+    target_path: "src/example.py",
+    generated_tests: "def test_example():\n    assert True\n",
+    generated_test_report: generatedTestReport(),
+    preparation: { file_count: 1, total_bytes: 10, skipped_entries: 0 },
+    installation: { return_code: 0, output: "", timed_out: false, skipped: true },
+    test_runner: "pytest",
+    existing_execution: { return_code: 0, output: "1 passed", timed_out: false, skipped: false },
+    generated_execution: { return_code: 0, output: "1 passed", timed_out: false, skipped: false },
+    branch_coverage: branchCoverage(),
+    evidence_summary: evidenceSummary({
+      assessment: "observed_failures",
+      failed: [],
+    }),
+  });
+
+  try {
     await assert.rejects(
       generateRepositoryTests(
         "https://github.com/owner/project",

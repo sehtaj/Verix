@@ -303,7 +303,46 @@ function isGenerationRun(value: unknown): value is RepositoryGenerationRun {
     isTestRunner(value.test_runner) &&
     isExecution(value.existing_execution) &&
     isExecution(value.generated_execution) &&
-    isBranchCoverage(value.branch_coverage, value.target_path)
+    isBranchCoverage(value.branch_coverage, value.target_path) &&
+    isEvidenceSummary(value.evidence_summary)
+  );
+}
+
+const evidenceAssessments = new Set([
+  "observed_failures",
+  "incomplete",
+  "no_observed_failures",
+]);
+
+function isEvidenceSummary(value: unknown): boolean {
+  if (
+    !isRecord(value) ||
+    typeof value.assessment !== "string" ||
+    !evidenceAssessments.has(value.assessment) ||
+    !isStringArray(value.passed) ||
+    !isStringArray(value.failed) ||
+    !isStringArray(value.assumed) ||
+    !isStringArray(value.untested) ||
+    !isNonEmptyString(value.disclaimer) ||
+    !Array.isArray(value.behavior_sources) ||
+    value.behavior_sources.length === 0 ||
+    !value.behavior_sources.every(
+      (source) =>
+        isRecord(source) &&
+        typeof source.kind === "string" &&
+        behaviorSourceKinds.has(source.kind) &&
+        isNonEmptyString(source.path),
+    )
+  ) return false;
+
+  return (
+    (value.assessment === "observed_failures" && value.failed.length > 0) ||
+    (value.assessment === "incomplete" &&
+      value.failed.length === 0 &&
+      value.untested.length > 0) ||
+    (value.assessment === "no_observed_failures" &&
+      value.failed.length === 0 &&
+      value.untested.length === 0)
   );
 }
 

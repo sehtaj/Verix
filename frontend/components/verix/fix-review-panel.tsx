@@ -13,6 +13,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { CodeEvidence } from "@/components/verix/execution-evidence";
+import { EvidenceSummaryPanel } from "@/components/verix/evidence-summary-panel";
 import { cn } from "@/lib/utils";
 import type { RepositoryFixProposalRun } from "@/types/api";
 
@@ -106,6 +107,8 @@ export function FixReviewPanel({
           code={result.generated_tests}
         />
       </div>
+
+      <EvidenceSummaryPanel summary={result.evidence_summary} />
 
       <section className="mt-5 grid gap-3 sm:grid-cols-3">
         <div className={cn("border p-3", proposal.validated ? "border-success bg-success/5" : "border-destructive bg-destructive/5")}>

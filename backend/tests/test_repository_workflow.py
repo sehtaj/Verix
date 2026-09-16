@@ -1766,6 +1766,22 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
                 "unavailable_reason": None,
             },
         )
+        self.assertEqual(
+            response["evidence_summary"]["assessment"],
+            "observed_failures",
+        )
+        self.assertIn(
+            "Existing repository suite failed with exit code 1.",
+            response["evidence_summary"]["failed"],
+        )
+        self.assertIn(
+            "1 of 4 selected-source branches remain untested.",
+            response["evidence_summary"]["untested"],
+        )
+        self.assertEqual(
+            response["evidence_summary"]["behavior_sources"][0],
+            {"kind": "source_code", "path": "src/sample.py"},
+        )
         github_service.fetch_generation_context.assert_called_once_with(
             REPOSITORY_URL,
             "feature/v0.10",
@@ -1903,10 +1919,29 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
             ),
             execution_results={
                 "preparation": {"file_count": 2},
-                "installation": {"return_code": 0},
+                "installation": {
+                    "return_code": 0,
+                    "output": "",
+                    "timed_out": False,
+                    "skipped": False,
+                },
                 "test_runner": "pytest",
-                "existing_execution": {"return_code": 1},
-                "generated_execution": {"return_code": 0},
+                "existing_execution": {
+                    "return_code": 1,
+                    "output": "failed",
+                    "timed_out": False,
+                    "skipped": False,
+                },
+                "generated_execution": {
+                    "return_code": 0,
+                    "output": "passed",
+                    "timed_out": False,
+                    "skipped": False,
+                },
+                "branch_coverage": {
+                    "available": False,
+                    "unavailable_reason": "Coverage was unavailable.",
+                },
             },
             outcome=RepositoryOutcomeKind.EXISTING_TESTS_FAILED,
             explanation="One existing test failed.",
@@ -1944,6 +1979,10 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(response["test_plan"]["setup"]["test_runner"], "pytest")
         self.assertEqual(response["existing_execution"]["return_code"], 1)
+        self.assertEqual(
+            response["evidence_summary"]["assessment"],
+            "observed_failures",
+        )
         workflow.run.assert_called_once_with(
             REPOSITORY_URL,
             "feature/v0.10",

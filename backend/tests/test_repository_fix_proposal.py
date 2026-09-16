@@ -289,7 +289,15 @@ class RepositoryFixProposalApiTests(unittest.TestCase):
             target_path="src/sample.py",
             generated_tests=generated_tests,
             generated_test_report=make_generated_test_report(generated_tests),
-            execution_results={},
+            execution_results={
+                "installation": cls.execution_result(return_code=0),
+                "existing_execution": cls.execution_result(return_code=0),
+                "generated_execution": cls.execution_result(return_code=1),
+                "branch_coverage": {
+                    "available": False,
+                    "unavailable_reason": "Coverage was not collected in this fixture.",
+                },
+            },
             evidence=RepositoryInvestigationEvidence(
                 test_runner="pytest",
                 installation=cls.command_evidence(return_code=0),
@@ -317,6 +325,15 @@ class RepositoryFixProposalApiTests(unittest.TestCase):
             output_excerpt=output,
             output_truncated=False,
         )
+
+    @staticmethod
+    def execution_result(*, return_code: int | None) -> dict[str, object]:
+        return {
+            "return_code": return_code,
+            "output": "",
+            "timed_out": False,
+            "skipped": False,
+        }
 
 
 if __name__ == "__main__":

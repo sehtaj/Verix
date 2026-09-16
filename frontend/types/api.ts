@@ -126,6 +126,20 @@ export type RepositoryGenerationRun = {
   existing_execution: RepositoryExecution;
   generated_execution: RepositoryExecution;
   branch_coverage: BranchCoverageSummary;
+  evidence_summary: EvidenceSummary;
+};
+
+export type EvidenceSummary = {
+  assessment: "observed_failures" | "incomplete" | "no_observed_failures";
+  passed: string[];
+  failed: string[];
+  assumed: string[];
+  untested: string[];
+  behavior_sources: Array<{
+    kind: "source_code" | "documentation" | "existing_test" | "configuration";
+    path: string;
+  }>;
+  disclaimer: string;
 };
 
 export type GeneratedTestReport = {

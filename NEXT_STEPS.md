@@ -17,7 +17,7 @@ The release is complete only when every item below has current evidence:
   error-handling behavior using black-box and gray-box reasoning.
 - [x] Existing-suite branch coverage and incremental generated-test branch
   coverage are measured and reported separately.
-- [ ] The product summarizes what passed, failed, was assumed, and remains
+- [x] The product summarizes what passed, failed, was assumed, and remains
   untested without claiming that code is error-free.
 - [ ] Failure investigation is grounded in bounded execution evidence.
 - [x] Patch verification requires explicit approval and runs the exact reviewed
@@ -78,12 +78,15 @@ The release is complete only when every item below has current evidence:
   existing hardened Docker boundary. Existing coverage, combined coverage,
   branches reached only by generated tests, and still-untested branches remain
   separate. Coverage is explicitly unavailable for tox rather than estimated.
+- Generation, investigation, and fix review now share one deterministic
+  evidence summary. It separates passing and failing execution, explicit AI
+  assumptions, behavior-source paths, missing test categories and strategies,
+  and remaining branch gaps, with a permanent non-certainty disclaimer.
 
 ### Proposed work for this goal
 
 - Add a repeatable LLM evaluation harness instead of relying on changing
   third-party repositories.
-- Add an honest evidence summary to backend contracts and the frontend.
 - Add small, cohesive public-demo controls without introducing authentication,
   a database, Redis, a queue, or an autonomous repair loop.
 - Review and deploy the verified system after the user approves external
@@ -166,14 +169,22 @@ The release is complete only when every item below has current evidence:
   failing generated day-30 test, existing coverage of 8/12 branches (66.7%),
   combined coverage of 9/12 (75.0%), a generated delta of one branch, and three
   still-untested branches. Coverage remains explicitly unavailable for tox.
+- 2026-09-16: Added a bounded evidence summary derived only from validated
+  generated-test metadata and isolated execution facts. Its assessment is
+  `observed_failures`, `incomplete`, or `no_observed_failures`; even the last
+  state carries an explicit statement that evidence does not prove correctness.
+- 2026-09-16 evidence-summary verification: 175 backend tests and 19 frontend
+  tests passed; backend compilation, `git diff --check`, and the Next.js
+  production build with TypeScript validation passed. No new live Gemini,
+  GitHub, Docker, or browser journey was claimed for this deterministic UI/API
+  aggregation slice.
 
 ### Exact next action
 
-Present one bounded evidence summary that separates passed and failed execution,
-AI assumptions, expected-behavior sources, generated-test classifications,
-branch coverage, and still-untested behavior without claiming the selected code
-is error-free. Pushing the pinned examples remains an explicitly
-approval-gated action.
+Validate the complete context, generation, execution, investigation, proposal,
+approval, and disposable verification journey against the deterministic Python
+examples. Record where live Gemini output meets or misses the fixture catalog.
+Pushing the pinned examples remains an explicitly approval-gated action.
 
 ### Decisions that will require the user later
 

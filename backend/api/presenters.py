@@ -1,9 +1,11 @@
 """Convert repository domain models into the existing JSON response shapes."""
 
 from models.fix_proposal import RepositoryApprovedFix, RepositoryFixProposalRun
+from models.evidence_summary import EvidenceSummary
 from models.generated_test_report import GeneratedTestReport
 from models.investigation import RepositoryInvestigationRun
 from workflows.repository_fix_verification import RepositoryFixVerificationRun
+from services.evidence_summary import DISCLAIMER, build_evidence_summary
 
 from models.repository import (
     PythonProjectSetup,
@@ -163,6 +165,12 @@ def present_repository_investigation(
         "generated_test_report": present_generated_test_report(
             investigation.generated_test_report
         ),
+        "evidence_summary": present_evidence_summary(
+            build_evidence_summary(
+                investigation.generated_test_report,
+                investigation.execution_results,
+            )
+        ),
         **investigation.execution_results,
         "investigation": {
             "outcome": investigation.outcome.value,
@@ -195,6 +203,22 @@ def present_generated_test_report(
             }
             for case in report.cases
         ],
+    }
+
+
+def present_evidence_summary(summary: EvidenceSummary) -> dict[str, object]:
+    """Return bounded factual buckets and a non-certainty disclaimer."""
+    return {
+        "assessment": summary.assessment.value,
+        "passed": list(summary.passed),
+        "failed": list(summary.failed),
+        "assumed": list(summary.assumed),
+        "untested": list(summary.untested),
+        "behavior_sources": [
+            {"kind": source.kind.value, "path": source.path}
+            for source in summary.behavior_sources
+        ],
+        "disclaimer": DISCLAIMER,
     }
 
 
