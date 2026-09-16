@@ -224,6 +224,13 @@ The release is complete only when every item below has current evidence:
   attempted run was stopped before transmission because explicit approval is
   still required to send the three controlled example sources, tests, and
   documentation files to Gemini and consume eight configured-provider calls.
+- 2026-09-16 dry-run disclosure: the proposed benchmark would send 7,214 bytes
+  of controlled fixture context to the configured Google Gemini API using
+  `gemini-3.5-flash`: 2,763 bytes for refund, 2,287 bytes for shipping, and
+  2,164 bytes for inventory. It would make at most eight calls, include no
+  secrets, and neither approve nor apply a generated patch. The manifest is
+  reproducible with `python3 backend/scripts/benchmark_configured_llm.py
+  --dry-run` and performs no external request.
 
 ### Exact next action
 

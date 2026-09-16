@@ -1,5 +1,6 @@
 """Benchmark the configured LLM against Verix's pinned Python examples."""
 
+import argparse
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
@@ -253,6 +254,58 @@ def run_benchmark() -> dict[str, object]:
     }
 
 
+def build_dry_run_manifest() -> dict[str, object]:
+    """Describe the external payload and call ceiling without contacting Gemini."""
+    catalog = load_catalog()
+    scenarios = {scenario.example_id: scenario for scenario in SCENARIOS}
+    examples = []
+    total_calls = 0
+    total_bytes = 0
+    for example in catalog["examples"]:
+        context = build_generation_context(catalog, example)
+        files = [
+            context.source_file,
+            *context.test_files,
+            *context.documentation_files,
+        ]
+        file_manifest = [
+            {"path": file.path, "bytes": file.byte_count}
+            for file in files
+            if file is not None
+        ]
+        file_manifest.extend(
+            {
+                "path": file.path,
+                "bytes": len(file.content.encode("utf-8")),
+            }
+            for file in context.configuration_files
+        )
+        example_bytes = sum(file["bytes"] for file in file_manifest)
+        expected_outcome = scenarios[example["id"]].expected_outcome
+        planned_calls = 3 if expected_outcome in FIXABLE_OUTCOMES else 2
+        total_calls += planned_calls
+        total_bytes += example_bytes
+        examples.append(
+            {
+                "id": example["id"],
+                "files": file_manifest,
+                "context_bytes": example_bytes,
+                "maximum_llm_calls": planned_calls,
+            }
+        )
+    return {
+        "dry_run": True,
+        "destination": "Configured Google Gemini API",
+        "model": MODEL_NAME,
+        "catalog_revision": catalog["revision"],
+        "examples": examples,
+        "total_context_bytes": total_bytes,
+        "maximum_llm_calls": total_calls,
+        "secrets_included": False,
+        "patches_auto_approved_or_applied": False,
+    }
+
+
 def _run_against_known_correction(
     example: dict[str, object],
     patch: str,
@@ -403,7 +456,15 @@ def _execution_result(payload: dict[str, object]):
 
 
 def main() -> None:
-    print(json.dumps(run_benchmark(), indent=2))
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the external payload manifest without contacting Gemini.",
+    )
+    arguments = parser.parse_args()
+    result = build_dry_run_manifest() if arguments.dry_run else run_benchmark()
+    print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":

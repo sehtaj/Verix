@@ -10,6 +10,7 @@ if str(BACKEND_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIRECTORY))
 
 from scripts.benchmark_configured_llm import (
+    build_dry_run_manifest,
     build_generation_context,
     evaluate_report,
 )
@@ -60,6 +61,19 @@ class ConfiguredLLMBenchmarkTests(unittest.TestCase):
                 self.assertTrue(evaluation["strategies_met"])
                 self.assertTrue(evaluation["documentation_source_cited"])
                 self.assertTrue(evaluation["assumptions_match_catalog"])
+
+    def test_dry_run_discloses_payload_without_file_contents(self) -> None:
+        manifest = build_dry_run_manifest()
+
+        self.assertTrue(manifest["dry_run"])
+        self.assertEqual(manifest["maximum_llm_calls"], 8)
+        self.assertEqual(len(manifest["examples"]), 3)
+        self.assertGreater(manifest["total_context_bytes"], 0)
+        self.assertFalse(manifest["secrets_included"])
+        self.assertFalse(manifest["patches_auto_approved_or_applied"])
+        for example in manifest["examples"]:
+            for file in example["files"]:
+                self.assertEqual(set(file), {"path", "bytes"})
 
 
 if __name__ == "__main__":
