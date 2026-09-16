@@ -181,7 +181,7 @@
 - [x] Measure branch coverage for the existing suite and the incremental coverage from generated tests
 - [x] Present a bounded evidence summary of passed, failed, assumed, and untested behavior
 - [x] Validate the complete investigation and approval journey against the deterministic examples
-- [ ] Add public-demo request-size, concurrency, rate, cost, and cleanup controls
+- [x] Add public-demo request-size, concurrency, rate, cost, and cleanup controls
 - [ ] Benchmark the configured LLM on the deterministic examples before deciding whether to change model or provider
 - [ ] Run a complete recruiter-release Review Phase and synchronize project documentation
 - [ ] Prepare approved production configuration for a Vercel frontend and Docker-capable backend
@@ -192,7 +192,7 @@
 
 ## Current Task
 
-**Add public-demo request-size, concurrency, rate, cost, and cleanup controls**
+**Benchmark the configured LLM on the deterministic examples before deciding whether to change model or provider**
 
 ---
 

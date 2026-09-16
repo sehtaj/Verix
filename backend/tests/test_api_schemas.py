@@ -12,6 +12,9 @@ if str(BACKEND_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIRECTORY))
 
 from api.schemas import (
+    GenerateTestsRequest,
+    MAX_PASTED_CODE_CHARACTERS,
+    MAX_REPOSITORY_URL_CHARACTERS,
     RepositoryFixApplyRequest,
     RepositoryFixProposalRequest,
     RepositoryReferenceRequest,
@@ -22,6 +25,23 @@ from api.schemas import (
 
 
 REPOSITORY_URL = "https://github.com/example/sample"
+
+
+class PublicDemoRequestBoundsTests(unittest.TestCase):
+    """Reject individually oversized fields before service work begins."""
+
+    def test_bounds_pasted_code_and_rejects_extra_fields(self) -> None:
+        request = GenerateTestsRequest(code="x" * MAX_PASTED_CODE_CHARACTERS)
+        self.assertEqual(len(request.code), MAX_PASTED_CODE_CHARACTERS)
+
+        with self.assertRaises(ValidationError):
+            GenerateTestsRequest(code="x" * (MAX_PASTED_CODE_CHARACTERS + 1))
+        with self.assertRaises(ValidationError):
+            GenerateTestsRequest(code="pass", ignored=True)
+
+    def test_bounds_repository_urls(self) -> None:
+        with self.assertRaises(ValidationError):
+            RepositoryRequest(url="x" * (MAX_REPOSITORY_URL_CHARACTERS + 1))
 
 
 class RepositoryTargetRequestTests(unittest.TestCase):

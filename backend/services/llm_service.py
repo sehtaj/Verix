@@ -6,6 +6,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 
 from models.fix_proposal import RepositoryFixContext, RepositoryFixProposal
 from models.generated_test_report import GeneratedTestReport
@@ -20,6 +21,7 @@ from services.repository_investigation_prompt import (
 from services.repository_fix_prompt import build_repository_fix_prompt
 from services.repository_prompt import build_repository_test_prompt
 from services.generated_test_report import parse_generated_test_report
+from services.public_demo_limits import DEFAULT_LLM_MAX_OUTPUT_TOKENS
 
 
 MODEL_NAME = "gemini-3.5-flash"
@@ -30,14 +32,23 @@ MAX_INVESTIGATION_EXPLANATION_CHARACTERS = 4_000
 class GeminiLLMService:
     """Generate tests and evidence-grounded explanations with the Gemini API."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        max_output_tokens: int = DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+    ) -> None:
         load_dotenv(ENV_FILE)
         api_key = os.getenv("LLM_API_KEY")
 
         if not api_key:
             raise RuntimeError("LLM_API_KEY is not configured.")
+        if max_output_tokens <= 0:
+            raise ValueError("LLM output token limit must be greater than zero.")
 
         self.client = genai.Client(api_key=api_key)
+        self.generation_config = types.GenerateContentConfig(
+            max_output_tokens=max_output_tokens
+        )
 
     def generate_tests(self, code: str) -> str:
         """Return pytest tests for the supplied Python code."""
@@ -120,6 +131,7 @@ Python code:
             response = self.client.models.generate_content(
                 model=MODEL_NAME,
                 contents=prompt,
+                config=self.generation_config,
             )
         except Exception:
             raise RuntimeError("Gemini could not generate a response.") from None

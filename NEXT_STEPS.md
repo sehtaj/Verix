@@ -194,14 +194,33 @@ The release is complete only when every item below has current evidence:
   backend compilation and `git diff --check` passed. This validation used
   pinned deterministic generation artifacts, not live Gemini output; provider
   quality remains the separate benchmark task and is not being claimed here.
+- 2026-09-16: Added public-demo admission and cleanup controls. Request bodies
+  are capped at 256 KiB, pasted code at 64 KiB, repository URLs at 2,048
+  characters, expensive workflows at two concurrent jobs without an unbounded
+  queue, each client at 30 modifying requests per rolling minute, and LLM use
+  at 100 conservatively weighted calls per rolling day. Gemini output is capped
+  at 4,096 tokens per call. All ceilings are positive-integer environment
+  settings so production can lower them without code changes.
+- 2026-09-16 cleanup evidence: runtime workspaces now use one private,
+  Verix-owned temporary root. Context managers remove normal workspaces and a
+  one-hour sweep removes only stale regular directories with recognized Verix
+  prefixes. The full three-example Docker journey still passed, its temporary
+  root was empty afterward, and Docker reported no remaining Verix containers.
+  The complete backend suite passed 188 tests; backend compilation and
+  `git diff --check` passed.
+- Public-demo limitation: rate and rolling LLM-call counters are intentionally
+  in-process to avoid prematurely adding a database, Redis, or a queue. The
+  first deployment must therefore use one backend worker and a provider-side
+  hard spending/quota cap. Multiple workers would multiply these local limits.
 
 ### Exact next action
 
-Add the smallest public-demo safety layer that bounds request payloads,
-concurrent executions, request rate, LLM spending exposure, and stale-workspace
-cleanup without adding authentication, a database, Redis, or a queue. Preserve
-the existing Docker isolation and keep provider benchmarking as the following
-task. Pushing the pinned examples remains an explicitly approval-gated action.
+Run a repeatable live benchmark of the configured Gemini model against every
+deterministic example. Compare generated test validity, required categories and
+strategies, behavior-source grounding, assumptions, defect exposure,
+investigation accuracy, and patch validity with the catalog. Record every miss
+before deciding whether a model or provider change is justified. Do not change
+provider, spend money, or send repository data elsewhere without approval.
 
 ### Decisions that will require the user later
 

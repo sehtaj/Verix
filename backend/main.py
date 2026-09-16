@@ -3,6 +3,8 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.public_demo_middleware import PublicDemoMiddleware
+
 from api.presenters import (
     present_evidence_summary,
     present_generated_test_report,
@@ -30,6 +32,8 @@ from services.github_service import GitHubRepositoryService
 from services.evidence_summary import build_evidence_summary
 from services.llm_service import GeminiLLMService
 from services.repository_preparer import PublicRepositoryPreparer
+from services.public_demo_limits import PublicDemoGuard, PublicDemoLimits
+from services.temporary_workspaces import TemporaryWorkspaceManager
 from services.docker_runner import DockerTestRunner, GeneratedTestsValidationError
 from workflows.repository_execution import RepositoryExecutionWorkflow
 from workflows.repository_fix_proposal import RepositoryFixProposalWorkflow
@@ -40,16 +44,27 @@ from workflows.repository_investigation import RepositoryInvestigationWorkflow
 
 
 app = FastAPI(title="Verix API")
+public_demo_limits = PublicDemoLimits.from_environment()
+public_demo_guard = PublicDemoGuard(public_demo_limits)
+temporary_workspaces = TemporaryWorkspaceManager(
+    stale_after_seconds=public_demo_limits.stale_workspace_seconds
+)
 
 try:
-    llm_service: GeminiLLMService | None = GeminiLLMService()
+    llm_service: GeminiLLMService | None = GeminiLLMService(
+        max_output_tokens=public_demo_limits.llm_max_output_tokens
+    )
 except RuntimeError:
     llm_service = None
 
-test_runner = DockerTestRunner()
+test_runner = DockerTestRunner(temporary_workspaces=temporary_workspaces)
 github_repository_service = GitHubRepositoryService()
-repository_preparer = PublicRepositoryPreparer(github_repository_service)
+repository_preparer = PublicRepositoryPreparer(
+    github_repository_service,
+    temporary_workspaces,
+)
 
+app.add_middleware(PublicDemoMiddleware, guard=public_demo_guard)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -509,7 +524,10 @@ def verify_approved_repository_fix(
             patch=request.patch,
             generated_tests=request.generated_tests,
         )
-        application_workflow = RepositoryFixApplicationWorkflow(repository_preparer)
+        application_workflow = RepositoryFixApplicationWorkflow(
+            repository_preparer,
+            test_runner.workspace_manager,
+        )
         workflow = RepositoryFixVerificationWorkflow(application_workflow, test_runner)
         verification = workflow.run(request.url, approved_fix)
         return present_repository_fix_verification(approved_fix, verification)

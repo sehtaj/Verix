@@ -4,7 +4,6 @@ from contextlib import AbstractContextManager
 import os
 from pathlib import Path
 import subprocess
-import tempfile
 from uuid import uuid4
 
 from models.execution import RepositoryTestResults, TestExecutionResult
@@ -32,6 +31,7 @@ from services.repository_workspace import (
     GeneratedTestsValidationError,
     RepositoryWorkspaceManager,
 )
+from services.temporary_workspaces import TemporaryWorkspaceManager
 
 
 RUNNER_IMAGE = "verix-test-runner:dev"
@@ -50,14 +50,14 @@ class DockerTestRunner:
         self,
         timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
         workspace_manager: RepositoryWorkspaceManager | None = None,
+        temporary_workspaces: TemporaryWorkspaceManager | None = None,
         dependency_planner: RepositoryDependencyPlanner | None = None,
         test_command_planner: RepositoryTestCommandPlanner | None = None,
     ) -> None:
         self.timeout_seconds = timeout_seconds
-        self.workspace_manager = (
-            workspace_manager
-            if workspace_manager is not None
-            else RepositoryWorkspaceManager()
+        self.temporary_workspaces = temporary_workspaces or TemporaryWorkspaceManager()
+        self.workspace_manager = workspace_manager or RepositoryWorkspaceManager(
+            self.temporary_workspaces
         )
         self.dependency_planner = (
             dependency_planner
@@ -72,8 +72,7 @@ class DockerTestRunner:
 
     def run_tests(self, code: str, tests: str) -> TestExecutionResult:
         """Run pytest against code and tests written to a temporary workspace."""
-        with tempfile.TemporaryDirectory() as workspace:
-            workspace_path = Path(workspace)
+        with self.temporary_workspaces.create("pasted-code-") as workspace_path:
             container_name = f"verix-test-runner-{uuid4().hex}"
             os.chmod(workspace_path, 0o755)
             self._write_file(workspace_path / "main.py", code)

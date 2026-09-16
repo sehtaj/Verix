@@ -26,6 +26,8 @@ from models.investigation import (
     RepositoryOutcomeKind,
 )
 from services.llm_service import MAX_INVESTIGATION_EXPLANATION_CHARACTERS
+from services.public_demo_limits import DEFAULT_LLM_MAX_OUTPUT_TOKENS
+from google.genai import types
 
 
 class RepositoryLLMServiceTests(unittest.TestCase):
@@ -58,6 +60,9 @@ class RepositoryLLMServiceTests(unittest.TestCase):
         service.client = Mock()
         service.client.models.generate_content.return_value = SimpleNamespace(
             text=response_text
+        )
+        service.generation_config = types.GenerateContentConfig(
+            max_output_tokens=DEFAULT_LLM_MAX_OUTPUT_TOKENS
         )
         return service
 
@@ -134,6 +139,10 @@ class RepositoryLLMServiceTests(unittest.TestCase):
         service.client.models.generate_content.assert_called_once()
         call = service.client.models.generate_content.call_args
         self.assertEqual(call.kwargs["model"], MODEL_NAME)
+        self.assertEqual(
+            call.kwargs["config"].max_output_tokens,
+            DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+        )
         prompt = call.kwargs["contents"]
         self.assertIn("Selected target: src/sample.py", prompt)
         self.assertIn("def add(a, b)", prompt)
