@@ -148,7 +148,7 @@ def evaluate_report(
     }
 
 
-def run_benchmark() -> dict[str, object]:
+def run_benchmark(example_ids: set[str] | None = None) -> dict[str, object]:
     """Call Gemini a bounded number of times and collect reproducible evidence."""
     catalog = load_catalog()
     examples = {example["id"]: example for example in catalog["examples"]}
@@ -158,11 +158,35 @@ def run_benchmark() -> dict[str, object]:
     execution_workflow = RepositoryExecutionWorkflow(preparer, runner)
     llm = GeminiLLMService()
     results = []
+    llm_calls_attempted = 0
 
     for example_id, example in examples.items():
+        if example_ids is not None and example_id not in example_ids:
+            continue
         scenario = scenarios[example_id]
         context = build_generation_context(catalog, example)
-        report = llm.generate_repository_test_report(context)
+        llm_calls_attempted += 1
+        try:
+            report = llm.generate_repository_test_report(context)
+        except (RuntimeError, ValueError) as error:
+            results.append(
+                {
+                    "id": example_id,
+                    "model": MODEL_NAME,
+                    "generation": {
+                        "valid": False,
+                        "error": str(error),
+                    },
+                    "execution": {"attempted": False},
+                    "investigation": {"attempted": False},
+                    "proposal": {
+                        "attempted": False,
+                        "reason": "Generation did not produce a valid report.",
+                        "applied": False,
+                    },
+                }
+            )
+            continue
         execution_results = execution_workflow.run_existing_and_generated_tests(
             catalog["repository_url"],
             example["target_path"],
@@ -181,6 +205,7 @@ def run_benchmark() -> dict[str, object]:
             ),
         )
         outcome = classify_repository_outcome(evidence)
+        llm_calls_attempted += 1
         explanation = llm.generate_repository_investigation(
             outcome=outcome,
             evidence=evidence,
@@ -203,6 +228,8 @@ def run_benchmark() -> dict[str, object]:
             report.tests,
             runner,
         )
+        if outcome in FIXABLE_OUTCOMES:
+            llm_calls_attempted += 1
         proposal_result = _evaluate_proposal(llm, context, investigation)
         expected_outcome = scenario.expected_outcome
         generated_execution = execution_results["generated_execution"]
@@ -246,9 +273,7 @@ def run_benchmark() -> dict[str, object]:
     return {
         "model": MODEL_NAME,
         "catalog_revision": catalog["revision"],
-        "llm_calls_reserved_by_harness": sum(
-            3 if result["proposal"]["attempted"] else 2 for result in results
-        ),
+        "llm_calls_attempted": llm_calls_attempted,
         "results": results,
         "summary": _summarize(results),
     }
@@ -407,7 +432,8 @@ def _mentions_relevant_result(
 
 def _summarize(results: list[dict[str, object]]) -> dict[str, object]:
     generation_passes = sum(
-        all(
+        result["generation"].get("valid", True)
+        and all(
             (
                 result["generation"]["categories_met"],
                 result["generation"]["strategies_met"],
@@ -424,8 +450,8 @@ def _summarize(results: list[dict[str, object]]) -> dict[str, object]:
         "examples": len(results),
         "generation_and_exposure_passes": generation_passes,
         "investigation_checks_passed": sum(
-            result["investigation"]["bounded"]
-            and result["investigation"]["mentions_relevant_result"]
+            result["investigation"].get("bounded", False)
+            and result["investigation"].get("mentions_relevant_result", False)
             for result in results
         ),
         "structurally_valid_review_only_proposals": valid_proposals,
@@ -462,8 +488,18 @@ def main() -> None:
         action="store_true",
         help="Print the external payload manifest without contacting Gemini.",
     )
+    parser.add_argument(
+        "--example",
+        action="append",
+        choices=[scenario.example_id for scenario in SCENARIOS],
+        help="Benchmark only the selected example; repeat to select several.",
+    )
     arguments = parser.parse_args()
-    result = build_dry_run_manifest() if arguments.dry_run else run_benchmark()
+    result = (
+        build_dry_run_manifest()
+        if arguments.dry_run
+        else run_benchmark(set(arguments.example) if arguments.example else None)
+    )
     print(json.dumps(result, indent=2))
 
 

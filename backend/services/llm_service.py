@@ -27,6 +27,75 @@ from services.public_demo_limits import DEFAULT_LLM_MAX_OUTPUT_TOKENS
 MODEL_NAME = "gemini-3.5-flash"
 ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 MAX_INVESTIGATION_EXPLANATION_CHARACTERS = 4_000
+GENERATED_TEST_REPORT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["tests", "sources", "assumptions", "cases"],
+    "properties": {
+        "tests": {"type": "string"},
+        "sources": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["kind", "path", "excerpt"],
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "source_code",
+                            "documentation",
+                            "existing_test",
+                            "configuration",
+                        ],
+                    },
+                    "path": {"type": "string"},
+                    "excerpt": {"type": "string"},
+                },
+            },
+        },
+        "assumptions": {"type": "array", "items": {"type": "string"}},
+        "cases": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "test_name",
+                    "category",
+                    "strategy",
+                    "expected_behavior",
+                ],
+                "properties": {
+                    "test_name": {"type": "string"},
+                    "category": {
+                        "type": "string",
+                        "enum": [
+                            "normal",
+                            "boundary",
+                            "invalid_input",
+                            "error_handling",
+                        ],
+                    },
+                    "strategy": {
+                        "type": "string",
+                        "enum": ["black_box", "gray_box"],
+                    },
+                    "expected_behavior": {"type": "string"},
+                },
+            },
+        },
+    },
+}
+FIX_PROPOSAL_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["summary", "patch"],
+    "properties": {
+        "summary": {"type": "string"},
+        "patch": {"type": "string"},
+    },
+}
 
 
 class GeminiLLMService:
@@ -46,8 +115,18 @@ class GeminiLLMService:
             raise ValueError("LLM output token limit must be greater than zero.")
 
         self.client = genai.Client(api_key=api_key)
-        self.generation_config = types.GenerateContentConfig(
+        self.text_generation_config = types.GenerateContentConfig(
             max_output_tokens=max_output_tokens
+        )
+        self.report_generation_config = types.GenerateContentConfig(
+            max_output_tokens=max_output_tokens,
+            response_mime_type="application/json",
+            response_json_schema=GENERATED_TEST_REPORT_SCHEMA,
+        )
+        self.fix_generation_config = types.GenerateContentConfig(
+            max_output_tokens=max_output_tokens,
+            response_mime_type="application/json",
+            response_json_schema=FIX_PROPOSAL_SCHEMA,
         )
 
     def generate_tests(self, code: str) -> str:
@@ -74,7 +153,10 @@ Python code:
     ) -> GeneratedTestReport:
         """Return grounded pytest code and its validated intent metadata."""
         prompt = build_repository_test_prompt(context)
-        response = self._generate_from_prompt(prompt)
+        response = self._generate_from_prompt(
+            prompt,
+            config=self.report_generation_config,
+        )
         return parse_generated_test_report(response, context, MODEL_NAME)
 
     def generate_repository_investigation(
@@ -104,7 +186,10 @@ Python code:
     ) -> RepositoryFixProposal:
         """Generate one review-only patch without writing repository files."""
         prompt = build_repository_fix_prompt(context)
-        response = self._generate_from_prompt(prompt)
+        response = self._generate_from_prompt(
+            prompt,
+            config=self.fix_generation_config,
+        )
 
         try:
             payload = json.loads(response)
@@ -125,13 +210,18 @@ Python code:
         except (TypeError, ValueError, json.JSONDecodeError):
             raise RuntimeError("Gemini returned an invalid fix proposal.") from None
 
-    def _generate_from_prompt(self, prompt: str) -> str:
+    def _generate_from_prompt(
+        self,
+        prompt: str,
+        *,
+        config: types.GenerateContentConfig | None = None,
+    ) -> str:
         """Send one prepared prompt to Gemini and require a non-empty response."""
         try:
             response = self.client.models.generate_content(
                 model=MODEL_NAME,
                 contents=prompt,
-                config=self.generation_config,
+                config=config or self.text_generation_config,
             )
         except Exception:
             raise RuntimeError("Gemini could not generate a response.") from None

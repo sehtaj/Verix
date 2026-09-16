@@ -13,6 +13,7 @@ from scripts.benchmark_configured_llm import (
     build_dry_run_manifest,
     build_generation_context,
     evaluate_report,
+    _summarize,
 )
 from scripts.validate_recruiter_journey import (
     SCENARIOS,
@@ -74,6 +75,23 @@ class ConfiguredLLMBenchmarkTests(unittest.TestCase):
         for example in manifest["examples"]:
             for file in example["files"]:
                 self.assertEqual(set(file), {"path", "bytes"})
+
+    def test_summary_preserves_invalid_generation_as_a_model_miss(self) -> None:
+        summary = _summarize(
+            [
+                {
+                    "generation": {"valid": False},
+                    "execution": {"attempted": False},
+                    "investigation": {"attempted": False},
+                    "proposal": {"attempted": False},
+                }
+            ]
+        )
+
+        self.assertEqual(summary["examples"], 1)
+        self.assertEqual(summary["generation_and_exposure_passes"], 0)
+        self.assertEqual(summary["investigation_checks_passed"], 0)
+        self.assertEqual(summary["structurally_valid_review_only_proposals"], 0)
 
 
 if __name__ == "__main__":

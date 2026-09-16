@@ -19,7 +19,12 @@ from services.github_service import (
     RepositoryGenerationSelection,
 )
 from models.fix_proposal import RepositoryFixContext
-from services.llm_service import GeminiLLMService, MODEL_NAME
+from services.llm_service import (
+    FIX_PROPOSAL_SCHEMA,
+    GENERATED_TEST_REPORT_SCHEMA,
+    GeminiLLMService,
+    MODEL_NAME,
+)
 from models.investigation import (
     RepositoryInvestigationEvidence,
     RepositoryCommandEvidence,
@@ -61,8 +66,18 @@ class RepositoryLLMServiceTests(unittest.TestCase):
         service.client.models.generate_content.return_value = SimpleNamespace(
             text=response_text
         )
-        service.generation_config = types.GenerateContentConfig(
+        service.text_generation_config = types.GenerateContentConfig(
             max_output_tokens=DEFAULT_LLM_MAX_OUTPUT_TOKENS
+        )
+        service.report_generation_config = types.GenerateContentConfig(
+            max_output_tokens=DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+            response_mime_type="application/json",
+            response_json_schema=GENERATED_TEST_REPORT_SCHEMA,
+        )
+        service.fix_generation_config = types.GenerateContentConfig(
+            max_output_tokens=DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+            response_mime_type="application/json",
+            response_json_schema=FIX_PROPOSAL_SCHEMA,
         )
         return service
 
@@ -142,6 +157,11 @@ class RepositoryLLMServiceTests(unittest.TestCase):
         self.assertEqual(
             call.kwargs["config"].max_output_tokens,
             DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+        )
+        self.assertEqual(call.kwargs["config"].response_mime_type, "application/json")
+        self.assertEqual(
+            call.kwargs["config"].response_json_schema,
+            GENERATED_TEST_REPORT_SCHEMA,
         )
         prompt = call.kwargs["contents"]
         self.assertIn("Selected target: src/sample.py", prompt)
@@ -237,6 +257,11 @@ class RepositoryLLMServiceTests(unittest.TestCase):
         self.assertFalse(proposal.applied)
         call = service.client.models.generate_content.call_args
         self.assertIn("Return only the JSON object", call.kwargs["contents"])
+        self.assertEqual(call.kwargs["config"].response_mime_type, "application/json")
+        self.assertEqual(
+            call.kwargs["config"].response_json_schema,
+            FIX_PROPOSAL_SCHEMA,
+        )
 
     def test_rejects_malformed_repository_fix_responses(self) -> None:
         invalid_responses = (

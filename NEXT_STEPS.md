@@ -231,14 +231,29 @@ The release is complete only when every item below has current evidence:
   secrets, and neither approve nor apply a generated patch. The manifest is
   reproducible with `python3 backend/scripts/benchmark_configured_llm.py
   --dry-run` and performs no external request.
+- 2026-09-16 live baseline benchmark: the user approved one run. Three Gemini
+  calls were made—one per example generation stage, below the eight-call cap.
+  Refund and shipping returned responses that failed Verix's strict generated-
+  report validation; inventory returned an API-generation failure. Therefore
+  no generated suite reached Docker, investigation, or proposal evaluation,
+  and the configured setup scored 0 of 3 valid generation reports. No patch
+  was approved or applied and no automatic retry was performed.
+- The baseline failure does not yet justify changing provider: Verix had asked
+  for JSON only in prompt prose despite the installed Gemini client supporting
+  native JSON Schema. The adapter now supplies explicit JSON response schemas
+  for generated-test reports and fix proposals while retaining deterministic
+  backend validation. The benchmark also records invalid generation as a model
+  miss and can continue selected examples without repeating completed calls.
+  This corrective configuration is locally verified by 192 passing backend
+  tests, backend compilation, and `git diff --check`, but has not been live-
+  retested because the user approved only one benchmark run.
 
 ### Exact next action
 
-After the user explicitly approves sending the three controlled example
-sources, tests, and README contracts to Gemini and consuming at most eight API
-calls, run `python3 backend/scripts/benchmark_configured_llm.py`. Review and
-record every model miss before deciding whether a model or provider change is
-justified. Do not change provider or add OpenRouter without separate approval.
+Ask the user whether to run one schema-enforced benchmark retry against the
+same already-disclosed controlled examples, using at most eight additional
+Gemini calls. If approved, record every model miss and finish the model/provider
+decision. Do not change provider or add OpenRouter without separate approval.
 
 ### Decisions that will require the user later
 
