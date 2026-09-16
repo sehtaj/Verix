@@ -63,6 +63,14 @@ class GeneratedTestReportTests(unittest.TestCase):
                 }
             ],
             "assumptions": ["Non-integer inputs are outside this focused run."],
+            "cases": [
+                {
+                    "test_name": "test_positive",
+                    "category": "normal",
+                    "strategy": "black_box",
+                    "expected_behavior": "Positive values are classified as positive.",
+                }
+            ],
         }
 
     def test_accepts_grounded_sources_and_explicit_assumptions(self) -> None:
@@ -73,6 +81,7 @@ class GeneratedTestReportTests(unittest.TestCase):
         self.assertEqual(report.model, "gemini-test")
         self.assertEqual(report.sources[0].path, "README.md")
         self.assertIn("Non-integer", report.assumptions[0])
+        self.assertEqual(report.cases[0].category.value, "normal")
 
     def test_rejects_a_source_or_excerpt_outside_bounded_context(self) -> None:
         for path, excerpt in (
@@ -108,6 +117,27 @@ class GeneratedTestReportTests(unittest.TestCase):
                 json.dumps(payload), self.make_context(), "gemini-test"
             )
 
+    def test_requires_exactly_one_valid_classification_per_test(self) -> None:
+        payload = self.make_payload()
+        payload["cases"] = []
+        with self.assertRaisesRegex(RuntimeError, "invalid generated-test report"):
+            parse_generated_test_report(
+                json.dumps(payload), self.make_context(), "gemini-test"
+            )
+
+        payload = self.make_payload()
+        payload["cases"][0]["category"] = "performance"
+        with self.assertRaisesRegex(RuntimeError, "invalid generated-test report"):
+            parse_generated_test_report(
+                json.dumps(payload), self.make_context(), "gemini-test"
+            )
+
+        payload = self.make_payload()
+        payload["tests"] += "\n\ndef test_zero():\n    assert True\n"
+        with self.assertRaisesRegex(RuntimeError, "invalid generated-test report"):
+            parse_generated_test_report(
+                json.dumps(payload), self.make_context(), "gemini-test"
+            )
 
 if __name__ == "__main__":
     unittest.main()

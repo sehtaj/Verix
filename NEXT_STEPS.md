@@ -11,7 +11,7 @@ The release is complete only when every item below has current evidence:
 
 - [ ] Reproducible Python examples have documented expected behavior, known
   defects, and immutable revisions.
-- [ ] Every generated-test report identifies its expected-behavior sources and
+- [x] Every generated-test report identifies its expected-behavior sources and
   separates explicit evidence from AI assumptions.
 - [ ] Generated tests cover meaningful normal, boundary, invalid-input, and
   error-handling behavior using black-box and gray-box reasoning.
@@ -67,13 +67,20 @@ The release is complete only when every item below has current evidence:
 - Project-root README behavior documentation is now selected deterministically,
   fetched under the existing per-file and total-context limits, included in the
   untrusted Gemini context, and shown distinctly in the context preview.
+- Generated-test responses now carry exact bounded source excerpts and an
+  explicit assumptions list. The backend rejects citations that do not match
+  the selected source, documentation, existing tests, or configuration.
+- Every generated pytest function now has one validated normal, boundary,
+  invalid-input, or error-handling classification and one black-box or
+  gray-box strategy label. Missing, duplicate, extra, or invalid case records
+  are rejected before repository preparation.
 
 ### Proposed work for this goal
 
 - Add a repeatable LLM evaluation harness instead of relying on changing
   third-party repositories.
-- Add expected-behavior provenance, test-intent classification, branch coverage
-  deltas, and an honest evidence summary to backend contracts and the frontend.
+- Add branch coverage deltas and an honest evidence summary to backend
+  contracts and the frontend.
 - Add small, cohesive public-demo controls without introducing authentication,
   a database, Redis, a queue, or an autonomous repair loop.
 - Review and deploy the verified system after the user approves external
@@ -128,15 +135,30 @@ The release is complete only when every item below has current evidence:
 - 2026-09-16 verification evidence: 161 backend unit tests passed; 15 frontend
   tests passed; backend compilation and the Next.js production build with
   TypeScript validation passed.
+- 2026-09-16: Completed generated-test provenance in commit `1805a38`. Gemini
+  must return generated code, bounded source citations, explicit assumptions,
+  and its model identifier. Exact citation excerpts are checked against the
+  bounded context and displayed beside generation and investigation evidence.
+- 2026-09-16 provenance verification evidence: 164 backend tests passed; 16
+  frontend tests passed; backend compilation, `git diff --check`, and the
+  Next.js production build with TypeScript validation passed. No live Gemini,
+  Docker, or browser run was claimed.
+- 2026-09-16: Added one-to-one test-intent classification for every generated
+  pytest function. The report records category, strategy, and expected
+  behavior, while the prompt avoids inventing tests solely to fill labels.
+- 2026-09-16 classification verification evidence: 165 backend tests passed;
+  17 frontend tests passed; backend compilation and the Next.js production
+  build with TypeScript validation passed. Semantic quality across all four
+  categories and both strategies remains unproven until the controlled LLM
+  benchmark runs.
 
 ### Exact next action
 
-Define and validate a structured generated-test report that cites bounded
-expected-behavior sources, separates explicit evidence from AI assumptions,
-and records normal, boundary, invalid-input, and error-handling intent with
-black-box or gray-box strategy. Docker verification remains pending until
-Docker Desktop is available; pushing the pinned examples remains an explicitly
-approval-gated action.
+Measure branch coverage for the existing suite and then for the combined
+existing-plus-generated suite in the same isolated prepared workspace. Report
+the existing percentage and generated incremental branch coverage separately.
+Docker verification remains pending until Docker Desktop is available; pushing
+the pinned examples remains an explicitly approval-gated action.
 
 ### Decisions that will require the user later
 

@@ -186,6 +186,15 @@ def present_generated_test_report(
             for source in report.sources
         ],
         "assumptions": list(report.assumptions),
+        "cases": [
+            {
+                "test_name": case.test_name,
+                "category": case.category.value,
+                "strategy": case.strategy.value,
+                "expected_behavior": case.expected_behavior,
+            }
+            for case in report.cases
+        ],
     }
 
 

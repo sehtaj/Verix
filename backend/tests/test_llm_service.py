@@ -74,6 +74,14 @@ class RepositoryLLMServiceTests(unittest.TestCase):
                     }
                 ],
                 "assumptions": ["Numeric inputs support addition."],
+                "cases": [
+                    {
+                        "test_name": "test_add",
+                        "category": "normal",
+                        "strategy": "black_box",
+                        "expected_behavior": "Addition returns the numeric sum.",
+                    }
+                ],
             }
         )
 

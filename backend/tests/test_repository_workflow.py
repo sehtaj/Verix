@@ -1714,6 +1714,15 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
             "source_code",
         )
         self.assertEqual(response["generated_test_report"]["assumptions"], [])
+        self.assertEqual(
+            response["generated_test_report"]["cases"][0],
+            {
+                "test_name": "test_generated",
+                "category": "normal",
+                "strategy": "black_box",
+                "expected_behavior": "The selected behavior matches its contract.",
+            },
+        )
         self.assertEqual(response["existing_execution"]["return_code"], 1)
         self.assertEqual(response["existing_execution"]["output"], "1 failed\n")
         self.assertEqual(response["generated_execution"]["return_code"], 0)

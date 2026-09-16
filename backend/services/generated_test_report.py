@@ -6,12 +6,16 @@ import json
 from models.generated_test_report import (
     BehaviorSource,
     BehaviorSourceKind,
+    GeneratedTestCase,
     GeneratedTestReport,
+    TestCaseCategory,
+    TestDesignStrategy,
 )
 from models.repository import RepositoryGenerationContext
 
 
 MAX_REPORT_LIST_ITEMS = 16
+MAX_REPORT_CASES = 32
 MAX_REPORT_TEXT_CHARACTERS = 1_000
 MAX_SOURCE_EXCERPT_CHARACTERS = 500
 
@@ -28,9 +32,9 @@ def parse_generated_test_report(
         raise RuntimeError("Gemini returned an invalid generated-test report.") from None
 
     try:
-        _require_keys(payload, {"tests", "sources", "assumptions"})
+        _require_keys(payload, {"tests", "sources", "assumptions", "cases"})
         tests = _bounded_text(payload["tests"], "tests", 128 * 1024)
-        _require_pytest_function(tests)
+        test_names = _pytest_function_names(tests)
         assumptions = _string_tuple(payload["assumptions"], "assumptions")
         source_contents = _source_contents(context)
 
@@ -44,10 +48,25 @@ def parse_generated_test_report(
             _parse_source(item, source_contents) for item in raw_sources
         )
 
+        raw_cases = payload["cases"]
+        if (
+            not isinstance(raw_cases, list)
+            or not 1 <= len(raw_cases) <= MAX_REPORT_CASES
+        ):
+            raise ValueError
+        cases = tuple(_parse_case(item) for item in raw_cases)
+        classified_names = [case.test_name for case in cases]
+        if (
+            len(classified_names) != len(set(classified_names))
+            or set(classified_names) != set(test_names)
+        ):
+            raise ValueError
+
         return GeneratedTestReport(
             tests=tests,
             sources=sources,
             assumptions=assumptions,
+            cases=cases,
             model=model,
         )
     except (KeyError, TypeError, ValueError):
@@ -70,6 +89,26 @@ def _parse_source(
     return BehaviorSource(kind=kind, path=path, excerpt=excerpt)
 
 
+def _parse_case(value: object) -> GeneratedTestCase:
+    _require_keys(
+        value,
+        {"test_name", "category", "strategy", "expected_behavior"},
+    )
+    test_name = _bounded_text(value["test_name"], "test name", 200)
+    if not test_name.startswith("test_"):
+        raise ValueError
+    return GeneratedTestCase(
+        test_name=test_name,
+        category=TestCaseCategory(value["category"]),
+        strategy=TestDesignStrategy(value["strategy"]),
+        expected_behavior=_bounded_text(
+            value["expected_behavior"],
+            "expected behavior",
+            MAX_REPORT_TEXT_CHARACTERS,
+        ),
+    )
+
+
 def _source_contents(
     context: RepositoryGenerationContext,
 ) -> dict[tuple[BehaviorSourceKind, str], str]:
@@ -87,17 +126,20 @@ def _source_contents(
     return contents
 
 
-def _require_pytest_function(tests: str) -> None:
+def _pytest_function_names(tests: str) -> tuple[str, ...]:
     try:
         tree = ast.parse(tests)
     except SyntaxError:
         raise ValueError from None
-    if not any(
-        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name.startswith("test_")
+    names = tuple(
+        node.name
         for node in ast.walk(tree)
-    ):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name.startswith("test_")
+    )
+    if not names or len(names) != len(set(names)):
         raise ValueError
+    return names
 
 
 def _string_tuple(value: object, name: str) -> tuple[str, ...]:

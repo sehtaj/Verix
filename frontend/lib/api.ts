@@ -307,6 +307,8 @@ function isGenerationRun(value: unknown): value is RepositoryGenerationRun {
 }
 
 const behaviorSourceKinds = new Set(["source_code", "documentation", "existing_test", "configuration"]);
+const testCaseCategories = new Set(["normal", "boundary", "invalid_input", "error_handling"]);
+const testDesignStrategies = new Set(["black_box", "gray_box"]);
 
 function isGeneratedTestReport(value: unknown): boolean {
   return (
@@ -320,6 +322,15 @@ function isGeneratedTestReport(value: unknown): boolean {
       typeof source.kind === "string" && behaviorSourceKinds.has(source.kind) &&
       isNonEmptyString(source.path) &&
       isNonEmptyString(source.excerpt),
+    ) &&
+    Array.isArray(value.cases) &&
+    value.cases.length > 0 &&
+    value.cases.every((testCase) =>
+      isRecord(testCase) &&
+      isNonEmptyString(testCase.test_name) &&
+      typeof testCase.category === "string" && testCaseCategories.has(testCase.category) &&
+      typeof testCase.strategy === "string" && testDesignStrategies.has(testCase.strategy) &&
+      isNonEmptyString(testCase.expected_behavior),
     )
   );
 }

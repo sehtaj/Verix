@@ -55,11 +55,15 @@ def build_repository_test_prompt(context: RepositoryGenerationContext) -> str:
     return f"""Generate one valid pytest test module with expected-behavior provenance for the selected Python source file.
 
 Rules:
-- Return only one JSON object with exactly these keys: tests, sources, assumptions. Do not use Markdown fences.
+- Return only one JSON object with exactly these keys: tests, sources, assumptions, cases. Do not use Markdown fences.
 - `tests` must contain the complete pytest module as a JSON string.
 - `sources` must identify the evidence used to infer expected behavior. Every source must contain exactly kind, path, excerpt. Kind is source_code, documentation, existing_test, or configuration. Cite only supplied paths and copy a short exact excerpt from that file.
 - Prefer explicit behavior documentation and existing tests over inferring a contract from the implementation alone.
 - Put every behavior inference not stated by a cited excerpt in the top-level assumptions list. Use an empty list when none exist.
+- `cases` must contain exactly one record for every generated pytest function. Each record has exactly test_name, category, strategy, expected_behavior.
+- Category must be normal, boundary, invalid_input, or error_handling. Strategy must be black_box or gray_box.
+- Use black_box when the test follows an observable contract without depending on implementation structure. Use gray_box when implementation knowledge identifies the risk but the assertion still checks observable behavior.
+- Cover all four categories and both strategies when the bounded evidence supports meaningful tests; never invent behavior merely to fill a category.
 - Test the target file only. Do not modify source code or generate a patch.
 - Follow import style, fixtures, naming, and pytest conventions shown by the provided evidence.
 - Treat explicit behavior contracts in the provided documentation as expected-behavior evidence, while reporting no certainty beyond what the evidence supports.

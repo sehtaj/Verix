@@ -108,6 +108,12 @@ export type GeneratedTestReport = {
     excerpt: string;
   }>;
   assumptions: string[];
+  cases: Array<{
+    test_name: string;
+    category: "normal" | "boundary" | "invalid_input" | "error_handling";
+    strategy: "black_box" | "gray_box";
+    expected_behavior: string;
+  }>;
 };
 
 export type RepositoryInvestigationRun = RepositoryGenerationRun & {

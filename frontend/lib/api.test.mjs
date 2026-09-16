@@ -22,6 +22,14 @@ function generatedTestReport() {
       },
     ],
     assumptions: [],
+    cases: [
+      {
+        test_name: "test_example",
+        category: "normal",
+        strategy: "black_box",
+        expected_behavior: "The example follows its public contract.",
+      },
+    ],
   };
 }
 
@@ -199,6 +207,31 @@ test("rejects generated results without expected-behavior provenance", async () 
   globalThis.fetch = async () => jsonResponse({
     target_path: "src/example.py",
     generated_tests: "def test_example():\n    assert True\n",
+    preparation: { file_count: 1, total_bytes: 10, skipped_entries: 0 },
+    installation: { return_code: 0, output: "", timed_out: false, skipped: true },
+    test_runner: "pytest",
+    existing_execution: { return_code: 5, output: "", timed_out: false, skipped: false },
+    generated_execution: { return_code: 0, output: "1 passed", timed_out: false, skipped: false },
+  });
+
+  try {
+    await assert.rejects(
+      generateRepositoryTests("https://github.com/owner/project", { targetPath: "src/example.py" }),
+      /Unable to generate focused tests/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("rejects invalid generated-test classifications", async () => {
+  const originalFetch = globalThis.fetch;
+  const report = generatedTestReport();
+  report.cases[0].category = "performance";
+  globalThis.fetch = async () => jsonResponse({
+    target_path: "src/example.py",
+    generated_tests: "def test_example():\n    assert True\n",
+    generated_test_report: report,
     preparation: { file_count: 1, total_bytes: 10, skipped_entries: 0 },
     installation: { return_code: 0, output: "", timed_out: false, skipped: true },
     test_runner: "pytest",
