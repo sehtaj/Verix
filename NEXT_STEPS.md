@@ -212,15 +212,26 @@ The release is complete only when every item below has current evidence:
   in-process to avoid prematurely adding a database, Redis, or a queue. The
   first deployment must therefore use one backend worker and a provider-side
   hard spending/quota cap. Multiple workers would multiply these local limits.
+- 2026-09-16: Added a repeatable configured-model benchmark harness. It builds
+  the same bounded generation context used by production from each integrity-
+  checked fixture, makes at most eight LLM calls, runs generated tests in
+  Docker against both the known defect and the catalog correction, compares
+  required categories, strategies, documentation grounding, and assumptions,
+  checks the evidence-grounded investigation wording, and structurally
+  validates review-only proposals without approving or applying them.
+- 2026-09-16 benchmark-harness verification: 190 backend tests passed; backend
+  compilation and `git diff --check` passed. No live Gemini call was made. The
+  attempted run was stopped before transmission because explicit approval is
+  still required to send the three controlled example sources, tests, and
+  documentation files to Gemini and consume eight configured-provider calls.
 
 ### Exact next action
 
-Run a repeatable live benchmark of the configured Gemini model against every
-deterministic example. Compare generated test validity, required categories and
-strategies, behavior-source grounding, assumptions, defect exposure,
-investigation accuracy, and patch validity with the catalog. Record every miss
-before deciding whether a model or provider change is justified. Do not change
-provider, spend money, or send repository data elsewhere without approval.
+After the user explicitly approves sending the three controlled example
+sources, tests, and README contracts to Gemini and consuming at most eight API
+calls, run `python3 backend/scripts/benchmark_configured_llm.py`. Review and
+record every model miss before deciding whether a model or provider change is
+justified. Do not change provider or add OpenRouter without separate approval.
 
 ### Decisions that will require the user later
 

@@ -1,0 +1,66 @@
+"""Tests for deterministic inputs and scoring in the live LLM benchmark."""
+
+from pathlib import Path
+import sys
+import unittest
+
+
+BACKEND_DIRECTORY = Path(__file__).resolve().parents[1]
+if str(BACKEND_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIRECTORY))
+
+from scripts.benchmark_configured_llm import (
+    build_generation_context,
+    evaluate_report,
+)
+from scripts.validate_recruiter_journey import (
+    SCENARIOS,
+    build_report,
+    load_catalog,
+)
+
+
+class ConfiguredLLMBenchmarkTests(unittest.TestCase):
+    """Keep benchmark context and catalog comparisons reproducible."""
+
+    def setUp(self) -> None:
+        self.catalog = load_catalog()
+        self.examples = {
+            example["id"]: example for example in self.catalog["examples"]
+        }
+
+    def test_builds_bounded_context_for_every_catalog_example(self) -> None:
+        for scenario in SCENARIOS:
+            with self.subTest(example=scenario.example_id):
+                example = self.examples[scenario.example_id]
+                context = build_generation_context(self.catalog, example)
+
+                self.assertEqual(
+                    context.selection.target_path,
+                    example["target_path"],
+                )
+                self.assertEqual(context.revision, self.catalog["revision"])
+                self.assertEqual(context.subdirectory, example["subdirectory"])
+                self.assertEqual(
+                    context.documentation_files[0].path,
+                    example["behavior_source"]["path"],
+                )
+                self.assertGreater(context.total_bytes, 0)
+                self.assertIsNotNone(context.test_plan)
+
+    def test_catalog_aligned_reports_receive_passing_metadata_scores(self) -> None:
+        for scenario in SCENARIOS:
+            with self.subTest(example=scenario.example_id):
+                example = self.examples[scenario.example_id]
+                report = build_report(example, scenario)
+
+                evaluation = evaluate_report(example, report)
+
+                self.assertTrue(evaluation["categories_met"])
+                self.assertTrue(evaluation["strategies_met"])
+                self.assertTrue(evaluation["documentation_source_cited"])
+                self.assertTrue(evaluation["assumptions_match_catalog"])
+
+
+if __name__ == "__main__":
+    unittest.main()
