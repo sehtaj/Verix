@@ -24,7 +24,7 @@ from services.generated_test_report import parse_generated_test_report
 from services.public_demo_limits import DEFAULT_LLM_MAX_OUTPUT_TOKENS
 
 
-MODEL_NAME = "gemini-3.5-flash"
+MODEL_NAME = "gemini-3.8-flash"
 ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 MAX_INVESTIGATION_EXPLANATION_CHARACTERS = 4_000
 GENERATED_TEST_REPORT_SCHEMA = {

@@ -38,6 +38,9 @@ from google.genai import types
 class RepositoryLLMServiceTests(unittest.TestCase):
     """Protect the repository prompt-to-Gemini generation boundary."""
 
+    def test_uses_the_approved_stable_gemini_model(self) -> None:
+        self.assertEqual(MODEL_NAME, "gemini-3.8-flash")
+
     @staticmethod
     def make_context() -> RepositoryGenerationContext:
         source_content = "def add(a, b):\n    return a + b\n"
