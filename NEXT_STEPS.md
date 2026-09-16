@@ -9,7 +9,7 @@ that the recruiter-ready acceptance criteria are complete.
 
 The release is complete only when every item below has current evidence:
 
-- [ ] Reproducible Python examples have documented expected behavior, known
+- [x] Reproducible Python examples have documented expected behavior, known
   defects, and immutable revisions.
 - [x] Every generated-test report identifies its expected-behavior sources and
   separates explicit evidence from AI assumptions.
@@ -19,11 +19,11 @@ The release is complete only when every item below has current evidence:
   coverage are measured and reported separately.
 - [x] The product summarizes what passed, failed, was assumed, and remains
   untested without claiming that code is error-free.
-- [ ] Failure investigation is grounded in bounded execution evidence.
+- [x] Failure investigation is grounded in bounded execution evidence.
 - [x] Patch verification requires explicit approval and runs the exact reviewed
   patch against both the generated test that exposed the defect and the
   existing suite in a disposable isolated workspace.
-- [ ] A public demo has bounded request size, execution concurrency, request
+- [x] A public demo has bounded request size, execution concurrency, request
   rate, LLM spending, resource use, and cleanup.
 - [ ] The current LLM is benchmarked on the reproducible examples; any model or
   OpenRouter change is evidence-driven and separately approved for cost and
@@ -255,23 +255,87 @@ The release is complete only when every item below has current evidence:
   Across both approved runs, six calls were made and no patch was approved or
   applied. The configured `gemini-3.5-flash` setup is not acceptable for the
   recruiter-ready release.
-- Current model recommendation: stay with the direct Google provider and test
-  stable `gemini-3.8-flash` before considering OpenRouter. Google's current
-  model catalog labels 3.5 Flash as legacy baseline performance and 3.8 Flash
-  as its most intelligent Flash model for long-horizon software engineering.
-  Through 2026-12-31, Google's published paid rates are $0.75 per million input
-  tokens and $3.75 per million output tokens for 3.8 Flash, versus $1.50 and
-  $9.00 for 3.5 Flash. This keeps the existing provider, key, privacy path, and
-  adapter while testing a stronger currently cheaper model. No model change or
-  additional benchmark call has been made without user approval.
+- 2026-09-16 model migration: the direct Google adapter now targets stable
+  `gemini-3.8-flash`. This preserved the existing provider, API key boundary,
+  privacy path, structured-output validation, and benchmark fixtures; no
+  OpenRouter or multi-provider abstraction was added.
+- 2026-09-16 failure diagnosis: repeated schema-constrained 3.8 Flash requests
+  reached Google but returned terminal `503 UNAVAILABLE` high-demand responses
+  before generation. A simple 3.8 request succeeded once, so the configured
+  key, SDK, and model identifier are valid. Equivalent structured requests to
+  3.7 and 3.6 Flash also returned 503, while 2.5 Pro is unavailable to new
+  users. These results identify provider capacity, not Verix parsing, as the
+  current 3.8 blocker.
+- A controlled 2.5 Flash request using the same prompt, schema, and 4,096-token
+  cap exposed a separate proven cause of earlier invalid JSON: the response
+  ended with `MAX_TOKENS` after 1,305 prompt tokens, 2,463 hidden thinking
+  tokens, and 1,619 candidate tokens, leaving a truncated JSON object. The 3.8
+  adapter now requests the supported low thinking level and preserves safe
+  private diagnostics for API status, finish reason, and report validation.
+  This correction is covered by local tests but is not claimed as live-proven
+  on 3.8 because every subsequent structured request stopped at Google's 503.
+- 2026-09-16 post-diagnosis verification: 196 backend tests plus 138 subtests,
+  19 frontend tests, backend compilation, the frontend production build and
+  TypeScript validation, and `git diff --check` passed. The configured-model
+  dry run still targets 3.8 Flash, includes 7,214 bytes of controlled fixture
+  context, makes at most eight calls, contains no secrets, and cannot approve
+  or apply a patch.
+- 2026-09-16 deterministic Docker review: all three pinned recruiter journeys
+  passed against Docker 29.7.2. Refund preserved a passing existing suite and
+  a generated boundary failure; shipping preserved an existing-suite failure;
+  inventory preserved the no-tests result. Each exact reviewed correction made
+  its exposing test pass in a disposable workspace, the original fixtures
+  stayed unchanged, and GitHub remained unchanged. This validates Verix's
+  deterministic workflow, not the unavailable live model.
+- 2026-09-16 local browser review: the initial workspace, inline invalid-URL
+  recovery, live public GitHub context, selected target, related-test context,
+  and bounded context-preview dialog worked through the real Next.js/FastAPI
+  boundary. The Verix repository resolved to one full commit SHA and the
+  preview exposed five bounded files totaling 43,805 bytes without contacting
+  Gemini or executing repository code. Desktop and 390-by-844 mobile checks
+  preserved readable controls, status text, keyboard semantics, and the mobile
+  repository drawer. The current CORS allowlist correctly accepted local port
+  3000 and rejected port 3001; production therefore still requires an approved
+  environment-configured Vercel origin rather than another hard-coded domain.
+- Production-readiness audit initially found hard-coded local CORS origins,
+  incomplete environment examples, and environment loading that occurred only
+  while constructing Gemini after resource settings were read. Environment
+  loading is now centralized before CORS, limits, and Gemini initialization;
+  exact trusted frontend origins are configurable with `VERIX_CORS_ORIGINS`;
+  unsafe wildcard, credential, path, query, fragment, malformed-port, and empty
+  values fail closed; localhost defaults remain unchanged. Backend and frontend
+  environment examples now document the API URL, CORS origin, and bounded demo
+  settings. Host-supplied values retain precedence over local `.env` values.
+- 2026-09-16 production-configuration verification: 199 backend tests plus 147
+  subtests, 19 frontend tests, the frontend production build and TypeScript
+  validation, backend compilation, and `git diff --check` passed. Actual
+  production values remain intentionally unset until the user chooses the
+  Docker-capable backend host, budget, public API URL, and Vercel origin.
+- 2026-09-16 recruiter-release Review Phase: synchronized `PROJECT.md`,
+  `ARCHITECTURE.md`, and `README.md` with grounded test provenance, explicit
+  assumptions, per-test classifications, pytest branch coverage, evidence
+  summaries, exact exposing-test verification, public-demo controls, the 3.8
+  model adapter, strict production configuration, and the non-certainty product
+  claim. Removed stale statements that Verix proves correctness or has no
+  coverage. Final backend evidence after configuration hardening is 199 tests
+  plus 150 subtests passed; compilation and `git diff --check` also passed.
 
 ### Exact next action
 
-Ask the user to approve changing only the configured model ID from
-`gemini-3.5-flash` to stable `gemini-3.8-flash` and running one benchmark of the
-same already-disclosed fixtures with at most eight calls. If it passes, retain
-the direct Gemini provider and proceed to the recruiter-release Review Phase.
-If it fails, return with evidence before proposing OpenRouter or another model.
+Do not repeat the full benchmark while Google's structured 3.8 endpoint is
+returning terminal 503 responses. After provider capacity has had time to
+recover, make one targeted generation request for one already-disclosed
+fixture. Run the full capped benchmark only if that request returns a complete,
+valid report. If the targeted request still returns 503, preserve the evidence
+and continue independent release work; do not spend calls on blind retries.
+
+The recruiter-release Review Phase and provider-independent configuration code
+are complete. The next external decision is the Docker-capable backend host,
+monthly budget, public backend URL/domain plan, and intended Vercel origin.
+After those are approved, add only the selected host's minimal deployment
+artifacts and configure the documented environment contract. The 3.8 benchmark
+still resumes separately with one targeted request only after provider capacity
+recovers.
 
 ### Decisions that will require the user later
 
@@ -600,14 +664,18 @@ have high line coverage while asserting very little useful behavior.
 ### Current state
 
 The current backend calls Gemini directly in `backend/services/llm_service.py`
-and currently uses `gemini-3.5-flash`.
+and currently targets stable `gemini-3.8-flash`. The previous configured
+`gemini-3.5-flash` baseline failed both controlled benchmark attempts and is no
+longer the production model identifier.
 
 ### Recommended near-term move
 
 Do not introduce a multi-provider architecture before the Python MVP is
-deployed. First upgrade and evaluate the direct Gemini model. A current
-candidate is `gemini-3.8-flash`, which should be tested against the same fixed
-Verix benchmark before adopting it.
+deployed. The direct adapter has already been upgraded to `gemini-3.8-flash`.
+Its deterministic local integration is verified, but a valid live structured
+response and full benchmark remain blocked by repeated provider-side 503
+capacity responses. Resume with one targeted request after capacity recovers;
+do not treat repeated retries as evaluation evidence.
 
 The evaluation should measure:
 
