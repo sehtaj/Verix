@@ -52,10 +52,14 @@ def build_repository_test_prompt(context: RepositoryGenerationContext) -> str:
         ">", "\\u003e"
     )
 
-    return f"""Generate one valid pytest test module for the selected Python source file.
+    return f"""Generate one valid pytest test module with expected-behavior provenance for the selected Python source file.
 
 Rules:
-- Return only Python test code. Do not use Markdown fences or add an explanation.
+- Return only one JSON object with exactly these keys: tests, sources, assumptions. Do not use Markdown fences.
+- `tests` must contain the complete pytest module as a JSON string.
+- `sources` must identify the evidence used to infer expected behavior. Every source must contain exactly kind, path, excerpt. Kind is source_code, documentation, existing_test, or configuration. Cite only supplied paths and copy a short exact excerpt from that file.
+- Prefer explicit behavior documentation and existing tests over inferring a contract from the implementation alone.
+- Put every behavior inference not stated by a cited excerpt in the top-level assumptions list. Use an empty list when none exist.
 - Test the target file only. Do not modify source code or generate a patch.
 - Follow import style, fixtures, naming, and pytest conventions shown by the provided evidence.
 - Treat explicit behavior contracts in the provided documentation as expected-behavior evidence, while reporting no certainty beyond what the evidence supports.
@@ -75,7 +79,7 @@ Repository context JSON begins below:
 {repository_json}
 </repository_context_json>
 
-Return only the complete pytest module.
+Return only the complete JSON object.
 """
 
 

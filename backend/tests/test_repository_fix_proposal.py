@@ -29,6 +29,7 @@ from models.repository import (
     RepositoryTestPlan,
 )
 from workflows.repository_fix_proposal import RepositoryFixProposalWorkflow
+from generated_report_factory import make_generated_test_report
 
 
 class RepositoryFixProposalWorkflowTests(unittest.TestCase):
@@ -94,6 +95,7 @@ class RepositoryFixProposalWorkflowTests(unittest.TestCase):
             test_plan=investigation.test_plan,
             target_path=investigation.target_path,
             generated_tests=investigation.generated_tests,
+            generated_test_report=investigation.generated_test_report,
             execution_results=investigation.execution_results,
             evidence=investigation.evidence,
             outcome=investigation.outcome,
@@ -286,6 +288,7 @@ class RepositoryFixProposalApiTests(unittest.TestCase):
             ),
             target_path="src/sample.py",
             generated_tests=generated_tests,
+            generated_test_report=make_generated_test_report(generated_tests),
             execution_results={},
             evidence=RepositoryInvestigationEvidence(
                 test_runner="pytest",

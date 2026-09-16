@@ -1,6 +1,7 @@
 """Convert repository domain models into the existing JSON response shapes."""
 
 from models.fix_proposal import RepositoryApprovedFix, RepositoryFixProposalRun
+from models.generated_test_report import GeneratedTestReport
 from models.investigation import RepositoryInvestigationRun
 from workflows.repository_fix_verification import RepositoryFixVerificationRun
 
@@ -159,11 +160,32 @@ def present_repository_investigation(
         "test_plan": present_repository_test_plan(investigation.test_plan),
         "target_path": investigation.target_path,
         "generated_tests": investigation.generated_tests,
+        "generated_test_report": present_generated_test_report(
+            investigation.generated_test_report
+        ),
         **investigation.execution_results,
         "investigation": {
             "outcome": investigation.outcome.value,
             "explanation": investigation.explanation,
         },
+    }
+
+
+def present_generated_test_report(
+    report: GeneratedTestReport,
+) -> dict[str, object]:
+    """Return grounded behavior sources and explicit AI assumptions."""
+    return {
+        "model": report.model,
+        "sources": [
+            {
+                "kind": source.kind.value,
+                "path": source.path,
+                "excerpt": source.excerpt,
+            }
+            for source in report.sources
+        ],
+        "assumptions": list(report.assumptions),
     }
 
 

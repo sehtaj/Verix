@@ -92,11 +92,22 @@ export type RepositoryTestRun = {
 export type RepositoryGenerationRun = {
   target_path: string;
   generated_tests: string;
+  generated_test_report: GeneratedTestReport;
   preparation: RepositoryPreparation;
   installation: RepositoryExecution;
   test_runner: string;
   existing_execution: RepositoryExecution;
   generated_execution: RepositoryExecution;
+};
+
+export type GeneratedTestReport = {
+  model: string;
+  sources: Array<{
+    kind: "source_code" | "documentation" | "existing_test" | "configuration";
+    path: string;
+    excerpt: string;
+  }>;
+  assumptions: string[];
 };
 
 export type RepositoryInvestigationRun = RepositoryGenerationRun & {

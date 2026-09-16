@@ -47,6 +47,7 @@ from services.docker_runner import (
     TestExecutionResult as ExecutionResult,
 )
 from workflows.repository_execution import RepositoryExecutionWorkflow
+from generated_report_factory import make_generated_test_report
 
 
 REPOSITORY_URL = "https://github.com/example/sample"
@@ -1587,7 +1588,7 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 422)
         self.assertIn("was not found", raised.exception.detail)
-        llm.generate_repository_tests.assert_not_called()
+        llm.generate_repository_test_report.assert_not_called()
         preparer.prepare.assert_not_called()
 
     def test_test_run_returns_separate_preparation_installation_and_execution(self) -> None:
@@ -1666,8 +1667,10 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
         github_service = Mock()
         github_service.fetch_generation_context.return_value = generation_context
         llm = Mock()
-        llm.generate_repository_tests.return_value = (
-            "def test_generated():\n    assert True\n"
+        llm.generate_repository_test_report.return_value = (
+            make_generated_test_report(
+                "def test_generated():\n    assert True\n"
+            )
         )
         preparer = Mock()
         preparer.prepare.return_value = nullcontext(self.prepared)
@@ -1706,6 +1709,11 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
             response["generated_tests"],
             "def test_generated():\n    assert True\n",
         )
+        self.assertEqual(
+            response["generated_test_report"]["sources"][0]["kind"],
+            "source_code",
+        )
+        self.assertEqual(response["generated_test_report"]["assumptions"], [])
         self.assertEqual(response["existing_execution"]["return_code"], 1)
         self.assertEqual(response["existing_execution"]["output"], "1 failed\n")
         self.assertEqual(response["generated_execution"]["return_code"], 0)
@@ -1716,7 +1724,9 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
             "packages/sample",
             "packages/sample/src/sample.py",
         )
-        llm.generate_repository_tests.assert_called_once_with(generation_context)
+        llm.generate_repository_test_report.assert_called_once_with(
+            generation_context
+        )
         preparer.prepare.assert_called_once_with(
             REPOSITORY_URL,
             REPOSITORY_REVISION,
@@ -1737,7 +1747,9 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
         github_service = Mock()
         github_service.fetch_generation_context.return_value = generation_context
         llm = Mock()
-        llm.generate_repository_tests.return_value = "def broken(:\n"
+        llm.generate_repository_test_report.return_value = (
+            make_generated_test_report("def broken(:\n")
+        )
         preparer = Mock()
         runner = Mock()
         runner.validate_generated_tests.side_effect = GeneratedTestsValidationError(
@@ -1770,7 +1782,9 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
         github_service = Mock()
         github_service.fetch_generation_context.return_value = generation_context
         llm = Mock()
-        llm.generate_repository_tests.return_value = "def test_value(): pass\n"
+        llm.generate_repository_test_report.return_value = (
+            make_generated_test_report("def test_value(): pass\n")
+        )
         preparer = Mock()
         preparer.prepare.return_value = nullcontext(self.prepared)
         runner = Mock()
@@ -1836,6 +1850,9 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
             test_plan=test_plan,
             target_path="src/sample.py",
             generated_tests="def test_generated(): pass\n",
+            generated_test_report=make_generated_test_report(
+                "def test_generated(): pass\n"
+            ),
             execution_results={
                 "preparation": {"file_count": 2},
                 "installation": {"return_code": 0},
@@ -1867,6 +1884,9 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
             )
 
         self.assertEqual(response["target_path"], "src/sample.py")
+        self.assertEqual(
+            response["generated_test_report"]["model"], "gemini-test"
+        )
         self.assertEqual(
             response["investigation"],
             {

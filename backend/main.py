@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.presenters import (
+    present_generated_test_report,
     present_configuration_files,
     present_python_project_setup,
     present_repository_context,
@@ -330,7 +331,10 @@ def generate_repository_test_suite(
         )
 
     try:
-        generated_tests = llm_service.generate_repository_tests(generation_context)
+        generated_test_report = llm_service.generate_repository_test_report(
+            generation_context
+        )
+        generated_tests = generated_test_report.tests
         test_runner.validate_generated_tests(generated_tests)
     except GeneratedTestsValidationError:
         raise HTTPException(
@@ -383,6 +387,9 @@ def generate_repository_test_suite(
     return {
         "target_path": target_path,
         "generated_tests": generated_tests,
+        "generated_test_report": present_generated_test_report(
+            generated_test_report
+        ),
         **execution_results,
     }
 

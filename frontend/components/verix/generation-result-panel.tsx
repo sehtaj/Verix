@@ -9,6 +9,7 @@ import {
   PreparationEvidence,
 } from "@/components/verix/execution-evidence";
 import { getExecutionStatus } from "@/lib/repository-results";
+import { GeneratedTestReportPanel } from "@/components/verix/generated-test-report";
 import type { RepositoryGenerationRun } from "@/types/api";
 
 type GenerationResultPanelProps = {
@@ -55,6 +56,7 @@ export function GenerationResultPanel({
       </dl>
 
       <CodeEvidence title="Generated Pytest Code" code={result.generated_tests} />
+      <GeneratedTestReportPanel report={result.generated_test_report} />
 
       <div className="mt-5 space-y-4">
         <PreparationEvidence preparation={result.preparation} />

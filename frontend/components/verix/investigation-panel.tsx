@@ -16,6 +16,7 @@ import {
   PreparationEvidence,
 } from "@/components/verix/execution-evidence";
 import { getExecutionStatus, getOutcomeLabel } from "@/lib/repository-results";
+import { GeneratedTestReportPanel } from "@/components/verix/generated-test-report";
 import type { RepositoryInvestigationRun } from "@/types/api";
 
 type InvestigationPanelProps = {
@@ -109,6 +110,7 @@ export function InvestigationPanel({
       <div className="mt-5">
         <CodeEvidence title="Generated Investigation Tests" code={result.generated_tests} />
       </div>
+      <GeneratedTestReportPanel report={result.generated_test_report} />
 
       <section className="mt-5 border border-dashed border-outline-variant bg-surface-low p-4">
         <h2 className="font-heading text-xs font-bold uppercase text-muted-foreground">Detected Test Plan</h2>

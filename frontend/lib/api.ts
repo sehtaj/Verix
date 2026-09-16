@@ -297,11 +297,30 @@ function isGenerationRun(value: unknown): value is RepositoryGenerationRun {
     isRecord(value) &&
     isNonEmptyString(value.target_path) &&
     isNonEmptyString(value.generated_tests) &&
+    isGeneratedTestReport(value.generated_test_report) &&
     isPreparation(value.preparation) &&
     isExecution(value.installation) &&
     isTestRunner(value.test_runner) &&
     isExecution(value.existing_execution) &&
     isExecution(value.generated_execution)
+  );
+}
+
+const behaviorSourceKinds = new Set(["source_code", "documentation", "existing_test", "configuration"]);
+
+function isGeneratedTestReport(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isNonEmptyString(value.model) &&
+    isStringArray(value.assumptions) &&
+    Array.isArray(value.sources) &&
+    value.sources.length > 0 &&
+    value.sources.every((source) =>
+      isRecord(source) &&
+      typeof source.kind === "string" && behaviorSourceKinds.has(source.kind) &&
+      isNonEmptyString(source.path) &&
+      isNonEmptyString(source.excerpt),
+    )
   );
 }
 

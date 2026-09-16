@@ -62,6 +62,22 @@ class RepositoryLLMServiceTests(unittest.TestCase):
         return service
 
     @staticmethod
+    def make_generated_report_response() -> str:
+        return json.dumps(
+            {
+                "tests": "def test_add():\n    assert True\n",
+                "sources": [
+                    {
+                        "kind": "source_code",
+                        "path": "src/sample.py",
+                        "excerpt": "return a + b",
+                    }
+                ],
+                "assumptions": ["Numeric inputs support addition."],
+            }
+        )
+
+    @staticmethod
     def make_fix_context() -> RepositoryFixContext:
         source = "def add(a, b):\n    return a - b\n"
         generated_test = "def test_add():\n    assert add(2, 3) == 5\n"
@@ -101,22 +117,20 @@ class RepositoryLLMServiceTests(unittest.TestCase):
         )
 
     def test_generate_repository_tests_sends_bounded_context_prompt(self) -> None:
-        generated_tests = (
-            "from sample import add\n\n"
-            "def test_add():\n    assert add(2, 3) == 5\n"
-        )
-        service = self.make_service(generated_tests)
+        response = self.make_generated_report_response()
+        service = self.make_service(response)
 
         result = service.generate_repository_tests(self.make_context())
 
-        self.assertEqual(result, generated_tests)
+        self.assertIn("def test_add", result)
         service.client.models.generate_content.assert_called_once()
         call = service.client.models.generate_content.call_args
         self.assertEqual(call.kwargs["model"], MODEL_NAME)
         prompt = call.kwargs["contents"]
         self.assertIn("Selected target: src/sample.py", prompt)
         self.assertIn("def add(a, b)", prompt)
-        self.assertIn("Return only the complete pytest module", prompt)
+        self.assertIn("Return only the complete JSON object", prompt)
+        self.assertIn("expected-behavior provenance", prompt)
 
     def test_generate_repository_tests_rejects_an_empty_gemini_response(self) -> None:
         service = self.make_service("   \n")

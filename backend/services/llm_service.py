@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from google import genai
 
 from models.fix_proposal import RepositoryFixContext, RepositoryFixProposal
+from models.generated_test_report import GeneratedTestReport
 from models.investigation import (
     RepositoryInvestigationEvidence,
     RepositoryOutcomeKind,
@@ -18,6 +19,7 @@ from services.repository_investigation_prompt import (
 )
 from services.repository_fix_prompt import build_repository_fix_prompt
 from services.repository_prompt import build_repository_test_prompt
+from services.generated_test_report import parse_generated_test_report
 
 
 MODEL_NAME = "gemini-3.5-flash"
@@ -53,9 +55,16 @@ Python code:
     def generate_repository_tests(
         self, context: RepositoryGenerationContext
     ) -> str:
-        """Return pytest tests for one selected repository source target."""
+        """Return only code from a validated structured repository report."""
+        return self.generate_repository_test_report(context).tests
+
+    def generate_repository_test_report(
+        self, context: RepositoryGenerationContext
+    ) -> GeneratedTestReport:
+        """Return grounded pytest code and its validated intent metadata."""
         prompt = build_repository_test_prompt(context)
-        return self._generate_from_prompt(prompt)
+        response = self._generate_from_prompt(prompt)
+        return parse_generated_test_report(response, context, MODEL_NAME)
 
     def generate_repository_investigation(
         self,
