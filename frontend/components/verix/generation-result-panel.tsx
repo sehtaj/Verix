@@ -10,6 +10,7 @@ import {
 } from "@/components/verix/execution-evidence";
 import { getExecutionStatus } from "@/lib/repository-results";
 import { GeneratedTestReportPanel } from "@/components/verix/generated-test-report";
+import { BranchCoveragePanel } from "@/components/verix/branch-coverage-panel";
 import type { RepositoryGenerationRun } from "@/types/api";
 
 type GenerationResultPanelProps = {
@@ -98,6 +99,8 @@ export function GenerationResultPanel({
           />
         </div>
       </section>
+
+      <BranchCoveragePanel coverage={result.branch_coverage} />
 
       {error && (
         <p className="mt-5 border border-destructive bg-destructive/10 p-3 text-sm text-destructive" role="alert">

@@ -42,3 +42,40 @@ class RepositoryTestCommandPlannerTests(unittest.TestCase):
                 ".verix-venv/bin/python",
                 "tox",
             )
+
+    def test_coverage_commands_are_trusted_and_target_focused(self) -> None:
+        existing = RepositoryTestCommandPlanner.build_coverage_test_command(
+            ".verix-venv/bin/python",
+            "src/sample.py",
+            generated_only=False,
+        )
+        generated = RepositoryTestCommandPlanner.build_coverage_test_command(
+            ".verix-venv/bin/python",
+            "src/sample.py",
+            generated_only=True,
+        )
+
+        self.assertEqual(
+            existing,
+            [
+                ".verix-venv/bin/python",
+                "/opt/verix/coverage_runner.py",
+                "--target",
+                "/workspace/src/sample.py",
+                "--",
+                "-p",
+                "no:cacheprovider",
+            ],
+        )
+        self.assertEqual(
+            generated[-1],
+            "/workspace/.verix-generated-tests/test_verix_generated.py",
+        )
+
+    def test_coverage_command_rejects_paths_outside_the_repository(self) -> None:
+        for target in ("../sample.py", "/tmp/sample.py", "README.md"):
+            with self.subTest(target=target):
+                with self.assertRaisesRegex(ValueError, "Coverage target"):
+                    RepositoryTestCommandPlanner.build_coverage_test_command(
+                        "python", target, generated_only=False
+                    )

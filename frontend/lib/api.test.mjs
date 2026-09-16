@@ -33,6 +33,18 @@ function generatedTestReport() {
   };
 }
 
+function branchCoverage() {
+  return {
+    target_path: "src/example.py",
+    available: true,
+    existing: { covered_branches: 1, total_branches: 4, percent: 25 },
+    combined: { covered_branches: 3, total_branches: 4, percent: 75 },
+    incremental_covered_branches: 2,
+    untested_branches: 1,
+    unavailable_reason: null,
+  };
+}
+
 function repositoryContext(overrides = {}) {
   return {
     revision,
@@ -242,6 +254,47 @@ test("rejects invalid generated-test classifications", async () => {
   try {
     await assert.rejects(
       generateRepositoryTests("https://github.com/owner/project", { targetPath: "src/example.py" }),
+      /Unable to generate focused tests/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("accepts separated branch coverage and rejects impossible measurements", async () => {
+  const originalFetch = globalThis.fetch;
+  const payload = {
+    target_path: "src/example.py",
+    generated_tests: "def test_example():\n    assert True\n",
+    generated_test_report: generatedTestReport(),
+    preparation: { file_count: 1, total_bytes: 10, skipped_entries: 0 },
+    installation: { return_code: 0, output: "", timed_out: false, skipped: true },
+    test_runner: "pytest",
+    existing_execution: { return_code: 0, output: "1 passed", timed_out: false, skipped: false },
+    generated_execution: { return_code: 0, output: "1 passed", timed_out: false, skipped: false },
+    branch_coverage: branchCoverage(),
+  };
+
+  try {
+    globalThis.fetch = async () => jsonResponse(payload);
+    const result = await generateRepositoryTests(
+      "https://github.com/owner/project",
+      { targetPath: "src/example.py" },
+    );
+    assert.equal(result.branch_coverage.incremental_covered_branches, 2);
+
+    globalThis.fetch = async () => jsonResponse({
+      ...payload,
+      branch_coverage: {
+        ...branchCoverage(),
+        existing: { covered_branches: 5, total_branches: 4, percent: 125 },
+      },
+    });
+    await assert.rejects(
+      generateRepositoryTests(
+        "https://github.com/owner/project",
+        { targetPath: "src/example.py" },
+      ),
       /Unable to generate focused tests/,
     );
   } finally {

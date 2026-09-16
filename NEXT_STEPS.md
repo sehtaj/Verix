@@ -15,7 +15,7 @@ The release is complete only when every item below has current evidence:
   separates explicit evidence from AI assumptions.
 - [ ] Generated tests cover meaningful normal, boundary, invalid-input, and
   error-handling behavior using black-box and gray-box reasoning.
-- [ ] Existing-suite branch coverage and incremental generated-test branch
+- [x] Existing-suite branch coverage and incremental generated-test branch
   coverage are measured and reported separately.
 - [ ] The product summarizes what passed, failed, was assumed, and remains
   untested without claiming that code is error-free.
@@ -74,13 +74,16 @@ The release is complete only when every item below has current evidence:
   invalid-input, or error-handling classification and one black-box or
   gray-box strategy label. Missing, duplicate, extra, or invalid case records
   are rejected before repository preparation.
+- Pytest repository runs now collect selected-source branch evidence inside the
+  existing hardened Docker boundary. Existing coverage, combined coverage,
+  branches reached only by generated tests, and still-untested branches remain
+  separate. Coverage is explicitly unavailable for tox rather than estimated.
 
 ### Proposed work for this goal
 
 - Add a repeatable LLM evaluation harness instead of relying on changing
   third-party repositories.
-- Add branch coverage deltas and an honest evidence summary to backend
-  contracts and the frontend.
+- Add an honest evidence summary to backend contracts and the frontend.
 - Add small, cohesive public-demo controls without introducing authentication,
   a database, Redis, a queue, or an autonomous repair loop.
 - Review and deploy the verified system after the user approves external
@@ -151,14 +154,26 @@ The release is complete only when every item below has current evidence:
   build with TypeScript validation passed. Semantic quality across all four
   categories and both strategies remains unproven until the controlled LLM
   benchmark runs.
+- 2026-09-16: Added branch coverage for pytest projects using a pinned
+  coverage.py runner copied into the hardened test image. Repository coverage
+  configuration is ignored, only the selected source is reported, and raw
+  executed branch pairs are validated before existing and generated evidence
+  is combined.
+- 2026-09-16 branch-coverage verification evidence: 172 backend tests and 18
+  frontend tests passed; backend compilation and the Next.js production build
+  with TypeScript validation passed. The Docker image built successfully. A
+  real isolated `refund_boundary` run produced 3 passing existing tests, one
+  failing generated day-30 test, existing coverage of 8/12 branches (66.7%),
+  combined coverage of 9/12 (75.0%), a generated delta of one branch, and three
+  still-untested branches. Coverage remains explicitly unavailable for tox.
 
 ### Exact next action
 
-Measure branch coverage for the existing suite and then for the combined
-existing-plus-generated suite in the same isolated prepared workspace. Report
-the existing percentage and generated incremental branch coverage separately.
-Docker verification remains pending until Docker Desktop is available; pushing
-the pinned examples remains an explicitly approval-gated action.
+Present one bounded evidence summary that separates passed and failed execution,
+AI assumptions, expected-behavior sources, generated-test classifications,
+branch coverage, and still-untested behavior without claiming the selected code
+is error-free. Pushing the pinned examples remains an explicitly
+approval-gated action.
 
 ### Decisions that will require the user later
 

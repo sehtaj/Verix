@@ -302,7 +302,66 @@ function isGenerationRun(value: unknown): value is RepositoryGenerationRun {
     isExecution(value.installation) &&
     isTestRunner(value.test_runner) &&
     isExecution(value.existing_execution) &&
-    isExecution(value.generated_execution)
+    isExecution(value.generated_execution) &&
+    isBranchCoverage(value.branch_coverage, value.target_path)
+  );
+}
+
+function isCoverageMeasurement(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isNonNegativeInteger(value.covered_branches) &&
+    isNonNegativeInteger(value.total_branches) &&
+    value.covered_branches <= value.total_branches &&
+    typeof value.percent === "number" &&
+    Number.isFinite(value.percent) &&
+    value.percent >= 0 &&
+    value.percent <= 100
+  );
+}
+
+function isBranchCoverage(value: unknown, targetPath: string): boolean {
+  if (
+    !isRecord(value) ||
+    value.target_path !== targetPath ||
+    typeof value.available !== "boolean"
+  ) return false;
+
+  if (value.available) {
+    if (
+      !isCoverageMeasurement(value.existing) ||
+      !isCoverageMeasurement(value.combined)
+    ) {
+      return false;
+    }
+    const existing = value.existing as {
+      covered_branches: number;
+      total_branches: number;
+      percent: number;
+    };
+    const combined = value.combined as {
+      covered_branches: number;
+      total_branches: number;
+      percent: number;
+    };
+    return (
+      isNonNegativeInteger(value.incremental_covered_branches) &&
+      isNonNegativeInteger(value.untested_branches) &&
+      existing.total_branches === combined.total_branches &&
+      combined.covered_branches >= existing.covered_branches &&
+      value.incremental_covered_branches ===
+        combined.covered_branches - existing.covered_branches &&
+      value.untested_branches === combined.total_branches - combined.covered_branches &&
+      value.unavailable_reason === null
+    );
+  }
+
+  return (
+    value.existing === null &&
+    value.combined === null &&
+    value.incremental_covered_branches === null &&
+    value.untested_branches === null &&
+    isNonEmptyString(value.unavailable_reason)
   );
 }
 

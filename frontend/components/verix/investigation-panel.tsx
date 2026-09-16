@@ -17,6 +17,7 @@ import {
 } from "@/components/verix/execution-evidence";
 import { getExecutionStatus, getOutcomeLabel } from "@/lib/repository-results";
 import { GeneratedTestReportPanel } from "@/components/verix/generated-test-report";
+import { BranchCoveragePanel } from "@/components/verix/branch-coverage-panel";
 import type { RepositoryInvestigationRun } from "@/types/api";
 
 type InvestigationPanelProps = {
@@ -106,6 +107,8 @@ export function InvestigationPanel({
           />
         </div>
       </section>
+
+      <BranchCoveragePanel coverage={result.branch_coverage} />
 
       <div className="mt-5">
         <CodeEvidence title="Generated Investigation Tests" code={result.generated_tests} />

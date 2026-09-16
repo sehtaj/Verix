@@ -178,7 +178,7 @@
 - [x] Create deterministic Python demonstration repositories with pinned revisions, documented contracts, and known defects
 - [x] Record expected-behavior sources and explicit AI assumptions in generated-test evidence
 - [x] Classify generated tests as normal, boundary, invalid-input, or error-handling cases using black-box and gray-box design
-- [ ] Measure branch coverage for the existing suite and the incremental coverage from generated tests
+- [x] Measure branch coverage for the existing suite and the incremental coverage from generated tests
 - [ ] Present a bounded evidence summary of passed, failed, assumed, and untested behavior
 - [ ] Validate the complete investigation and approval journey against the deterministic examples
 - [ ] Add public-demo request-size, concurrency, rate, cost, and cleanup controls
@@ -192,7 +192,7 @@
 
 ## Current Task
 
-**Measure branch coverage for the existing suite and the incremental coverage from generated tests**
+**Present a bounded evidence summary of passed, failed, assumed, and untested behavior**
 
 ---
 

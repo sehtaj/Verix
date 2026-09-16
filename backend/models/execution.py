@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from models.coverage import BranchCoverageRun, BranchCoverageSummary
+
 
 @dataclass
 class TestExecutionResult:
@@ -11,6 +13,7 @@ class TestExecutionResult:
     output: str
     timed_out: bool = False
     skipped: bool = False
+    branch_coverage: BranchCoverageRun | None = None
 
 
 @dataclass
@@ -19,3 +22,4 @@ class RepositoryTestResults:
 
     existing: TestExecutionResult
     generated: TestExecutionResult
+    branch_coverage: BranchCoverageSummary | None = None

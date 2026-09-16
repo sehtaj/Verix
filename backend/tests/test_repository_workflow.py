@@ -28,6 +28,7 @@ from services.github_service import (
     RepositoryTreeEntry,
 )
 from models.investigation import RepositoryOutcomeKind
+from models.coverage import BranchCoverageMeasurement, BranchCoverageSummary
 from models.repository import (
     PythonProjectSetup,
     RepositoryFileContent,
@@ -990,20 +991,28 @@ class RepositoryRunnerTests(unittest.TestCase):
             (workspace_path / "sample.py").write_text("VALUE = 1\n")
 
             def run_existing(
-                received_workspace: Path, received_runner: str | None
+                received_workspace: Path,
+                received_runner: str | None,
+                *,
+                target_path: str | None,
             ) -> ExecutionResult:
                 self.assertEqual(received_workspace, workspace_path)
                 self.assertEqual(received_runner, "tox")
+                self.assertEqual(target_path, "sample.py")
                 self.assertFalse(
                     (workspace_path / GENERATED_TEST_DIRECTORY).exists()
                 )
                 return existing_result
 
             def run_generated(
-                received_workspace: Path, received_runner: str | None
+                received_workspace: Path,
+                received_runner: str | None,
+                *,
+                target_path: str | None,
             ) -> ExecutionResult:
                 self.assertEqual(received_workspace, workspace_path)
                 self.assertEqual(received_runner, "tox")
+                self.assertEqual(target_path, "sample.py")
                 self.assertTrue(
                     (
                         workspace_path
@@ -1035,6 +1044,8 @@ class RepositoryRunnerTests(unittest.TestCase):
         self.assertIsInstance(results, RepositoryTestResults)
         self.assertIs(results.existing, existing_result)
         self.assertIs(results.generated, generated_result)
+        self.assertFalse(results.branch_coverage.available)
+        self.assertIn("tox", results.branch_coverage.unavailable_reason)
 
     def test_generated_pytest_run_is_offline_read_only_and_focused(self) -> None:
         runner = DockerTestRunner()
@@ -1684,6 +1695,14 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
         runner.run_repository_test_sets.return_value = RepositoryTestResults(
             existing=ExecutionResult(return_code=1, output="1 failed\n"),
             generated=ExecutionResult(return_code=0, output="2 passed\n"),
+            branch_coverage=BranchCoverageSummary(
+                target_path="src/sample.py",
+                available=True,
+                existing=BranchCoverageMeasurement(covered_branches=1, total_branches=4, percent=25.0),
+                combined=BranchCoverageMeasurement(covered_branches=3, total_branches=4, percent=75.0),
+                incremental_covered_branches=2,
+                untested_branches=1,
+            ),
         )
 
         with (
@@ -1727,6 +1746,26 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
         self.assertEqual(response["existing_execution"]["output"], "1 failed\n")
         self.assertEqual(response["generated_execution"]["return_code"], 0)
         self.assertEqual(response["generated_execution"]["output"], "2 passed\n")
+        self.assertEqual(
+            response["branch_coverage"],
+            {
+                "target_path": "packages/sample/src/sample.py",
+                "available": True,
+                "existing": {
+                    "covered_branches": 1,
+                    "total_branches": 4,
+                    "percent": 25.0,
+                },
+                "combined": {
+                    "covered_branches": 3,
+                    "total_branches": 4,
+                    "percent": 75.0,
+                },
+                "incremental_covered_branches": 2,
+                "untested_branches": 1,
+                "unavailable_reason": None,
+            },
+        )
         github_service.fetch_generation_context.assert_called_once_with(
             REPOSITORY_URL,
             "feature/v0.10",

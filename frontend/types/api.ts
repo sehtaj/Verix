@@ -82,6 +82,33 @@ export type RepositoryPreparation = {
 
 export type RepositoryExecution = TestExecution & { skipped: boolean };
 
+type BranchCoverageMeasurement = {
+  covered_branches: number;
+  total_branches: number;
+  percent: number;
+};
+
+export type BranchCoverageSummary = {
+  target_path: string;
+} & (
+  | {
+      available: true;
+      existing: BranchCoverageMeasurement;
+      combined: BranchCoverageMeasurement;
+      incremental_covered_branches: number;
+      untested_branches: number;
+      unavailable_reason: null;
+    }
+  | {
+      available: false;
+      existing: null;
+      combined: null;
+      incremental_covered_branches: null;
+      untested_branches: null;
+      unavailable_reason: string;
+    }
+);
+
 export type RepositoryTestRun = {
   preparation: RepositoryPreparation;
   installation: RepositoryExecution;
@@ -98,6 +125,7 @@ export type RepositoryGenerationRun = {
   test_runner: string;
   existing_execution: RepositoryExecution;
   generated_execution: RepositoryExecution;
+  branch_coverage: BranchCoverageSummary;
 };
 
 export type GeneratedTestReport = {
