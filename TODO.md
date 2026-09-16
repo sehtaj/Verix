@@ -182,7 +182,8 @@
 - [x] Present a bounded evidence summary of passed, failed, assumed, and untested behavior
 - [x] Validate the complete investigation and approval journey against the deterministic examples
 - [x] Add public-demo request-size, concurrency, rate, cost, and cleanup controls
-- [ ] Benchmark the configured LLM on the deterministic examples before deciding whether to change model or provider
+- [x] Benchmark the configured LLM on the deterministic examples before deciding whether to change model or provider
+- [ ] Migrate to an approved replacement model and pass the deterministic benchmark
 - [ ] Run a complete recruiter-release Review Phase and synchronize project documentation
 - [ ] Prepare approved production configuration for a Vercel frontend and Docker-capable backend
 - [ ] Deploy only after hosting, budget, credentials, and publishing approval
@@ -192,7 +193,7 @@
 
 ## Current Task
 
-**Benchmark the configured LLM on the deterministic examples before deciding whether to change model or provider**
+**Migrate to an approved replacement model and pass the deterministic benchmark**
 
 ---
 

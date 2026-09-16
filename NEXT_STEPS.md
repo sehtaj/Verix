@@ -247,13 +247,31 @@ The release is complete only when every item below has current evidence:
   This corrective configuration is locally verified by 192 passing backend
   tests, backend compilation, and `git diff --check`, but has not been live-
   retested because the user approved only one benchmark run.
+- 2026-09-16 schema-enforced retry: the user approved one retry. Three further
+  Gemini calls were made, one per generation stage. Refund returned an API
+  generation failure; shipping and inventory again returned reports rejected
+  by Verix's evidence validation. The retry therefore also scored 0 of 3, no
+  generated test reached Docker, and no investigation or patch was produced.
+  Across both approved runs, six calls were made and no patch was approved or
+  applied. The configured `gemini-3.5-flash` setup is not acceptable for the
+  recruiter-ready release.
+- Current model recommendation: stay with the direct Google provider and test
+  stable `gemini-3.8-flash` before considering OpenRouter. Google's current
+  model catalog labels 3.5 Flash as legacy baseline performance and 3.8 Flash
+  as its most intelligent Flash model for long-horizon software engineering.
+  Through 2026-12-31, Google's published paid rates are $0.75 per million input
+  tokens and $3.75 per million output tokens for 3.8 Flash, versus $1.50 and
+  $9.00 for 3.5 Flash. This keeps the existing provider, key, privacy path, and
+  adapter while testing a stronger currently cheaper model. No model change or
+  additional benchmark call has been made without user approval.
 
 ### Exact next action
 
-Ask the user whether to run one schema-enforced benchmark retry against the
-same already-disclosed controlled examples, using at most eight additional
-Gemini calls. If approved, record every model miss and finish the model/provider
-decision. Do not change provider or add OpenRouter without separate approval.
+Ask the user to approve changing only the configured model ID from
+`gemini-3.5-flash` to stable `gemini-3.8-flash` and running one benchmark of the
+same already-disclosed fixtures with at most eight calls. If it passes, retain
+the direct Gemini provider and proceed to the recruiter-release Review Phase.
+If it fails, return with evidence before proposing OpenRouter or another model.
 
 ### Decisions that will require the user later
 
