@@ -15,7 +15,10 @@ from models.repository import (
     RepositoryGenerationContext,
     RepositoryGenerationSelection,
 )
-from services.generated_test_report import parse_generated_test_report
+from services.generated_test_report import (
+    GeneratedTestReportValidationError,
+    parse_generated_test_report,
+)
 
 
 class GeneratedTestReportTests(unittest.TestCase):
@@ -101,6 +104,24 @@ class GeneratedTestReportTests(unittest.TestCase):
                     parse_generated_test_report(
                         json.dumps(payload), self.make_context(), "gemini-test"
                     )
+
+    def test_preserves_a_private_validation_reason(self) -> None:
+        payload = self.make_payload()
+        payload["sources"][0]["excerpt"] = "fabricated contract"
+
+        with self.assertRaises(GeneratedTestReportValidationError) as raised:
+            parse_generated_test_report(
+                json.dumps(payload), self.make_context(), "gemini-test"
+            )
+
+        self.assertEqual(
+            str(raised.exception),
+            "Gemini returned an invalid generated-test report.",
+        )
+        self.assertEqual(
+            raised.exception.reason,
+            "a cited excerpt was not copied exactly from its source",
+        )
 
     def test_requires_at_least_one_source_and_one_pytest_function(self) -> None:
         payload = self.make_payload()

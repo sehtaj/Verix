@@ -93,6 +93,17 @@ class ConfiguredLLMBenchmarkTests(unittest.TestCase):
         self.assertEqual(summary["investigation_checks_passed"], 0)
         self.assertEqual(summary["structurally_valid_review_only_proposals"], 0)
 
+    def test_validation_diagnostics_keep_the_public_error_generic(self) -> None:
+        from services.generated_test_report import GeneratedTestReportValidationError
+
+        error = GeneratedTestReportValidationError("exact internal reason")
+
+        self.assertEqual(
+            str(error),
+            "Gemini returned an invalid generated-test report.",
+        )
+        self.assertEqual(error.reason, "exact internal reason")
+
 
 if __name__ == "__main__":
     unittest.main()

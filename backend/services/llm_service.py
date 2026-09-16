@@ -6,6 +6,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from google import genai
+from google.genai import errors
 from google.genai import types
 
 from models.fix_proposal import RepositoryFixContext, RepositoryFixProposal
@@ -98,6 +99,14 @@ FIX_PROPOSAL_SCHEMA = {
 }
 
 
+class GeminiGenerationError(RuntimeError):
+    """Keep a safe diagnostic reason outside the public error message."""
+
+    def __init__(self, message: str, reason: str) -> None:
+        self.reason = reason
+        super().__init__(message)
+
+
 class GeminiLLMService:
     """Generate tests and evidence-grounded explanations with the Gemini API."""
 
@@ -116,17 +125,26 @@ class GeminiLLMService:
 
         self.client = genai.Client(api_key=api_key)
         self.text_generation_config = types.GenerateContentConfig(
-            max_output_tokens=max_output_tokens
+            max_output_tokens=max_output_tokens,
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.LOW
+            ),
         )
         self.report_generation_config = types.GenerateContentConfig(
             max_output_tokens=max_output_tokens,
             response_mime_type="application/json",
             response_json_schema=GENERATED_TEST_REPORT_SCHEMA,
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.LOW
+            ),
         )
         self.fix_generation_config = types.GenerateContentConfig(
             max_output_tokens=max_output_tokens,
             response_mime_type="application/json",
             response_json_schema=FIX_PROPOSAL_SCHEMA,
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.LOW
+            ),
         )
 
     def generate_tests(self, code: str) -> str:
@@ -223,8 +241,26 @@ Python code:
                 contents=prompt,
                 config=config or self.text_generation_config,
             )
+        except errors.APIError as error:
+            raise GeminiGenerationError(
+                "Gemini could not generate a response.",
+                f"Gemini API returned {error.code} {error.status}",
+            ) from None
         except Exception:
-            raise RuntimeError("Gemini could not generate a response.") from None
+            raise GeminiGenerationError(
+                "Gemini could not generate a response.",
+                "Gemini SDK request failed before a response was available",
+            ) from None
+
+        candidates = getattr(response, "candidates", None)
+        finish_reason = (
+            getattr(candidates[0], "finish_reason", None) if candidates else None
+        )
+        if finish_reason == types.FinishReason.MAX_TOKENS:
+            raise GeminiGenerationError(
+                "Gemini returned an incomplete response.",
+                "response exceeded the configured output-token limit",
+            )
 
         if not isinstance(response.text, str) or not response.text.strip():
             raise RuntimeError("Gemini returned an empty response.")

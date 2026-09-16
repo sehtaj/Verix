@@ -169,6 +169,7 @@ def run_benchmark(example_ids: set[str] | None = None) -> dict[str, object]:
         try:
             report = llm.generate_repository_test_report(context)
         except (RuntimeError, ValueError) as error:
+            validation_reason = getattr(error, "reason", None)
             results.append(
                 {
                     "id": example_id,
@@ -176,6 +177,11 @@ def run_benchmark(example_ids: set[str] | None = None) -> dict[str, object]:
                     "generation": {
                         "valid": False,
                         "error": str(error),
+                        **(
+                            {"validation_reason": validation_reason}
+                            if validation_reason is not None
+                            else {}
+                        ),
                     },
                     "execution": {"attempted": False},
                     "investigation": {"attempted": False},

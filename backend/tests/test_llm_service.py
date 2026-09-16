@@ -70,17 +70,26 @@ class RepositoryLLMServiceTests(unittest.TestCase):
             text=response_text
         )
         service.text_generation_config = types.GenerateContentConfig(
-            max_output_tokens=DEFAULT_LLM_MAX_OUTPUT_TOKENS
+            max_output_tokens=DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.LOW
+            ),
         )
         service.report_generation_config = types.GenerateContentConfig(
             max_output_tokens=DEFAULT_LLM_MAX_OUTPUT_TOKENS,
             response_mime_type="application/json",
             response_json_schema=GENERATED_TEST_REPORT_SCHEMA,
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.LOW
+            ),
         )
         service.fix_generation_config = types.GenerateContentConfig(
             max_output_tokens=DEFAULT_LLM_MAX_OUTPUT_TOKENS,
             response_mime_type="application/json",
             response_json_schema=FIX_PROPOSAL_SCHEMA,
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.LOW
+            ),
         )
         return service
 
@@ -166,6 +175,10 @@ class RepositoryLLMServiceTests(unittest.TestCase):
             call.kwargs["config"].response_json_schema,
             GENERATED_TEST_REPORT_SCHEMA,
         )
+        self.assertEqual(
+            call.kwargs["config"].thinking_config.thinking_level,
+            types.ThinkingLevel.LOW,
+        )
         prompt = call.kwargs["contents"]
         self.assertIn("Selected target: src/sample.py", prompt)
         self.assertIn("def add(a, b)", prompt)
@@ -184,6 +197,20 @@ class RepositoryLLMServiceTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "could not generate"):
             service.generate_repository_tests(self.make_context())
+
+    def test_rejects_a_response_truncated_at_the_token_limit(self) -> None:
+        service = self.make_service('{"tests": "incomplete')
+        service.client.models.generate_content.return_value.candidates = [
+            SimpleNamespace(finish_reason=types.FinishReason.MAX_TOKENS)
+        ]
+
+        with self.assertRaisesRegex(RuntimeError, "incomplete response") as raised:
+            service.generate_repository_tests(self.make_context())
+
+        self.assertEqual(
+            raised.exception.reason,
+            "response exceeded the configured output-token limit",
+        )
 
     def test_existing_pasted_code_generation_still_uses_main_module_prompt(self) -> None:
         generated_tests = "from main import add\n"
