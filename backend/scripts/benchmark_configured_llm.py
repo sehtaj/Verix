@@ -285,7 +285,50 @@ def run_benchmark(example_ids: set[str] | None = None) -> dict[str, object]:
     }
 
 
-def build_dry_run_manifest() -> dict[str, object]:
+def run_generation_probe(example_id: str) -> dict[str, object]:
+    """Make exactly one configured-model call for one disclosed example."""
+    catalog = load_catalog()
+    examples = {example["id"]: example for example in catalog["examples"]}
+    example = examples[example_id]
+    context = build_generation_context(catalog, example)
+    llm = GeminiLLMService()
+
+    try:
+        report = llm.generate_repository_test_report(context)
+    except (RuntimeError, ValueError) as error:
+        validation_reason = getattr(error, "reason", None)
+        generation = {
+            "valid": False,
+            "error": str(error),
+            **(
+                {"validation_reason": validation_reason}
+                if validation_reason is not None
+                else {}
+            ),
+        }
+    else:
+        generation = evaluate_report(example, report)
+
+    return {
+        "mode": "generation_probe",
+        "model": MODEL_NAME,
+        "catalog_revision": catalog["revision"],
+        "llm_calls_attempted": 1,
+        "result": {
+            "id": example_id,
+            "generation": generation,
+            "execution": {"attempted": False},
+            "investigation": {"attempted": False},
+            "proposal": {"attempted": False, "applied": False},
+        },
+    }
+
+
+def build_dry_run_manifest(
+    example_ids: set[str] | None = None,
+    *,
+    generation_only: bool = False,
+) -> dict[str, object]:
     """Describe the external payload and call ceiling without contacting Gemini."""
     catalog = load_catalog()
     scenarios = {scenario.example_id: scenario for scenario in SCENARIOS}
@@ -293,6 +336,8 @@ def build_dry_run_manifest() -> dict[str, object]:
     total_calls = 0
     total_bytes = 0
     for example in catalog["examples"]:
+        if example_ids is not None and example["id"] not in example_ids:
+            continue
         context = build_generation_context(catalog, example)
         files = [
             context.source_file,
@@ -313,7 +358,11 @@ def build_dry_run_manifest() -> dict[str, object]:
         )
         example_bytes = sum(file["bytes"] for file in file_manifest)
         expected_outcome = scenarios[example["id"]].expected_outcome
-        planned_calls = 3 if expected_outcome in FIXABLE_OUTCOMES else 2
+        planned_calls = (
+            1
+            if generation_only
+            else 3 if expected_outcome in FIXABLE_OUTCOMES else 2
+        )
         total_calls += planned_calls
         total_bytes += example_bytes
         examples.append(
@@ -332,6 +381,7 @@ def build_dry_run_manifest() -> dict[str, object]:
         "examples": examples,
         "total_context_bytes": total_bytes,
         "maximum_llm_calls": total_calls,
+        "generation_only": generation_only,
         "secrets_included": False,
         "patches_auto_approved_or_applied": False,
     }
@@ -500,12 +550,29 @@ def main() -> None:
         choices=[scenario.example_id for scenario in SCENARIOS],
         help="Benchmark only the selected example; repeat to select several.",
     )
-    arguments = parser.parse_args()
-    result = (
-        build_dry_run_manifest()
-        if arguments.dry_run
-        else run_benchmark(set(arguments.example) if arguments.example else None)
+    parser.add_argument(
+        "--generation-only",
+        action="store_true",
+        help=(
+            "Make exactly one generation call for one selected example; do not "
+            "run Docker, investigation, or proposal evaluation."
+        ),
     )
+    arguments = parser.parse_args()
+    example_ids = set(arguments.example) if arguments.example else None
+    if arguments.generation_only and (
+        arguments.example is None or len(arguments.example) != 1
+    ):
+        parser.error("--generation-only requires exactly one --example")
+    if arguments.dry_run:
+        result = build_dry_run_manifest(
+            example_ids,
+            generation_only=arguments.generation_only,
+        )
+    elif arguments.generation_only:
+        result = run_generation_probe(arguments.example[0])
+    else:
+        result = run_benchmark(example_ids)
     print(json.dumps(result, indent=2))
 
 

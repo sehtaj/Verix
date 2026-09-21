@@ -69,12 +69,27 @@ class ConfiguredLLMBenchmarkTests(unittest.TestCase):
         self.assertTrue(manifest["dry_run"])
         self.assertEqual(manifest["maximum_llm_calls"], 8)
         self.assertEqual(len(manifest["examples"]), 3)
+        self.assertFalse(manifest["generation_only"])
         self.assertGreater(manifest["total_context_bytes"], 0)
         self.assertFalse(manifest["secrets_included"])
         self.assertFalse(manifest["patches_auto_approved_or_applied"])
         for example in manifest["examples"]:
             for file in example["files"]:
                 self.assertEqual(set(file), {"path", "bytes"})
+
+    def test_dry_run_can_disclose_one_generation_only_probe(self) -> None:
+        manifest = build_dry_run_manifest(
+            {"refund-boundary"},
+            generation_only=True,
+        )
+
+        self.assertEqual(manifest["maximum_llm_calls"], 1)
+        self.assertTrue(manifest["generation_only"])
+        self.assertEqual(
+            [example["id"] for example in manifest["examples"]],
+            ["refund-boundary"],
+        )
+        self.assertEqual(manifest["total_context_bytes"], 2_763)
 
     def test_summary_preserves_invalid_generation_as_a_model_miss(self) -> None:
         summary = _summarize(

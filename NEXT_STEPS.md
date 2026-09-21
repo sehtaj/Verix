@@ -319,15 +319,35 @@ The release is complete only when every item below has current evidence:
   claim. Removed stale statements that Verix proves correctness or has no
   coverage. Final backend evidence after configuration hardening is 199 tests
   plus 150 subtests passed; compilation and `git diff --check` also passed.
+- 2026-09-21 bounded provider probe: after five days without retrying, the
+  benchmark harness was tightened so `--generation-only` requires exactly one
+  selected example, discloses only that payload, and cannot continue into
+  Docker execution, investigation, or proposal generation. The disclosed
+  `refund-boundary` probe sent 2,763 bytes in one call to configured
+  `gemini-3.8-flash`; Google again returned terminal `503 UNAVAILABLE` before
+  producing a report. No generated code was executed and no patch was proposed,
+  approved, or applied. The full benchmark was correctly not started.
+- 2026-09-21 official-model audit: Google's current model documentation lists
+  `gemini-3.8-flash` as stable/GA with structured outputs and low, medium, and
+  high thinking support, while its pricing page lists free-tier input and
+  output tokens. This rules out an obsolete identifier, unsupported response
+  schema, unsupported low thinking, or paid-only model access as the cause of
+  the probe failure. The terminal 503 remains provider-side availability
+  evidence. Sources: `https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash`
+  and `https://ai.google.dev/gemini-api/docs/pricing`.
+- 2026-09-21 verification after the probe and production-configuration review:
+  200 backend tests plus 150 subtests and 19 frontend tests passed. Backend
+  compilation, the Next.js production build and TypeScript validation, and
+  `git diff --check` also passed.
 
 ### Exact next action
 
-Do not repeat the full benchmark while Google's structured 3.8 endpoint is
-returning terminal 503 responses. After provider capacity has had time to
-recover, make one targeted generation request for one already-disclosed
-fixture. Run the full capped benchmark only if that request returns a complete,
-valid report. If the targeted request still returns 503, preserve the evidence
-and continue independent release work; do not spend calls on blind retries.
+Do not repeat the full benchmark or another probe while Google's structured 3.8
+endpoint continues returning terminal 503 responses. The five-day follow-up
+probe confirmed that provider capacity has not recovered. Resume model
+evaluation only after an observable provider-state change or after the user
+approves a different model/provider and its cost and data-sharing terms. Keep
+the one-call generation probe as the gate before any future full benchmark.
 
 The recruiter-release Review Phase and provider-independent configuration code
 are complete. The next external decision is the Docker-capable backend host,
