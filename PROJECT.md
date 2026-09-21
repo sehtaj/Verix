@@ -6,9 +6,9 @@
 
 # Vision
 
-Verix is an autonomous software quality engineer that helps developers verify AI-generated and human-written code before it reaches production.
+Verix is an AI-assisted, safety-bounded software quality engineer that helps developers evaluate AI-generated and human-written Python code before it reaches production.
 
-Instead of only generating code, Verix focuses on proving correctness by generating tests, executing them safely, identifying failures, explaining bugs, and eventually suggesting verified fixes.
+Instead of claiming code is correct, Verix gathers reviewable evidence by generating tests, executing them safely, identifying failures, explaining bounded evidence, and verifying explicitly approved candidate fixes.
 
 ---
 
@@ -22,7 +22,7 @@ Trusting that code is becoming harder.
 
 Verix exists to bridge that gap.
 
-Our goal is to increase confidence in software by automatically verifying correctness before code is merged or deployed.
+Our goal is to increase confidence in software with transparent verification evidence before code is merged or deployed. A passing result narrows uncertainty; it does not prove that arbitrary code is error-free.
 
 ---
 
@@ -47,9 +47,9 @@ This process is manual, repetitive, and time-consuming.
 
 # Solution
 
-Verix acts as an autonomous software quality engineer.
+Verix acts as an AI-assisted software quality engineer with deterministic safety and approval boundaries.
 
-Given code or a repository, Verix will eventually:
+Given code or a repository, Verix can:
 
 - Understand the project
 - Infer expected behavior
@@ -60,6 +60,11 @@ Given code or a repository, Verix will eventually:
 - Suggest fixes
 - Verify fixes
 - Produce quality reports
+
+The current product keeps repository targeting, factual outcome classification,
+test execution, patch validation, and approval enforcement in trusted backend
+code. The model proposes structured artifacts but cannot decide factual results,
+run arbitrary commands, modify GitHub, or approve its own patch.
 
 ---
 
@@ -388,6 +393,11 @@ V1.0 does not push a commit, open a pull request, modify a local checkout, retry
 
 ## After V1.0
 
+- Complete the recruiter-ready Python release with grounded behavior sources,
+  explicit assumptions, categorized black-box/gray-box tests, separate branch-
+  coverage evidence, bounded public-demo controls, and a reproducible benchmark.
+- Deploy the frontend and Docker-capable backend only after hosting, budget,
+  credential, and publishing approval.
 - Support additional languages and test frameworks
 - Add GitHub App integration for private repositories and pull requests
 - Add performance and security review capabilities
