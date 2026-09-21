@@ -185,7 +185,10 @@
 - [x] Benchmark the configured LLM on the deterministic examples before deciding whether to change model or provider
 - [ ] Migrate to an approved replacement model and pass the deterministic benchmark
 - [x] Run a complete recruiter-release Review Phase and synchronize project documentation
-- [ ] Prepare approved production configuration for a Vercel frontend and Docker-capable backend
+- [x] Add a provider-neutral isolated-runner boundary while preserving local Docker execution
+- [x] Add an E2B hosted runner with bounded lifetime, online installation, offline tests, and guaranteed cleanup
+- [x] Prepare approved production configuration for a Vercel frontend and Render/E2B backend
+- [ ] Build the E2B runner template and pass the deterministic hosted-execution checks
 - [ ] Deploy only after hosting, budget, credentials, and publishing approval
 - [ ] Verify the deployed journey and capture recruiter-facing screenshots and walkthrough material
 
@@ -193,7 +196,7 @@
 
 ## Current Task
 
-**Migrate to an approved replacement model and pass the deterministic benchmark**
+**Build the E2B runner template and pass the deterministic hosted-execution checks**
 
 ---
 

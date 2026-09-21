@@ -1,6 +1,6 @@
 """Run generated and repository Python commands in isolated Docker containers."""
 
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, nullcontext
 import os
 from pathlib import Path
 import subprocess
@@ -90,6 +90,15 @@ class DockerTestRunner:
     ) -> AbstractContextManager[Path]:
         """Yield an isolated writable copy of a prepared repository, then remove it."""
         return self.workspace_manager.create(repository_path)
+
+    @staticmethod
+    def execution_workspace(
+        workspace_path: Path,
+    ) -> AbstractContextManager[Path]:
+        """Docker mounts an existing disposable workspace for each command."""
+        if not workspace_path.is_dir():
+            raise ValueError("Repository workspace directory does not exist.")
+        return nullcontext(workspace_path)
 
     def write_repository_generated_tests(
         self,

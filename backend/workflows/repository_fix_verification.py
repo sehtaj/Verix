@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from models.execution import TestExecutionResult
 from models.fix_proposal import RepositoryApprovedFix
-from services.docker_runner import DockerTestRunner
+from services.test_runner import IsolatedTestRunner
 from workflows.repository_fix_application import RepositoryFixApplicationWorkflow
 
 
@@ -24,7 +24,7 @@ class RepositoryFixVerificationWorkflow:
     def __init__(
         self,
         application_workflow: RepositoryFixApplicationWorkflow,
-        test_runner: DockerTestRunner,
+        test_runner: IsolatedTestRunner,
     ) -> None:
         self.application_workflow = application_workflow
         self.test_runner = test_runner
@@ -40,38 +40,39 @@ class RepositoryFixVerificationWorkflow:
             repository_url,
             approved_fix,
         ) as applied_workspace:
-            selected_runner = self.test_runner.select_repository_test_runner(
-                applied_workspace.path
-            )
-            installation = self.test_runner.install_repository_dependencies(
-                applied_workspace.path
-            )
-            if installation.return_code != 0 or installation.timed_out:
-                existing_execution = TestExecutionResult(
-                    return_code=None,
-                    output=(
-                        "Existing repository tests were not run because dependency "
-                        "installation failed."
-                    ),
-                    skipped=True,
+            with self.test_runner.execution_workspace(applied_workspace.path):
+                selected_runner = self.test_runner.select_repository_test_runner(
+                    applied_workspace.path
                 )
-                exposing_execution = TestExecutionResult(
-                    return_code=None,
-                    output=(
-                        "The generated exposing test was not run because dependency "
-                        "installation failed."
-                    ),
-                    skipped=True,
+                installation = self.test_runner.install_repository_dependencies(
+                    applied_workspace.path
                 )
-            else:
-                test_results = self.test_runner.run_repository_test_sets(
-                    applied_workspace.path,
-                    applied_workspace.target_path,
-                    approved_fix.generated_tests,
-                    selected_runner,
-                )
-                existing_execution = test_results.existing
-                exposing_execution = test_results.generated
+                if installation.return_code != 0 or installation.timed_out:
+                    existing_execution = TestExecutionResult(
+                        return_code=None,
+                        output=(
+                            "Existing repository tests were not run because dependency "
+                            "installation failed."
+                        ),
+                        skipped=True,
+                    )
+                    exposing_execution = TestExecutionResult(
+                        return_code=None,
+                        output=(
+                            "The generated exposing test was not run because dependency "
+                            "installation failed."
+                        ),
+                        skipped=True,
+                    )
+                else:
+                    test_results = self.test_runner.run_repository_test_sets(
+                        applied_workspace.path,
+                        applied_workspace.target_path,
+                        approved_fix.generated_tests,
+                        selected_runner,
+                    )
+                    existing_execution = test_results.existing
+                    exposing_execution = test_results.generated
 
         return RepositoryFixVerificationRun(
             test_runner=selected_runner,

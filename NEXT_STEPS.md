@@ -92,6 +92,32 @@ The release is complete only when every item below has current evidence:
 - Review and deploy the verified system after the user approves external
   hosting, costs, credentials, and publication.
 
+### Approved hosted execution direction
+
+- Local development keeps the existing Docker runner.
+- The hosted backend uses E2B rather than executing public repositories inside
+  Render's FastAPI process.
+- Render hosts one free FastAPI worker; Vercel hosts the Next.js frontend.
+- E2B dependency installation may use network access, but test commands run
+  only after outbound IPv4 and IPv6 access is denied.
+- The E2B Hobby allowance is finite and no-card, so provider exhaustion must
+  fail closed rather than fall back to unsafe host execution.
+- 2026-09-21: Implemented the provider-neutral runner contract and hosted E2B
+  adapter. E2B workspaces are uploaded to short-lived sandboxes, dependency
+  installation retains temporary network access, outbound IPv4 and IPv6 are
+  denied before tests, the repository becomes read-only before execution, and
+  the sandbox is killed on every context exit. Local development still selects
+  Docker by default. Render and Vercel configuration is prepared without a
+  database, queue, or unsafe subprocess fallback.
+- 2026-09-21 verification evidence: 208 backend tests and 150 subtests passed;
+  backend compilation, Render YAML validation, `git diff --check`, 19 frontend
+  tests, and the Next.js production build passed. The E2B adapter tests use a
+  deterministic fake SDK and consume no provider credit. The live E2B template
+  and hosted deterministic journey remain unverified until the user creates an
+  E2B account and API key. The local Docker journey could not run because
+  Docker Desktop was stopped; the Docker CLI reported its missing daemon
+  socket before any fixture test executed.
+
 ### Progress ledger
 
 - 2026-09-15: Re-read the repository instructions, product, architecture,

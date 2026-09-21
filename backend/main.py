@@ -36,7 +36,8 @@ from services.repository_preparer import PublicRepositoryPreparer
 from services.public_demo_limits import PublicDemoGuard, PublicDemoLimits
 from services.runtime_environment import load_backend_environment
 from services.temporary_workspaces import TemporaryWorkspaceManager
-from services.docker_runner import DockerTestRunner, GeneratedTestsValidationError
+from services.docker_runner import GeneratedTestsValidationError
+from services.test_runner_configuration import configured_test_runner
 from workflows.repository_execution import RepositoryExecutionWorkflow
 from workflows.repository_fix_proposal import RepositoryFixProposalWorkflow
 from workflows.repository_fix_application import RepositoryFixApplicationWorkflow
@@ -61,7 +62,7 @@ try:
 except RuntimeError:
     llm_service = None
 
-test_runner = DockerTestRunner(temporary_workspaces=temporary_workspaces)
+test_runner = configured_test_runner(temporary_workspaces)
 github_repository_service = GitHubRepositoryService()
 repository_preparer = PublicRepositoryPreparer(
     github_repository_service,

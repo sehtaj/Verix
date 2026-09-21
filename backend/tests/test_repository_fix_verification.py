@@ -41,6 +41,7 @@ class RepositoryFixVerificationWorkflowTests(unittest.TestCase):
                 )
             )
             test_runner = Mock()
+            test_runner.execution_workspace.side_effect = nullcontext
             test_runner.select_repository_test_runner.return_value = "pytest"
             test_runner.install_repository_dependencies.return_value = (
                 ExecutionResult(return_code=0, output="Installed dependencies.")
@@ -90,6 +91,7 @@ class RepositoryFixVerificationWorkflowTests(unittest.TestCase):
                 )
             )
             test_runner = Mock()
+            test_runner.execution_workspace.side_effect = nullcontext
             test_runner.select_repository_test_runner.return_value = "pytest"
             test_runner.install_repository_dependencies.return_value = (
                 ExecutionResult(
@@ -163,6 +165,7 @@ class RepositoryFixVerificationWorkflowTests(unittest.TestCase):
                 )
             )
             test_runner = Mock()
+            test_runner.execution_workspace.side_effect = nullcontext
             test_runner.select_repository_test_runner.return_value = "pytest"
             test_runner.install_repository_dependencies.return_value = ExecutionResult(
                 return_code=0,

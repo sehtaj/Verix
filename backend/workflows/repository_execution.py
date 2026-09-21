@@ -6,8 +6,8 @@ from services.branch_coverage import (
     present_branch_coverage,
     unavailable_branch_coverage,
 )
-from services.docker_runner import DockerTestRunner
 from services.repository_preparer import PublicRepositoryPreparer
+from services.test_runner import IsolatedTestRunner
 
 
 class RepositoryExecutionWorkflow:
@@ -16,7 +16,7 @@ class RepositoryExecutionWorkflow:
     def __init__(
         self,
         repository_preparer: PublicRepositoryPreparer,
-        test_runner: DockerTestRunner,
+        test_runner: IsolatedTestRunner,
     ) -> None:
         self.repository_preparer = repository_preparer
         self.test_runner = test_runner
