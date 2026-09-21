@@ -5,8 +5,9 @@ from contextlib import contextmanager
 import os
 from pathlib import Path, PurePosixPath
 import shutil
-import tempfile
 from typing import Iterator
+
+from services.temporary_workspaces import TemporaryWorkspaceManager
 
 
 GENERATED_TEST_DIRECTORY = ".verix-generated-tests"
@@ -21,16 +22,20 @@ class GeneratedTestsValidationError(ValueError):
 class RepositoryWorkspaceManager:
     """Create writable repository copies and safely add generated tests."""
 
+    def __init__(
+        self,
+        temporary_workspaces: TemporaryWorkspaceManager | None = None,
+    ) -> None:
+        self.temporary_workspaces = temporary_workspaces or TemporaryWorkspaceManager()
+
     @contextmanager
     def create(self, repository_path: Path) -> Iterator[Path]:
         """Yield an isolated writable copy of a repository, then remove it."""
         if not repository_path.is_dir():
             raise ValueError("Prepared repository directory does not exist.")
 
-        with tempfile.TemporaryDirectory(
-            prefix="verix-repository-runner-"
-        ) as workspace:
-            workspace_path = Path(workspace) / "repository"
+        with self.temporary_workspaces.create("repository-run-") as workspace:
+            workspace_path = workspace / "repository"
             shutil.copytree(repository_path, workspace_path, symlinks=True)
             self._make_writable(workspace_path)
             yield workspace_path

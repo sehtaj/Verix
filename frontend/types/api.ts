@@ -39,6 +39,7 @@ export type RepositoryGenerationSelection = {
   target_path: string | null;
   related_test_paths: string[];
   configuration_paths: string[];
+  documentation_paths: string[];
   is_truncated: boolean;
 };
 
@@ -67,6 +68,7 @@ export type RepositoryGenerationContextPreview = {
   selection: RepositoryGenerationSelection;
   source_file: RepositoryFileContent | null;
   test_files: RepositoryFileContent[];
+  documentation_files: RepositoryFileContent[];
   configuration_files: RepositoryConfigurationFile[];
   skipped_paths: string[];
   total_bytes: number;
@@ -80,6 +82,33 @@ export type RepositoryPreparation = {
 
 export type RepositoryExecution = TestExecution & { skipped: boolean };
 
+type BranchCoverageMeasurement = {
+  covered_branches: number;
+  total_branches: number;
+  percent: number;
+};
+
+export type BranchCoverageSummary = {
+  target_path: string;
+} & (
+  | {
+      available: true;
+      existing: BranchCoverageMeasurement;
+      combined: BranchCoverageMeasurement;
+      incremental_covered_branches: number;
+      untested_branches: number;
+      unavailable_reason: null;
+    }
+  | {
+      available: false;
+      existing: null;
+      combined: null;
+      incremental_covered_branches: null;
+      untested_branches: null;
+      unavailable_reason: string;
+    }
+);
+
 export type RepositoryTestRun = {
   preparation: RepositoryPreparation;
   installation: RepositoryExecution;
@@ -90,11 +119,43 @@ export type RepositoryTestRun = {
 export type RepositoryGenerationRun = {
   target_path: string;
   generated_tests: string;
+  generated_test_report: GeneratedTestReport;
   preparation: RepositoryPreparation;
   installation: RepositoryExecution;
   test_runner: string;
   existing_execution: RepositoryExecution;
   generated_execution: RepositoryExecution;
+  branch_coverage: BranchCoverageSummary;
+  evidence_summary: EvidenceSummary;
+};
+
+export type EvidenceSummary = {
+  assessment: "observed_failures" | "incomplete" | "no_observed_failures";
+  passed: string[];
+  failed: string[];
+  assumed: string[];
+  untested: string[];
+  behavior_sources: Array<{
+    kind: "source_code" | "documentation" | "existing_test" | "configuration";
+    path: string;
+  }>;
+  disclaimer: string;
+};
+
+export type GeneratedTestReport = {
+  model: string;
+  sources: Array<{
+    kind: "source_code" | "documentation" | "existing_test" | "configuration";
+    path: string;
+    excerpt: string;
+  }>;
+  assumptions: string[];
+  cases: Array<{
+    test_name: string;
+    category: "normal" | "boundary" | "invalid_input" | "error_handling";
+    strategy: "black_box" | "gray_box";
+    expected_behavior: string;
+  }>;
 };
 
 export type RepositoryInvestigationRun = RepositoryGenerationRun & {
@@ -134,10 +195,6 @@ export type RepositoryFixVerificationRun = {
   github_changed: false;
   test_runner: "pytest" | "tox";
   installation: RepositoryExecution;
-  execution: RepositoryExecution;
-};
-
-export type PastedCodeGenerationRun = {
-  tests: string;
-  execution: TestExecution;
+  existing_execution: RepositoryExecution;
+  exposing_execution: RepositoryExecution;
 };

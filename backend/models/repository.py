@@ -1,6 +1,6 @@
 """Data structures used by public repository workflows."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -97,6 +97,7 @@ class RepositoryGenerationSelection:
     related_test_paths: list[str]
     configuration_paths: list[str]
     is_truncated: bool
+    documentation_paths: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -110,7 +111,7 @@ class RepositoryFileContent:
 
 @dataclass
 class RepositoryGenerationContext:
-    """Bounded source, tests, and configuration ready for prompt construction."""
+    """Bounded source, behavior docs, tests, and configuration for prompting."""
 
     selection: RepositoryGenerationSelection
     source_file: RepositoryFileContent | None
@@ -118,10 +119,10 @@ class RepositoryGenerationContext:
     configuration_files: list[RepositoryConfigurationFile]
     skipped_paths: list[str]
     total_bytes: int
+    documentation_files: list[RepositoryFileContent] = field(default_factory=list)
     revision: str | None = None
     test_plan: RepositoryTestPlan | None = None
     subdirectory: str | None = None
-
 
 @dataclass
 class RepositoryContext:

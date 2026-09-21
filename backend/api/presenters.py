@@ -1,8 +1,11 @@
 """Convert repository domain models into the existing JSON response shapes."""
 
 from models.fix_proposal import RepositoryApprovedFix, RepositoryFixProposalRun
+from models.evidence_summary import EvidenceSummary
+from models.generated_test_report import GeneratedTestReport
 from models.investigation import RepositoryInvestigationRun
 from workflows.repository_fix_verification import RepositoryFixVerificationRun
+from services.evidence_summary import DISCLAIMER, build_evidence_summary
 
 from models.repository import (
     PythonProjectSetup,
@@ -90,6 +93,7 @@ def present_generation_selection(
         "target_path": selection.target_path,
         "related_test_paths": selection.related_test_paths,
         "configuration_paths": selection.configuration_paths,
+        "documentation_paths": selection.documentation_paths,
         "is_truncated": selection.is_truncated,
     }
 
@@ -120,6 +124,10 @@ def present_repository_generation_context(
         ),
         "test_files": [
             present_repository_file_content(file) for file in context.test_files
+        ],
+        "documentation_files": [
+            present_repository_file_content(file)
+            for file in context.documentation_files
         ],
         "configuration_files": present_configuration_files(
             context.configuration_files
@@ -154,11 +162,63 @@ def present_repository_investigation(
         "test_plan": present_repository_test_plan(investigation.test_plan),
         "target_path": investigation.target_path,
         "generated_tests": investigation.generated_tests,
+        "generated_test_report": present_generated_test_report(
+            investigation.generated_test_report
+        ),
+        "evidence_summary": present_evidence_summary(
+            build_evidence_summary(
+                investigation.generated_test_report,
+                investigation.execution_results,
+            )
+        ),
         **investigation.execution_results,
         "investigation": {
             "outcome": investigation.outcome.value,
             "explanation": investigation.explanation,
         },
+    }
+
+
+def present_generated_test_report(
+    report: GeneratedTestReport,
+) -> dict[str, object]:
+    """Return grounded behavior sources and explicit AI assumptions."""
+    return {
+        "model": report.model,
+        "sources": [
+            {
+                "kind": source.kind.value,
+                "path": source.path,
+                "excerpt": source.excerpt,
+            }
+            for source in report.sources
+        ],
+        "assumptions": list(report.assumptions),
+        "cases": [
+            {
+                "test_name": case.test_name,
+                "category": case.category.value,
+                "strategy": case.strategy.value,
+                "expected_behavior": case.expected_behavior,
+            }
+            for case in report.cases
+        ],
+    }
+
+
+def present_evidence_summary(summary: EvidenceSummary) -> dict[str, object]:
+    """Return bounded factual buckets and a non-certainty disclaimer."""
+    return {
+        "assessment": summary.assessment.value,
+        "passed": list(summary.passed),
+        "failed": list(summary.failed),
+        "assumed": list(summary.assumed),
+        "untested": list(summary.untested),
+        "behavior_sources": [
+            {"kind": source.kind.value, "path": source.path}
+            for source in summary.behavior_sources
+        ],
+        "disclaimer": DISCLAIMER,
     }
 
 
@@ -201,10 +261,16 @@ def present_repository_fix_verification(
             "timed_out": verification.installation.timed_out,
             "skipped": verification.installation.skipped,
         },
-        "execution": {
-            "return_code": verification.execution.return_code,
-            "output": verification.execution.output,
-            "timed_out": verification.execution.timed_out,
-            "skipped": verification.execution.skipped,
+        "existing_execution": {
+            "return_code": verification.existing_execution.return_code,
+            "output": verification.existing_execution.output,
+            "timed_out": verification.existing_execution.timed_out,
+            "skipped": verification.existing_execution.skipped,
+        },
+        "exposing_execution": {
+            "return_code": verification.exposing_execution.return_code,
+            "output": verification.exposing_execution.output,
+            "timed_out": verification.exposing_execution.timed_out,
+            "skipped": verification.exposing_execution.skipped,
         },
     }

@@ -2,8 +2,12 @@
 
 from pathlib import PurePosixPath
 
-from services.docker_runner import DockerTestRunner
+from services.branch_coverage import (
+    present_branch_coverage,
+    unavailable_branch_coverage,
+)
 from services.repository_preparer import PublicRepositoryPreparer
+from services.test_runner import IsolatedTestRunner
 
 
 class RepositoryExecutionWorkflow:
@@ -12,7 +16,7 @@ class RepositoryExecutionWorkflow:
     def __init__(
         self,
         repository_preparer: PublicRepositoryPreparer,
-        test_runner: DockerTestRunner,
+        test_runner: IsolatedTestRunner,
     ) -> None:
         self.repository_preparer = repository_preparer
         self.test_runner = test_runner
@@ -146,6 +150,10 @@ class RepositoryExecutionWorkflow:
                         "timed_out": False,
                         "skipped": True,
                     }
+                    branch_coverage = unavailable_branch_coverage(
+                        target_path,
+                        "Branch coverage was not measured because dependency installation failed.",
+                    )
                 else:
                     test_results = self.test_runner.run_repository_test_sets(
                         workspace_path,
@@ -165,6 +173,15 @@ class RepositoryExecutionWorkflow:
                         "timed_out": test_results.generated.timed_out,
                         "skipped": test_results.generated.skipped,
                     }
+                    branch_coverage = test_results.branch_coverage or (
+                        unavailable_branch_coverage(
+                            project_target_path,
+                            "Branch coverage evidence was not returned by the isolated runner.",
+                        )
+                    )
+
+        branch_coverage_payload = present_branch_coverage(branch_coverage)
+        branch_coverage_payload["target_path"] = target_path
 
         return {
             "preparation": preparation,
@@ -177,6 +194,7 @@ class RepositoryExecutionWorkflow:
             "test_runner": selected_runner,
             "existing_execution": existing_execution,
             "generated_execution": generated_execution,
+            "branch_coverage": branch_coverage_payload,
         }
 
     @staticmethod

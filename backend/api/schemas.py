@@ -15,6 +15,8 @@ from models.fix_proposal import (
 
 MAX_REPOSITORY_REFERENCE_CHARACTERS = 255
 MAX_REPOSITORY_PATH_CHARACTERS = 1024
+MAX_REPOSITORY_URL_CHARACTERS = 2_048
+MAX_PASTED_CODE_CHARACTERS = 64 * 1024
 INVALID_GIT_REFERENCE_CHARACTERS = re.compile(r"[~^:?*\[\\]")
 
 
@@ -42,13 +44,15 @@ def _validate_repository_path(value: str, field_name: str) -> str:
 
 
 class GenerateTestsRequest(BaseModel):
-    code: str = Field(min_length=1)
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=1, max_length=MAX_PASTED_CODE_CHARACTERS)
 
 
 class RepositoryRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    url: str = Field(min_length=1)
+    url: str = Field(min_length=1, max_length=MAX_REPOSITORY_URL_CHARACTERS)
 
 
 class RepositoryReferenceRequest(RepositoryRequest):
@@ -193,6 +197,11 @@ class RepositoryFixApplyRequest(RepositoryRequest):
         min_length=1,
         max_length=128 * 1024,
         description="Exact unified diff previously shown to the developer.",
+    )
+    generated_tests: str = Field(
+        min_length=1,
+        max_length=128 * 1024,
+        description="Exact generated pytest module that exposed the reviewed failure.",
     )
     approved: Literal[True] = Field(
         description="Must be true to explicitly authorize later disposable application.",

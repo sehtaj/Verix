@@ -29,6 +29,7 @@ from models.repository import (
     RepositoryTestPlan,
 )
 from workflows.repository_fix_proposal import RepositoryFixProposalWorkflow
+from generated_report_factory import make_generated_test_report
 
 
 class RepositoryFixProposalWorkflowTests(unittest.TestCase):
@@ -94,6 +95,7 @@ class RepositoryFixProposalWorkflowTests(unittest.TestCase):
             test_plan=investigation.test_plan,
             target_path=investigation.target_path,
             generated_tests=investigation.generated_tests,
+            generated_test_report=investigation.generated_test_report,
             execution_results=investigation.execution_results,
             evidence=investigation.evidence,
             outcome=investigation.outcome,
@@ -286,7 +288,16 @@ class RepositoryFixProposalApiTests(unittest.TestCase):
             ),
             target_path="src/sample.py",
             generated_tests=generated_tests,
-            execution_results={},
+            generated_test_report=make_generated_test_report(generated_tests),
+            execution_results={
+                "installation": cls.execution_result(return_code=0),
+                "existing_execution": cls.execution_result(return_code=0),
+                "generated_execution": cls.execution_result(return_code=1),
+                "branch_coverage": {
+                    "available": False,
+                    "unavailable_reason": "Coverage was not collected in this fixture.",
+                },
+            },
             evidence=RepositoryInvestigationEvidence(
                 test_runner="pytest",
                 installation=cls.command_evidence(return_code=0),
@@ -314,6 +325,15 @@ class RepositoryFixProposalApiTests(unittest.TestCase):
             output_excerpt=output,
             output_truncated=False,
         )
+
+    @staticmethod
+    def execution_result(*, return_code: int | None) -> dict[str, object]:
+        return {
+            "return_code": return_code,
+            "output": "",
+            "timed_out": False,
+            "skipped": False,
+        }
 
 
 if __name__ == "__main__":

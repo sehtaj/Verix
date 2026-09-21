@@ -19,17 +19,27 @@ from services.github_service import (
     RepositoryGenerationSelection,
 )
 from models.fix_proposal import RepositoryFixContext
-from services.llm_service import GeminiLLMService, MODEL_NAME
+from services.llm_service import (
+    FIX_PROPOSAL_SCHEMA,
+    GENERATED_TEST_REPORT_SCHEMA,
+    GeminiLLMService,
+    MODEL_NAME,
+)
 from models.investigation import (
     RepositoryInvestigationEvidence,
     RepositoryCommandEvidence,
     RepositoryOutcomeKind,
 )
 from services.llm_service import MAX_INVESTIGATION_EXPLANATION_CHARACTERS
+from services.public_demo_limits import DEFAULT_LLM_MAX_OUTPUT_TOKENS
+from google.genai import types
 
 
 class RepositoryLLMServiceTests(unittest.TestCase):
     """Protect the repository prompt-to-Gemini generation boundary."""
+
+    def test_uses_the_approved_stable_gemini_model(self) -> None:
+        self.assertEqual(MODEL_NAME, "gemini-3.8-flash")
 
     @staticmethod
     def make_context() -> RepositoryGenerationContext:
@@ -59,7 +69,53 @@ class RepositoryLLMServiceTests(unittest.TestCase):
         service.client.models.generate_content.return_value = SimpleNamespace(
             text=response_text
         )
+        service.text_generation_config = types.GenerateContentConfig(
+            max_output_tokens=DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.LOW
+            ),
+        )
+        service.report_generation_config = types.GenerateContentConfig(
+            max_output_tokens=DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+            response_mime_type="application/json",
+            response_json_schema=GENERATED_TEST_REPORT_SCHEMA,
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.LOW
+            ),
+        )
+        service.fix_generation_config = types.GenerateContentConfig(
+            max_output_tokens=DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+            response_mime_type="application/json",
+            response_json_schema=FIX_PROPOSAL_SCHEMA,
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.LOW
+            ),
+        )
         return service
+
+    @staticmethod
+    def make_generated_report_response() -> str:
+        return json.dumps(
+            {
+                "tests": "def test_add():\n    assert True\n",
+                "sources": [
+                    {
+                        "kind": "source_code",
+                        "path": "src/sample.py",
+                        "excerpt": "return a + b",
+                    }
+                ],
+                "assumptions": ["Numeric inputs support addition."],
+                "cases": [
+                    {
+                        "test_name": "test_add",
+                        "category": "normal",
+                        "strategy": "black_box",
+                        "expected_behavior": "Addition returns the numeric sum.",
+                    }
+                ],
+            }
+        )
 
     @staticmethod
     def make_fix_context() -> RepositoryFixContext:
@@ -101,22 +157,33 @@ class RepositoryLLMServiceTests(unittest.TestCase):
         )
 
     def test_generate_repository_tests_sends_bounded_context_prompt(self) -> None:
-        generated_tests = (
-            "from sample import add\n\n"
-            "def test_add():\n    assert add(2, 3) == 5\n"
-        )
-        service = self.make_service(generated_tests)
+        response = self.make_generated_report_response()
+        service = self.make_service(response)
 
         result = service.generate_repository_tests(self.make_context())
 
-        self.assertEqual(result, generated_tests)
+        self.assertIn("def test_add", result)
         service.client.models.generate_content.assert_called_once()
         call = service.client.models.generate_content.call_args
         self.assertEqual(call.kwargs["model"], MODEL_NAME)
+        self.assertEqual(
+            call.kwargs["config"].max_output_tokens,
+            DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+        )
+        self.assertEqual(call.kwargs["config"].response_mime_type, "application/json")
+        self.assertEqual(
+            call.kwargs["config"].response_json_schema,
+            GENERATED_TEST_REPORT_SCHEMA,
+        )
+        self.assertEqual(
+            call.kwargs["config"].thinking_config.thinking_level,
+            types.ThinkingLevel.LOW,
+        )
         prompt = call.kwargs["contents"]
         self.assertIn("Selected target: src/sample.py", prompt)
         self.assertIn("def add(a, b)", prompt)
-        self.assertIn("Return only the complete pytest module", prompt)
+        self.assertIn("Return only the complete JSON object", prompt)
+        self.assertIn("expected-behavior provenance", prompt)
 
     def test_generate_repository_tests_rejects_an_empty_gemini_response(self) -> None:
         service = self.make_service("   \n")
@@ -130,6 +197,20 @@ class RepositoryLLMServiceTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "could not generate"):
             service.generate_repository_tests(self.make_context())
+
+    def test_rejects_a_response_truncated_at_the_token_limit(self) -> None:
+        service = self.make_service('{"tests": "incomplete')
+        service.client.models.generate_content.return_value.candidates = [
+            SimpleNamespace(finish_reason=types.FinishReason.MAX_TOKENS)
+        ]
+
+        with self.assertRaisesRegex(RuntimeError, "incomplete response") as raised:
+            service.generate_repository_tests(self.make_context())
+
+        self.assertEqual(
+            raised.exception.reason,
+            "response exceeded the configured output-token limit",
+        )
 
     def test_existing_pasted_code_generation_still_uses_main_module_prompt(self) -> None:
         generated_tests = "from main import add\n"
@@ -206,6 +287,11 @@ class RepositoryLLMServiceTests(unittest.TestCase):
         self.assertFalse(proposal.applied)
         call = service.client.models.generate_content.call_args
         self.assertIn("Return only the JSON object", call.kwargs["contents"])
+        self.assertEqual(call.kwargs["config"].response_mime_type, "application/json")
+        self.assertEqual(
+            call.kwargs["config"].response_json_schema,
+            FIX_PROPOSAL_SCHEMA,
+        )
 
     def test_rejects_malformed_repository_fix_responses(self) -> None:
         invalid_responses = (

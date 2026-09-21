@@ -3,7 +3,11 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.public_demo_middleware import PublicDemoMiddleware
+
 from api.presenters import (
+    present_evidence_summary,
+    present_generated_test_report,
     present_configuration_files,
     present_python_project_setup,
     present_repository_context,
@@ -25,9 +29,15 @@ from api.schemas import (
     RepositoryTargetRequest,
 )
 from services.github_service import GitHubRepositoryService
+from services.cors_configuration import allowed_frontend_origins
+from services.evidence_summary import build_evidence_summary
 from services.llm_service import GeminiLLMService
 from services.repository_preparer import PublicRepositoryPreparer
-from services.docker_runner import DockerTestRunner, GeneratedTestsValidationError
+from services.public_demo_limits import PublicDemoGuard, PublicDemoLimits
+from services.runtime_environment import load_backend_environment
+from services.temporary_workspaces import TemporaryWorkspaceManager
+from services.docker_runner import GeneratedTestsValidationError
+from services.test_runner_configuration import configured_test_runner
 from workflows.repository_execution import RepositoryExecutionWorkflow
 from workflows.repository_fix_proposal import RepositoryFixProposalWorkflow
 from workflows.repository_fix_application import RepositoryFixApplicationWorkflow
@@ -36,20 +46,33 @@ from models.fix_proposal import RepositoryApprovedFix
 from workflows.repository_investigation import RepositoryInvestigationWorkflow
 
 
+load_backend_environment()
+
 app = FastAPI(title="Verix API")
+public_demo_limits = PublicDemoLimits.from_environment()
+public_demo_guard = PublicDemoGuard(public_demo_limits)
+temporary_workspaces = TemporaryWorkspaceManager(
+    stale_after_seconds=public_demo_limits.stale_workspace_seconds
+)
 
 try:
-    llm_service: GeminiLLMService | None = GeminiLLMService()
+    llm_service: GeminiLLMService | None = GeminiLLMService(
+        max_output_tokens=public_demo_limits.llm_max_output_tokens
+    )
 except RuntimeError:
     llm_service = None
 
-test_runner = DockerTestRunner()
+test_runner = configured_test_runner(temporary_workspaces)
 github_repository_service = GitHubRepositoryService()
-repository_preparer = PublicRepositoryPreparer(github_repository_service)
+repository_preparer = PublicRepositoryPreparer(
+    github_repository_service,
+    temporary_workspaces,
+)
 
+app.add_middleware(PublicDemoMiddleware, guard=public_demo_guard)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=allowed_frontend_origins(),
     allow_methods=["POST"],
     allow_headers=["Content-Type"],
 )
@@ -330,7 +353,10 @@ def generate_repository_test_suite(
         )
 
     try:
-        generated_tests = llm_service.generate_repository_tests(generation_context)
+        generated_test_report = llm_service.generate_repository_test_report(
+            generation_context
+        )
+        generated_tests = generated_test_report.tests
         test_runner.validate_generated_tests(generated_tests)
     except GeneratedTestsValidationError:
         raise HTTPException(
@@ -383,6 +409,12 @@ def generate_repository_test_suite(
     return {
         "target_path": target_path,
         "generated_tests": generated_tests,
+        "generated_test_report": present_generated_test_report(
+            generated_test_report
+        ),
+        "evidence_summary": present_evidence_summary(
+            build_evidence_summary(generated_test_report, execution_results)
+        ),
         **execution_results,
     }
 
@@ -495,8 +527,12 @@ def verify_approved_repository_fix(
             subdirectory=request.subdirectory,
             target_path=request.target_path,
             patch=request.patch,
+            generated_tests=request.generated_tests,
         )
-        application_workflow = RepositoryFixApplicationWorkflow(repository_preparer)
+        application_workflow = RepositoryFixApplicationWorkflow(
+            repository_preparer,
+            test_runner.workspace_manager,
+        )
         workflow = RepositoryFixVerificationWorkflow(application_workflow, test_runner)
         verification = workflow.run(request.url, approved_fix)
         return present_repository_fix_verification(approved_fix, verification)

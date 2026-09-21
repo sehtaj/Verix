@@ -6,7 +6,6 @@ from io import BytesIO
 from pathlib import Path, PurePosixPath
 import shutil
 import tarfile
-import tempfile
 from typing import Iterator
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -16,6 +15,7 @@ from services.github_service import (
     SSL_CONTEXT,
     GitHubRepositoryService,
 )
+from services.temporary_workspaces import TemporaryWorkspaceManager
 
 
 MAX_ARCHIVE_BYTES = 25 * 1024 * 1024
@@ -39,9 +39,12 @@ class PublicRepositoryPreparer:
     """Download and safely unpack a public Python repository archive."""
 
     def __init__(
-        self, github_service: GitHubRepositoryService | None = None
+        self,
+        github_service: GitHubRepositoryService | None = None,
+        temporary_workspaces: TemporaryWorkspaceManager | None = None,
     ) -> None:
         self.github_service = github_service or GitHubRepositoryService()
+        self.temporary_workspaces = temporary_workspaces or TemporaryWorkspaceManager()
 
     @contextmanager
     def prepare(
@@ -56,8 +59,10 @@ class PublicRepositoryPreparer:
         )
         archive_data = self._download_archive(archive_reference.url)
 
-        with tempfile.TemporaryDirectory(prefix="verix-repository-") as workspace:
-            repository_path = Path(workspace) / "repository"
+        with self.temporary_workspaces.create(
+            "prepared-repository-"
+        ) as workspace:
+            repository_path = workspace / "repository"
             repository_path.mkdir()
             file_count, total_bytes, skipped_entries = self._extract_archive(
                 archive_data, repository_path

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from models.repository import RepositoryGenerationContext, RepositoryTestPlan
+from models.generated_test_report import GeneratedTestReport
 
 
 class RepositoryOutcomeKind(StrEnum):
@@ -46,6 +47,7 @@ class RepositoryInvestigationRun:
     test_plan: RepositoryTestPlan
     target_path: str
     generated_tests: str
+    generated_test_report: GeneratedTestReport
     execution_results: dict[str, object]
     evidence: RepositoryInvestigationEvidence
     outcome: RepositoryOutcomeKind

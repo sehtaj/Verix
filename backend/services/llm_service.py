@@ -2,12 +2,13 @@
 
 import json
 import os
-from pathlib import Path
 
-from dotenv import load_dotenv
 from google import genai
+from google.genai import errors
+from google.genai import types
 
 from models.fix_proposal import RepositoryFixContext, RepositoryFixProposal
+from models.generated_test_report import GeneratedTestReport
 from models.investigation import (
     RepositoryInvestigationEvidence,
     RepositoryOutcomeKind,
@@ -18,24 +19,131 @@ from services.repository_investigation_prompt import (
 )
 from services.repository_fix_prompt import build_repository_fix_prompt
 from services.repository_prompt import build_repository_test_prompt
+from services.generated_test_report import parse_generated_test_report
+from services.public_demo_limits import DEFAULT_LLM_MAX_OUTPUT_TOKENS
+from services.runtime_environment import load_backend_environment
 
 
-MODEL_NAME = "gemini-3.5-flash"
-ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+MODEL_NAME = "gemini-3.8-flash"
 MAX_INVESTIGATION_EXPLANATION_CHARACTERS = 4_000
+GENERATED_TEST_REPORT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["tests", "sources", "assumptions", "cases"],
+    "properties": {
+        "tests": {"type": "string"},
+        "sources": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["kind", "path", "excerpt"],
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "source_code",
+                            "documentation",
+                            "existing_test",
+                            "configuration",
+                        ],
+                    },
+                    "path": {"type": "string"},
+                    "excerpt": {"type": "string"},
+                },
+            },
+        },
+        "assumptions": {"type": "array", "items": {"type": "string"}},
+        "cases": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "test_name",
+                    "category",
+                    "strategy",
+                    "expected_behavior",
+                ],
+                "properties": {
+                    "test_name": {"type": "string"},
+                    "category": {
+                        "type": "string",
+                        "enum": [
+                            "normal",
+                            "boundary",
+                            "invalid_input",
+                            "error_handling",
+                        ],
+                    },
+                    "strategy": {
+                        "type": "string",
+                        "enum": ["black_box", "gray_box"],
+                    },
+                    "expected_behavior": {"type": "string"},
+                },
+            },
+        },
+    },
+}
+FIX_PROPOSAL_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["summary", "patch"],
+    "properties": {
+        "summary": {"type": "string"},
+        "patch": {"type": "string"},
+    },
+}
+
+
+class GeminiGenerationError(RuntimeError):
+    """Keep a safe diagnostic reason outside the public error message."""
+
+    def __init__(self, message: str, reason: str) -> None:
+        self.reason = reason
+        super().__init__(message)
 
 
 class GeminiLLMService:
     """Generate tests and evidence-grounded explanations with the Gemini API."""
 
-    def __init__(self) -> None:
-        load_dotenv(ENV_FILE)
+    def __init__(
+        self,
+        *,
+        max_output_tokens: int = DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+    ) -> None:
+        load_backend_environment()
         api_key = os.getenv("LLM_API_KEY")
 
         if not api_key:
             raise RuntimeError("LLM_API_KEY is not configured.")
+        if max_output_tokens <= 0:
+            raise ValueError("LLM output token limit must be greater than zero.")
 
         self.client = genai.Client(api_key=api_key)
+        self.text_generation_config = types.GenerateContentConfig(
+            max_output_tokens=max_output_tokens,
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.LOW
+            ),
+        )
+        self.report_generation_config = types.GenerateContentConfig(
+            max_output_tokens=max_output_tokens,
+            response_mime_type="application/json",
+            response_json_schema=GENERATED_TEST_REPORT_SCHEMA,
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.LOW
+            ),
+        )
+        self.fix_generation_config = types.GenerateContentConfig(
+            max_output_tokens=max_output_tokens,
+            response_mime_type="application/json",
+            response_json_schema=FIX_PROPOSAL_SCHEMA,
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.LOW
+            ),
+        )
 
     def generate_tests(self, code: str) -> str:
         """Return pytest tests for the supplied Python code."""
@@ -53,9 +161,19 @@ Python code:
     def generate_repository_tests(
         self, context: RepositoryGenerationContext
     ) -> str:
-        """Return pytest tests for one selected repository source target."""
+        """Return only code from a validated structured repository report."""
+        return self.generate_repository_test_report(context).tests
+
+    def generate_repository_test_report(
+        self, context: RepositoryGenerationContext
+    ) -> GeneratedTestReport:
+        """Return grounded pytest code and its validated intent metadata."""
         prompt = build_repository_test_prompt(context)
-        return self._generate_from_prompt(prompt)
+        response = self._generate_from_prompt(
+            prompt,
+            config=self.report_generation_config,
+        )
+        return parse_generated_test_report(response, context, MODEL_NAME)
 
     def generate_repository_investigation(
         self,
@@ -84,7 +202,10 @@ Python code:
     ) -> RepositoryFixProposal:
         """Generate one review-only patch without writing repository files."""
         prompt = build_repository_fix_prompt(context)
-        response = self._generate_from_prompt(prompt)
+        response = self._generate_from_prompt(
+            prompt,
+            config=self.fix_generation_config,
+        )
 
         try:
             payload = json.loads(response)
@@ -105,15 +226,39 @@ Python code:
         except (TypeError, ValueError, json.JSONDecodeError):
             raise RuntimeError("Gemini returned an invalid fix proposal.") from None
 
-    def _generate_from_prompt(self, prompt: str) -> str:
+    def _generate_from_prompt(
+        self,
+        prompt: str,
+        *,
+        config: types.GenerateContentConfig | None = None,
+    ) -> str:
         """Send one prepared prompt to Gemini and require a non-empty response."""
         try:
             response = self.client.models.generate_content(
                 model=MODEL_NAME,
                 contents=prompt,
+                config=config or self.text_generation_config,
             )
+        except errors.APIError as error:
+            raise GeminiGenerationError(
+                "Gemini could not generate a response.",
+                f"Gemini API returned {error.code} {error.status}",
+            ) from None
         except Exception:
-            raise RuntimeError("Gemini could not generate a response.") from None
+            raise GeminiGenerationError(
+                "Gemini could not generate a response.",
+                "Gemini SDK request failed before a response was available",
+            ) from None
+
+        candidates = getattr(response, "candidates", None)
+        finish_reason = (
+            getattr(candidates[0], "finish_reason", None) if candidates else None
+        )
+        if finish_reason == types.FinishReason.MAX_TOKENS:
+            raise GeminiGenerationError(
+                "Gemini returned an incomplete response.",
+                "response exceeded the configured output-token limit",
+            )
 
         if not isinstance(response.text, str) or not response.text.strip():
             raise RuntimeError("Gemini returned an empty response.")

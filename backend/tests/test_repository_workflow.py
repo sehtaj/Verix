@@ -28,6 +28,7 @@ from services.github_service import (
     RepositoryTreeEntry,
 )
 from models.investigation import RepositoryOutcomeKind
+from models.coverage import BranchCoverageMeasurement, BranchCoverageSummary
 from models.repository import (
     PythonProjectSetup,
     RepositoryFileContent,
@@ -47,6 +48,7 @@ from services.docker_runner import (
     TestExecutionResult as ExecutionResult,
 )
 from workflows.repository_execution import RepositoryExecutionWorkflow
+from generated_report_factory import make_generated_test_report
 
 
 REPOSITORY_URL = "https://github.com/example/sample"
@@ -194,6 +196,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
                 "target_path": "src/sample.py",
                 "related_test_paths": ["tests/test_sample.py"],
                 "configuration_paths": ["requirements.txt"],
+                "documentation_paths": [],
                 "is_truncated": False,
             },
         )
@@ -444,6 +447,22 @@ class GitHubRepositoryContextTests(unittest.TestCase):
         )
         self.assertTrue(selection.is_truncated)
 
+    def test_behavior_documentation_selects_only_the_project_root_readme(self) -> None:
+        tree = RepositoryTree(
+            entries=[
+                RepositoryTreeEntry("packages/sample/README.md", "blob"),
+                RepositoryTreeEntry("packages/sample/docs/README.md", "blob"),
+                RepositoryTreeEntry("README.md", "blob"),
+            ],
+            is_truncated=False,
+        )
+
+        selection = GitHubRepositoryService._select_behavior_documentation(
+            tree, "packages/sample"
+        )
+
+        self.assertEqual(selection, ["packages/sample/README.md"])
+
     def test_generation_selection_handles_missing_source_candidates(self) -> None:
         selection = GitHubRepositoryService._select_generation_context(
             RepositoryPaths(
@@ -516,6 +535,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             ],
             configuration_paths=["packages/sample/pyproject.toml"],
             is_truncated=False,
+            documentation_paths=["packages/sample/README.md"],
         )
         repository_context = SimpleNamespace(
             generation_selection=selection,
@@ -529,6 +549,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
         )
         contents = {
             "packages/sample/src/sample.py": b"def add(a, b):\n    return a + b\n",
+            "packages/sample/README.md": b"Addition returns the numeric sum.\n",
             "packages/sample/tests/test_sample.py": b"def test_add():\n    assert True\n",
             "packages/sample/tests/test_other.py": b"def test_other():\n    assert True\n",
         }
@@ -569,6 +590,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             [call.args[2] for call in fetch_file.call_args_list],
             [
                 "packages/sample/src/sample.py",
+                "packages/sample/README.md",
                 "packages/sample/tests/test_sample.py",
                 "packages/sample/tests/test_other.py",
             ],
@@ -577,6 +599,10 @@ class GitHubRepositoryContextTests(unittest.TestCase):
         self.assertEqual(context.revision, REPOSITORY_REVISION)
         self.assertEqual(context.subdirectory, "packages/sample")
         self.assertIn("return a + b", context.source_file.content)
+        self.assertEqual(
+            [file.path for file in context.documentation_files],
+            ["packages/sample/README.md"],
+        )
         self.assertEqual(
             [file.path for file in context.test_files],
             [
@@ -606,6 +632,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             ],
             configuration_paths=["pyproject.toml"],
             is_truncated=False,
+            documentation_paths=["README.md"],
         )
         repository_context = SimpleNamespace(
             generation_selection=selection,
@@ -615,6 +642,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
         )
         contents = {
             "src/sample.py": b"12345",
+            "README.md": b"1234",
             "tests/test_small.py": b"123456",
             "tests/test_large.py": b"12345678901",
             "tests/test_extra.py": b"12345",
@@ -633,7 +661,7 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             patch.object(service, "fetch_context", return_value=repository_context),
             patch.object(service, "_fetch_file_data", side_effect=file_data),
             patch("services.github_service.MAX_GENERATION_FILE_BYTES", 10),
-            patch("services.github_service.MAX_GENERATION_CONTEXT_BYTES", 15),
+            patch("services.github_service.MAX_GENERATION_CONTEXT_BYTES", 18),
         ):
             context = service.fetch_generation_context(REPOSITORY_URL)
 
@@ -646,10 +674,14 @@ class GitHubRepositoryContextTests(unittest.TestCase):
             ["tests/test_large.py", "tests/test_extra.py"],
         )
         self.assertEqual(
+            [file.path for file in context.documentation_files],
+            ["README.md"],
+        )
+        self.assertEqual(
             [file.path for file in context.configuration_files],
             ["pyproject.toml"],
         )
-        self.assertEqual(context.total_bytes, 14)
+        self.assertEqual(context.total_bytes, 18)
 
     def test_generation_context_rejects_an_oversized_source_target(self) -> None:
         service = GitHubRepositoryService()
@@ -959,20 +991,28 @@ class RepositoryRunnerTests(unittest.TestCase):
             (workspace_path / "sample.py").write_text("VALUE = 1\n")
 
             def run_existing(
-                received_workspace: Path, received_runner: str | None
+                received_workspace: Path,
+                received_runner: str | None,
+                *,
+                target_path: str | None,
             ) -> ExecutionResult:
                 self.assertEqual(received_workspace, workspace_path)
                 self.assertEqual(received_runner, "tox")
+                self.assertEqual(target_path, "sample.py")
                 self.assertFalse(
                     (workspace_path / GENERATED_TEST_DIRECTORY).exists()
                 )
                 return existing_result
 
             def run_generated(
-                received_workspace: Path, received_runner: str | None
+                received_workspace: Path,
+                received_runner: str | None,
+                *,
+                target_path: str | None,
             ) -> ExecutionResult:
                 self.assertEqual(received_workspace, workspace_path)
                 self.assertEqual(received_runner, "tox")
+                self.assertEqual(target_path, "sample.py")
                 self.assertTrue(
                     (
                         workspace_path
@@ -1004,6 +1044,8 @@ class RepositoryRunnerTests(unittest.TestCase):
         self.assertIsInstance(results, RepositoryTestResults)
         self.assertIs(results.existing, existing_result)
         self.assertIs(results.generated, generated_result)
+        self.assertFalse(results.branch_coverage.available)
+        self.assertIn("tox", results.branch_coverage.unavailable_reason)
 
     def test_generated_pytest_run_is_offline_read_only_and_focused(self) -> None:
         runner = DockerTestRunner()
@@ -1557,7 +1599,7 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 422)
         self.assertIn("was not found", raised.exception.detail)
-        llm.generate_repository_tests.assert_not_called()
+        llm.generate_repository_test_report.assert_not_called()
         preparer.prepare.assert_not_called()
 
     def test_test_run_returns_separate_preparation_installation_and_execution(self) -> None:
@@ -1636,8 +1678,10 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
         github_service = Mock()
         github_service.fetch_generation_context.return_value = generation_context
         llm = Mock()
-        llm.generate_repository_tests.return_value = (
-            "def test_generated():\n    assert True\n"
+        llm.generate_repository_test_report.return_value = (
+            make_generated_test_report(
+                "def test_generated():\n    assert True\n"
+            )
         )
         preparer = Mock()
         preparer.prepare.return_value = nullcontext(self.prepared)
@@ -1651,6 +1695,14 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
         runner.run_repository_test_sets.return_value = RepositoryTestResults(
             existing=ExecutionResult(return_code=1, output="1 failed\n"),
             generated=ExecutionResult(return_code=0, output="2 passed\n"),
+            branch_coverage=BranchCoverageSummary(
+                target_path="src/sample.py",
+                available=True,
+                existing=BranchCoverageMeasurement(covered_branches=1, total_branches=4, percent=25.0),
+                combined=BranchCoverageMeasurement(covered_branches=3, total_branches=4, percent=75.0),
+                incremental_covered_branches=2,
+                untested_branches=1,
+            ),
         )
 
         with (
@@ -1676,17 +1728,69 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
             response["generated_tests"],
             "def test_generated():\n    assert True\n",
         )
+        self.assertEqual(
+            response["generated_test_report"]["sources"][0]["kind"],
+            "source_code",
+        )
+        self.assertEqual(response["generated_test_report"]["assumptions"], [])
+        self.assertEqual(
+            response["generated_test_report"]["cases"][0],
+            {
+                "test_name": "test_generated",
+                "category": "normal",
+                "strategy": "black_box",
+                "expected_behavior": "The selected behavior matches its contract.",
+            },
+        )
         self.assertEqual(response["existing_execution"]["return_code"], 1)
         self.assertEqual(response["existing_execution"]["output"], "1 failed\n")
         self.assertEqual(response["generated_execution"]["return_code"], 0)
         self.assertEqual(response["generated_execution"]["output"], "2 passed\n")
+        self.assertEqual(
+            response["branch_coverage"],
+            {
+                "target_path": "packages/sample/src/sample.py",
+                "available": True,
+                "existing": {
+                    "covered_branches": 1,
+                    "total_branches": 4,
+                    "percent": 25.0,
+                },
+                "combined": {
+                    "covered_branches": 3,
+                    "total_branches": 4,
+                    "percent": 75.0,
+                },
+                "incremental_covered_branches": 2,
+                "untested_branches": 1,
+                "unavailable_reason": None,
+            },
+        )
+        self.assertEqual(
+            response["evidence_summary"]["assessment"],
+            "observed_failures",
+        )
+        self.assertIn(
+            "Existing repository suite failed with exit code 1.",
+            response["evidence_summary"]["failed"],
+        )
+        self.assertIn(
+            "1 of 4 selected-source branches remain untested.",
+            response["evidence_summary"]["untested"],
+        )
+        self.assertEqual(
+            response["evidence_summary"]["behavior_sources"][0],
+            {"kind": "source_code", "path": "src/sample.py"},
+        )
         github_service.fetch_generation_context.assert_called_once_with(
             REPOSITORY_URL,
             "feature/v0.10",
             "packages/sample",
             "packages/sample/src/sample.py",
         )
-        llm.generate_repository_tests.assert_called_once_with(generation_context)
+        llm.generate_repository_test_report.assert_called_once_with(
+            generation_context
+        )
         preparer.prepare.assert_called_once_with(
             REPOSITORY_URL,
             REPOSITORY_REVISION,
@@ -1707,7 +1811,9 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
         github_service = Mock()
         github_service.fetch_generation_context.return_value = generation_context
         llm = Mock()
-        llm.generate_repository_tests.return_value = "def broken(:\n"
+        llm.generate_repository_test_report.return_value = (
+            make_generated_test_report("def broken(:\n")
+        )
         preparer = Mock()
         runner = Mock()
         runner.validate_generated_tests.side_effect = GeneratedTestsValidationError(
@@ -1740,7 +1846,9 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
         github_service = Mock()
         github_service.fetch_generation_context.return_value = generation_context
         llm = Mock()
-        llm.generate_repository_tests.return_value = "def test_value(): pass\n"
+        llm.generate_repository_test_report.return_value = (
+            make_generated_test_report("def test_value(): pass\n")
+        )
         preparer = Mock()
         preparer.prepare.return_value = nullcontext(self.prepared)
         runner = Mock()
@@ -1806,12 +1914,34 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
             test_plan=test_plan,
             target_path="src/sample.py",
             generated_tests="def test_generated(): pass\n",
+            generated_test_report=make_generated_test_report(
+                "def test_generated(): pass\n"
+            ),
             execution_results={
                 "preparation": {"file_count": 2},
-                "installation": {"return_code": 0},
+                "installation": {
+                    "return_code": 0,
+                    "output": "",
+                    "timed_out": False,
+                    "skipped": False,
+                },
                 "test_runner": "pytest",
-                "existing_execution": {"return_code": 1},
-                "generated_execution": {"return_code": 0},
+                "existing_execution": {
+                    "return_code": 1,
+                    "output": "failed",
+                    "timed_out": False,
+                    "skipped": False,
+                },
+                "generated_execution": {
+                    "return_code": 0,
+                    "output": "passed",
+                    "timed_out": False,
+                    "skipped": False,
+                },
+                "branch_coverage": {
+                    "available": False,
+                    "unavailable_reason": "Coverage was unavailable.",
+                },
             },
             outcome=RepositoryOutcomeKind.EXISTING_TESTS_FAILED,
             explanation="One existing test failed.",
@@ -1838,6 +1968,9 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
 
         self.assertEqual(response["target_path"], "src/sample.py")
         self.assertEqual(
+            response["generated_test_report"]["model"], "gemini-test"
+        )
+        self.assertEqual(
             response["investigation"],
             {
                 "outcome": "existing_tests_failed",
@@ -1846,6 +1979,10 @@ class RepositoryApiWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(response["test_plan"]["setup"]["test_runner"], "pytest")
         self.assertEqual(response["existing_execution"]["return_code"], 1)
+        self.assertEqual(
+            response["evidence_summary"]["assessment"],
+            "observed_failures",
+        )
         workflow.run.assert_called_once_with(
             REPOSITORY_URL,
             "feature/v0.10",

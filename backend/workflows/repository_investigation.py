@@ -62,9 +62,10 @@ class RepositoryInvestigationWorkflow:
                 "Repository has no Python source file available for test generation."
             )
 
-        generated_tests = self.llm_service.generate_repository_tests(
+        generated_test_report = self.llm_service.generate_repository_test_report(
             generation_context
         )
+        generated_tests = generated_test_report.tests
         self.execution_workflow.validate_generated_tests(generated_tests)
 
         revision = generation_context.revision
@@ -112,6 +113,7 @@ class RepositoryInvestigationWorkflow:
             test_plan=test_plan,
             target_path=target_path,
             generated_tests=generated_tests,
+            generated_test_report=generated_test_report,
             execution_results=execution_results,
             evidence=evidence,
             outcome=outcome,

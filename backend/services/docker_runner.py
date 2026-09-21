@@ -1,13 +1,16 @@
 """Run generated and repository Python commands in isolated Docker containers."""
 
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, nullcontext
 import os
 from pathlib import Path
 import subprocess
-import tempfile
 from uuid import uuid4
 
 from models.execution import RepositoryTestResults, TestExecutionResult
+from services.branch_coverage import (
+    extract_branch_coverage,
+    summarize_branch_coverage,
+)
 from services.docker_commands import DockerCommandBuilder
 from services.docker_executor import DockerProcessExecutor
 from services.repository_dependencies import (
@@ -28,6 +31,7 @@ from services.repository_workspace import (
     GeneratedTestsValidationError,
     RepositoryWorkspaceManager,
 )
+from services.temporary_workspaces import TemporaryWorkspaceManager
 
 
 RUNNER_IMAGE = "verix-test-runner:dev"
@@ -46,14 +50,14 @@ class DockerTestRunner:
         self,
         timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
         workspace_manager: RepositoryWorkspaceManager | None = None,
+        temporary_workspaces: TemporaryWorkspaceManager | None = None,
         dependency_planner: RepositoryDependencyPlanner | None = None,
         test_command_planner: RepositoryTestCommandPlanner | None = None,
     ) -> None:
         self.timeout_seconds = timeout_seconds
-        self.workspace_manager = (
-            workspace_manager
-            if workspace_manager is not None
-            else RepositoryWorkspaceManager()
+        self.temporary_workspaces = temporary_workspaces or TemporaryWorkspaceManager()
+        self.workspace_manager = workspace_manager or RepositoryWorkspaceManager(
+            self.temporary_workspaces
         )
         self.dependency_planner = (
             dependency_planner
@@ -68,8 +72,7 @@ class DockerTestRunner:
 
     def run_tests(self, code: str, tests: str) -> TestExecutionResult:
         """Run pytest against code and tests written to a temporary workspace."""
-        with tempfile.TemporaryDirectory() as workspace:
-            workspace_path = Path(workspace)
+        with self.temporary_workspaces.create("pasted-code-") as workspace_path:
             container_name = f"verix-test-runner-{uuid4().hex}"
             os.chmod(workspace_path, 0o755)
             self._write_file(workspace_path / "main.py", code)
@@ -87,6 +90,15 @@ class DockerTestRunner:
     ) -> AbstractContextManager[Path]:
         """Yield an isolated writable copy of a prepared repository, then remove it."""
         return self.workspace_manager.create(repository_path)
+
+    @staticmethod
+    def execution_workspace(
+        workspace_path: Path,
+    ) -> AbstractContextManager[Path]:
+        """Docker mounts an existing disposable workspace for each command."""
+        if not workspace_path.is_dir():
+            raise ValueError("Repository workspace directory does not exist.")
+        return nullcontext(workspace_path)
 
     def write_repository_generated_tests(
         self,
@@ -118,24 +130,39 @@ class DockerTestRunner:
         test_runner: str | None = None,
     ) -> RepositoryTestResults:
         """Run the original suite first, then run only the generated pytest file."""
-        existing_result = self.run_repository_tests(workspace_path, test_runner)
+        existing_result = self.run_repository_tests(
+            workspace_path,
+            test_runner,
+            target_path=target_path,
+        )
         self.write_repository_generated_tests(
             workspace_path,
             target_path,
             generated_tests,
         )
         generated_result = self.run_repository_generated_tests(
-            workspace_path, test_runner
+            workspace_path,
+            test_runner,
+            target_path=target_path,
         )
         return RepositoryTestResults(
             existing=existing_result,
             generated=generated_result,
+            branch_coverage=summarize_branch_coverage(
+                target_path,
+                existing_result,
+                generated_result,
+                test_runner=test_runner
+                or self.select_repository_test_runner(workspace_path),
+            ),
         )
 
     def run_repository_generated_tests(
         self,
         workspace_path: Path,
         test_runner: str | None = None,
+        *,
+        target_path: str | None = None,
     ) -> TestExecutionResult:
         """Run only Verix's generated pytest module without network access."""
         if not workspace_path.is_dir():
@@ -156,6 +183,23 @@ class DockerTestRunner:
         python_command, environment = self._repository_python_environment(
             workspace_path
         )
+        if selected_runner == "pytest" and target_path is not None:
+            self._validate_coverage_target(workspace_path, target_path)
+            command = self.test_command_planner.build_coverage_test_command(
+                python_command,
+                target_path,
+                generated_only=True,
+            )
+            result = self.run_repository_command(
+                workspace_path,
+                command,
+                allow_network=False,
+                environment=environment,
+                workspace_read_only=True,
+                timeout_seconds=REPOSITORY_TEST_TIMEOUT_SECONDS,
+            )
+            return extract_branch_coverage(result, target_path)
+
         tox_environment: str | None = None
         if selected_runner == "tox":
             list_result = self.run_repository_command(
@@ -314,7 +358,11 @@ class DockerTestRunner:
         )
 
     def run_repository_tests(
-        self, workspace_path: Path, test_runner: str | None = None
+        self,
+        workspace_path: Path,
+        test_runner: str | None = None,
+        *,
+        target_path: str | None = None,
     ) -> TestExecutionResult:
         """Run the complete existing repository test suite without network access."""
         if not workspace_path.is_dir():
@@ -330,11 +378,19 @@ class DockerTestRunner:
             workspace_path
         )
 
-        command = self.test_command_planner.build_existing_test_command(
-            python_command, selected_runner
-        )
+        if selected_runner == "pytest" and target_path is not None:
+            self._validate_coverage_target(workspace_path, target_path)
+            command = self.test_command_planner.build_coverage_test_command(
+                python_command,
+                target_path,
+                generated_only=False,
+            )
+        else:
+            command = self.test_command_planner.build_existing_test_command(
+                python_command, selected_runner
+            )
 
-        return self.run_repository_command(
+        result = self.run_repository_command(
             workspace_path,
             command,
             allow_network=False,
@@ -342,6 +398,9 @@ class DockerTestRunner:
             workspace_read_only=True,
             timeout_seconds=REPOSITORY_TEST_TIMEOUT_SECONDS,
         )
+        if selected_runner == "pytest" and target_path is not None:
+            return extract_branch_coverage(result, target_path)
+        return result
 
     @staticmethod
     def select_repository_test_runner(workspace_path: Path) -> str:
@@ -354,6 +413,17 @@ class DockerTestRunner:
     ) -> tuple[str, dict[str, str]]:
         """Use the prepared repository environment when one is available."""
         return RepositoryTestCommandPlanner.python_environment(workspace_path)
+
+    @staticmethod
+    def _validate_coverage_target(workspace_path: Path, target_path: str) -> None:
+        """Require coverage to stay on one regular file inside the workspace."""
+        target = workspace_path / target_path
+        if (
+            target.is_symlink()
+            or not target.is_file()
+            or not target.resolve().is_relative_to(workspace_path.resolve())
+        ):
+            raise ValueError("Coverage target must be a repository Python file.")
 
     @staticmethod
     def _run_container(

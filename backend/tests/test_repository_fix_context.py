@@ -27,6 +27,7 @@ from services.repository_fix_context import (
     GENERATED_TEST_PATH,
     select_repository_fix_context,
 )
+from generated_report_factory import make_generated_test_report
 
 
 class RepositoryFixContextSelectionTests(unittest.TestCase):
@@ -194,6 +195,7 @@ class RepositoryFixContextSelectionTests(unittest.TestCase):
             test_plan=None,  # type: ignore[arg-type]
             target_path="src/sample.py",
             generated_tests=generated_tests,
+            generated_test_report=make_generated_test_report(generated_tests),
             execution_results={},
             evidence=RepositoryInvestigationEvidence(
                 test_runner="pytest",

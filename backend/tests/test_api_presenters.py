@@ -122,6 +122,7 @@ class RepositoryApiPresenterTests(unittest.TestCase):
                     "target_path": "src/sample.py",
                     "related_test_paths": ["tests/test_sample.py"],
                     "configuration_paths": ["requirements.txt"],
+                    "documentation_paths": [],
                     "is_truncated": False,
                 },
             },
@@ -134,6 +135,7 @@ class RepositoryApiPresenterTests(unittest.TestCase):
                 related_test_paths=["packages/sample/tests/test_sample.py"],
                 configuration_paths=["packages/sample/pyproject.toml"],
                 is_truncated=False,
+                documentation_paths=["packages/sample/README.md"],
             ),
             source_file=RepositoryFileContent(
                 path="packages/sample/src/sample.py",
@@ -145,6 +147,13 @@ class RepositoryApiPresenterTests(unittest.TestCase):
                     path="packages/sample/tests/test_sample.py",
                     content="def test_value(): pass\n",
                     byte_count=23,
+                )
+            ],
+            documentation_files=[
+                RepositoryFileContent(
+                    path="packages/sample/README.md",
+                    content="Sample behavior contract.\n",
+                    byte_count=26,
                 )
             ],
             configuration_files=[
@@ -175,6 +184,10 @@ class RepositoryApiPresenterTests(unittest.TestCase):
         self.assertEqual(
             response["test_files"][0]["path"],
             "packages/sample/tests/test_sample.py",
+        )
+        self.assertEqual(
+            response["documentation_files"][0]["path"],
+            "packages/sample/README.md",
         )
         self.assertEqual(
             response["configuration_files"],

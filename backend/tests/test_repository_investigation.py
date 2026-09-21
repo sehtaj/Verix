@@ -23,6 +23,7 @@ from services.repository_investigation_prompt import (
     build_repository_investigation_prompt,
 )
 from workflows.repository_investigation import RepositoryInvestigationWorkflow
+from generated_report_factory import make_generated_test_report
 
 
 class RepositoryInvestigationEvidenceTests(unittest.TestCase):
@@ -244,7 +245,9 @@ class RepositoryInvestigationWorkflowTests(unittest.TestCase):
             test_plan=test_plan,
         )
         github_service.fetch_generation_context.return_value = generation_context
-        llm_service.generate_repository_tests.return_value = "def test_sample(): pass\n"
+        llm_service.generate_repository_test_report.return_value = (
+            make_generated_test_report("def test_sample(): pass\n")
+        )
         execution_workflow.run_existing_and_generated_tests.return_value = {
             "test_runner": "pytest",
             "installation": {
@@ -387,7 +390,7 @@ class RepositoryInvestigationWorkflowTests(unittest.TestCase):
 
                 self.assertEqual(result.outcome, expected_outcome)
                 github_service.fetch_generation_context.assert_called_once()
-                llm_service.generate_repository_tests.assert_called_once()
+                llm_service.generate_repository_test_report.assert_called_once()
                 execution_workflow.validate_generated_tests.assert_called_once()
                 execution_workflow.run_existing_and_generated_tests.assert_called_once()
                 llm_service.generate_repository_investigation.assert_called_once_with(
@@ -413,7 +416,7 @@ class RepositoryInvestigationWorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "no Python source file"):
             workflow.run("https://github.com/example/sample")
 
-        llm_service.generate_repository_tests.assert_not_called()
+        llm_service.generate_repository_test_report.assert_not_called()
         execution_workflow.validate_generated_tests.assert_not_called()
         execution_workflow.run_existing_and_generated_tests.assert_not_called()
         llm_service.generate_repository_investigation.assert_not_called()
@@ -431,7 +434,9 @@ class RepositoryInvestigationWorkflowTests(unittest.TestCase):
             revision="a" * 40,
             test_plan=Mock(spec=RepositoryTestPlan),
         )
-        llm_service.generate_repository_tests.return_value = "def test_sample(): pass\n"
+        llm_service.generate_repository_test_report.return_value = (
+            make_generated_test_report("def test_sample(): pass\n")
+        )
         llm_service.generate_repository_investigation.return_value = "Explanation."
         execution_workflow.run_existing_and_generated_tests.return_value = (
             execution_results

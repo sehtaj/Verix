@@ -266,7 +266,10 @@ class GitHubRepositoryService:
             is_truncated=paths.is_truncated,
         )
         generation_selection = self._select_generation_context(
-            paths, configuration_files, target_path
+            paths,
+            configuration_files,
+            target_path,
+            self._select_behavior_documentation(tree, subdirectory),
         )
 
         return RepositoryContext(
@@ -310,6 +313,7 @@ class GitHubRepositoryService:
         }
         source_file: RepositoryFileContent | None = None
         test_files: list[RepositoryFileContent] = []
+        documentation_files: list[RepositoryFileContent] = []
         configuration_files: list[RepositoryConfigurationFile] = []
         skipped_paths: list[str] = []
         total_bytes = 0
@@ -324,6 +328,22 @@ class GitHubRepositoryService:
                     "The selected source file is too large for test generation."
                 ) from None
             total_bytes = source_file.byte_count
+
+            for path in selection.documentation_paths:
+                try:
+                    documentation_file = self._fetch_bounded_repository_file(
+                        owner, repository, path, revision
+                    )
+                except (RuntimeError, ValueError):
+                    skipped_paths.append(path)
+                    continue
+
+                if total_bytes + documentation_file.byte_count > MAX_GENERATION_CONTEXT_BYTES:
+                    skipped_paths.append(path)
+                    continue
+
+                documentation_files.append(documentation_file)
+                total_bytes += documentation_file.byte_count
 
             for path in selection.related_test_paths:
                 try:
@@ -364,6 +384,7 @@ class GitHubRepositoryService:
             configuration_files=configuration_files,
             skipped_paths=skipped_paths,
             total_bytes=total_bytes,
+            documentation_files=documentation_files,
             revision=revision,
             test_plan=getattr(repository_context, "test_plan", None),
             subdirectory=subdirectory,
@@ -374,11 +395,20 @@ class GitHubRepositoryService:
         paths: RepositoryPaths,
         configuration_files: list[RepositoryConfigurationFile],
         target_path: str | None = None,
+        documentation_paths: list[str] | None = None,
     ) -> RepositoryGenerationSelection:
         """Select one source target and a small, deterministic context set."""
         return RepositoryAnalyzer.select_generation_context(
-            paths, configuration_files, target_path
+            paths, configuration_files, target_path, documentation_paths
         )
+
+    @staticmethod
+    def _select_behavior_documentation(
+        tree: RepositoryTree,
+        subdirectory: str | None = None,
+    ) -> list[str]:
+        """Select bounded project-root behavioral documentation."""
+        return RepositoryAnalyzer.select_behavior_documentation(tree, subdirectory)
 
     @staticmethod
     def _is_direct_test_for_source(test_path: str, source_path: str) -> bool:

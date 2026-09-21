@@ -1,6 +1,6 @@
 """Plan trusted pytest and tox commands for prepared repositories."""
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 
 from services.repository_dependencies import REPOSITORY_VENV_DIRECTORY
@@ -124,3 +124,37 @@ class RepositoryTestCommandPlanner:
             "no:cacheprovider",
             generated_test_argument,
         ]
+
+    @staticmethod
+    def build_coverage_test_command(
+        python_command: str,
+        target_path: str,
+        *,
+        generated_only: bool,
+    ) -> list[str]:
+        """Build a pytest command instrumented by Verix's trusted image runner."""
+        target = PurePosixPath(target_path)
+        if (
+            target.is_absolute()
+            or not target.parts
+            or ".." in target.parts
+            or target.suffix != ".py"
+        ):
+            raise ValueError(
+                "Coverage target must be a repository-relative Python file."
+            )
+
+        command = [
+            python_command,
+            "/opt/verix/coverage_runner.py",
+            "--target",
+            f"/workspace/{target.as_posix()}",
+            "--",
+            "-p",
+            "no:cacheprovider",
+        ]
+        if generated_only:
+            command.append(
+                f"/workspace/{GENERATED_TEST_DIRECTORY}/{GENERATED_TEST_FILENAME}"
+            )
+        return command

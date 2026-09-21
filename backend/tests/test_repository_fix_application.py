@@ -52,10 +52,12 @@ class RepositoryFixApplicationWorkflowTests(unittest.TestCase):
                 subdirectory="packages/sample",
                 target_path="packages/sample/src/sample.py",
                 patch=PATCH,
+                generated_tests="def test_exposing_behavior():\n    assert True\n",
             )
 
             with workflow.apply("https://github.com/example/sample", approved_fix) as result:
                 disposable_source = result.path / "src" / "sample.py"
+                self.assertEqual(result.target_path, "src/sample.py")
                 self.assertEqual(
                     disposable_source.read_text(encoding="utf-8"),
                     "def add(a, b):\n    return a + b\n",
@@ -95,6 +97,7 @@ class RepositoryFixApplicationWorkflowTests(unittest.TestCase):
                     "-    return a - b",
                     "-    return a * b",
                 ),
+                generated_tests="def test_exposing_behavior():\n    assert True\n",
             )
 
             with self.assertRaisesRegex(ValueError, "does not match"):
@@ -124,6 +127,7 @@ class RepositoryFixApplicationWorkflowTests(unittest.TestCase):
                 subdirectory=None,
                 target_path="src/sample.py",
                 patch=PATCH.replace("packages/sample/", ""),
+                generated_tests="def test_exposing_behavior():\n    assert True\n",
             )
 
             with self.assertRaisesRegex(ValueError, "symbolic links"):

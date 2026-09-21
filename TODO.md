@@ -172,9 +172,31 @@
 
 ---
 
+## Python verification release
+
+- [x] Verify an approved patch against both the exact generated exposing test and the existing repository suite
+- [x] Create deterministic Python demonstration repositories with pinned revisions, documented contracts, and known defects
+- [x] Record expected-behavior sources and explicit AI assumptions in generated-test evidence
+- [x] Classify generated tests as normal, boundary, invalid-input, or error-handling cases using black-box and gray-box design
+- [x] Measure branch coverage for the existing suite and the incremental coverage from generated tests
+- [x] Present a bounded evidence summary of passed, failed, assumed, and untested behavior
+- [x] Validate the complete investigation and approval journey against the deterministic examples
+- [x] Add public-demo request-size, concurrency, rate, cost, and cleanup controls
+- [x] Benchmark the configured LLM on the deterministic examples before deciding whether to change model or provider
+- [ ] Migrate to an approved replacement model and pass the deterministic benchmark
+- [x] Run a complete Python-release Review Phase and synchronize project documentation
+- [x] Add a provider-neutral isolated-runner boundary while preserving local Docker execution
+- [x] Add an E2B hosted runner with bounded lifetime, online installation, offline tests, and guaranteed cleanup
+- [x] Prepare approved production configuration for a Vercel frontend and Render/E2B backend
+- [ ] Build the E2B runner template and pass the deterministic hosted-execution checks
+- [ ] Deploy only after hosting, budget, credentials, and publishing approval
+- [ ] Verify the deployed journey and capture public-demo screenshots and walkthrough material
+
+---
+
 ## Current Task
 
-**V1.0 complete — choose the next milestone before implementation**
+**Build the E2B runner template and pass the deterministic hosted-execution checks**
 
 ---
 

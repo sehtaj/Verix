@@ -43,10 +43,13 @@ class RepositoryFixApplicationWorkflow:
             approved_fix.subdirectory,
         ) as prepared_repository:
             with self.workspace_manager.create(prepared_repository.path) as workspace:
-                target_file = self._target_file(
-                    workspace,
+                project_target_path = self._project_target_path(
                     approved_fix.target_path,
                     approved_fix.subdirectory,
+                )
+                target_file = self._target_file(
+                    workspace,
+                    project_target_path,
                 )
                 try:
                     source_content = target_file.read_text(encoding="utf-8")
@@ -61,16 +64,15 @@ class RepositoryFixApplicationWorkflow:
                 target_file.write_text(patched_content, encoding="utf-8")
                 yield AppliedRepositoryFixWorkspace(
                     path=workspace,
-                    target_path=approved_fix.target_path,
+                    target_path=project_target_path,
                 )
 
     @staticmethod
-    def _target_file(
-        workspace: Path,
+    def _project_target_path(
         target_path: str,
         subdirectory: str | None,
-    ) -> Path:
-        """Resolve the selected target inside the temporary project copy only."""
+    ) -> str:
+        """Translate a repository path into the selected project workspace."""
         relative_target = PurePosixPath(target_path)
         if subdirectory is not None:
             try:
@@ -81,7 +83,14 @@ class RepositoryFixApplicationWorkflow:
                 raise ValueError(
                     "Repository fix target is outside the selected subdirectory."
                 ) from None
+        if not relative_target.parts:
+            raise ValueError("Repository fix target is invalid.")
+        return relative_target.as_posix()
 
+    @staticmethod
+    def _target_file(workspace: Path, target_path: str) -> Path:
+        """Resolve the selected project target inside the temporary copy only."""
+        relative_target = PurePosixPath(target_path)
         target_file = workspace.joinpath(*relative_target.parts)
         current_path = workspace
         for part in relative_target.parts:
