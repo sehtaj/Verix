@@ -2,9 +2,7 @@
 
 import json
 import os
-from pathlib import Path
 
-from dotenv import load_dotenv
 from google import genai
 from google.genai import errors
 from google.genai import types
@@ -23,10 +21,10 @@ from services.repository_fix_prompt import build_repository_fix_prompt
 from services.repository_prompt import build_repository_test_prompt
 from services.generated_test_report import parse_generated_test_report
 from services.public_demo_limits import DEFAULT_LLM_MAX_OUTPUT_TOKENS
+from services.runtime_environment import load_backend_environment
 
 
 MODEL_NAME = "gemini-3.8-flash"
-ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 MAX_INVESTIGATION_EXPLANATION_CHARACTERS = 4_000
 GENERATED_TEST_REPORT_SCHEMA = {
     "type": "object",
@@ -115,7 +113,7 @@ class GeminiLLMService:
         *,
         max_output_tokens: int = DEFAULT_LLM_MAX_OUTPUT_TOKENS,
     ) -> None:
-        load_dotenv(ENV_FILE)
+        load_backend_environment()
         api_key = os.getenv("LLM_API_KEY")
 
         if not api_key:

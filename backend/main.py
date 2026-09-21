@@ -29,10 +29,12 @@ from api.schemas import (
     RepositoryTargetRequest,
 )
 from services.github_service import GitHubRepositoryService
+from services.cors_configuration import allowed_frontend_origins
 from services.evidence_summary import build_evidence_summary
 from services.llm_service import GeminiLLMService
 from services.repository_preparer import PublicRepositoryPreparer
 from services.public_demo_limits import PublicDemoGuard, PublicDemoLimits
+from services.runtime_environment import load_backend_environment
 from services.temporary_workspaces import TemporaryWorkspaceManager
 from services.docker_runner import DockerTestRunner, GeneratedTestsValidationError
 from workflows.repository_execution import RepositoryExecutionWorkflow
@@ -42,6 +44,8 @@ from workflows.repository_fix_verification import RepositoryFixVerificationWorkf
 from models.fix_proposal import RepositoryApprovedFix
 from workflows.repository_investigation import RepositoryInvestigationWorkflow
 
+
+load_backend_environment()
 
 app = FastAPI(title="Verix API")
 public_demo_limits = PublicDemoLimits.from_environment()
@@ -67,7 +71,7 @@ repository_preparer = PublicRepositoryPreparer(
 app.add_middleware(PublicDemoMiddleware, guard=public_demo_guard)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=allowed_frontend_origins(),
     allow_methods=["POST"],
     allow_headers=["Content-Type"],
 )
