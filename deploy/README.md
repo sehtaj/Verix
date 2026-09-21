@@ -1,4 +1,4 @@
-# Hosted recruiter demo
+# Hosted Verix demo
 
 The approved no-card deployment shape is:
 
@@ -75,7 +75,7 @@ active.
 Before sharing the site:
 
 1. Verify the Render `/` health response and the Vercel production page.
-2. Run every deterministic recruiter example through E2B.
+2. Run every deterministic verification example through E2B.
 3. Verify dependency installation can access package registries but tests run
    after the network-deny update.
 4. Verify the E2B sandbox is killed after success, failure, and timeout.
@@ -83,7 +83,7 @@ Before sharing the site:
 6. Confirm secrets are present only in provider settings or ignored local env
    files, never Git or the E2B sandbox environment.
 7. Complete the configured-model benchmark before describing the release as
-   fully recruiter-ready.
+   ready for public use.
 
 E2B's no-card Hobby allowance is finite. Verix's one-job ceiling, command
 timeouts, sandbox lifetime, request rate, and daily LLM limit reduce accidental

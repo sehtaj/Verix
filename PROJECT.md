@@ -393,7 +393,7 @@ V1.0 does not push a commit, open a pull request, modify a local checkout, retry
 
 ## After V1.0
 
-- Complete the recruiter-ready Python release with grounded behavior sources,
+- Complete the Python verification release with grounded behavior sources,
   explicit assumptions, categorized black-box/gray-box tests, separate branch-
   coverage evidence, bounded public-demo controls, and a reproducible benchmark.
 - Deploy the frontend and Docker-capable backend only after hosting, budget,

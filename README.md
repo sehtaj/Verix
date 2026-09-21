@@ -403,7 +403,7 @@ Run the deterministic backend checks from the repository root:
 ```bash
 backend/.venv/bin/python -m pytest backend/tests -q
 python3 -m compileall -q -x '/\.venv/' backend
-backend/.venv/bin/python backend/scripts/validate_recruiter_journey.py
+backend/.venv/bin/python backend/scripts/validate_verification_journey.py
 ```
 
 Run the focused frontend tests and production build:

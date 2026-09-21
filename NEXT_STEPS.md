@@ -1,11 +1,11 @@
 # Verix: Product Handoff and Next Plan
 
-## Active goal: recruiter-ready Python release
+## Active goal: Python verification release
 
-**Status:** In progress on `feature/frontend`. This section is the durable
+**Status:** In progress on `feature/python-verification`. This section is the durable
 progress ledger for the active goal. Historical statements elsewhere in this
 document describe previously reviewed behavior; they are not fresh evidence
-that the recruiter-ready acceptance criteria are complete.
+that the release acceptance criteria are complete.
 
 The release is complete only when every item below has current evidence:
 
@@ -128,7 +128,7 @@ The release is complete only when every item below has current evidence:
   is revalidated and applied only in a disposable copy, but the verification
   currently runs only the repository suite. The generated test that exposed a
   defect is not included in the approval request or post-patch run.
-- 2026-09-15: Added the recruiter-ready milestone to `TODO.md` and selected the
+- 2026-09-15: Added the Python verification milestone to `TODO.md` and selected the
   exposing-test verification gap as the Current Task.
 - 2026-09-15: Completed the exposing-test verification slice. Verification
   now validates and carries the displayed generated test, applies the reviewed
@@ -204,7 +204,7 @@ The release is complete only when every item below has current evidence:
   production build with TypeScript validation passed. No new live Gemini,
   GitHub, Docker, or browser journey was claimed for this deterministic UI/API
   aggregation slice.
-- 2026-09-16: Added a repeatable Docker-backed recruiter-journey validator for
+- 2026-09-16: Added a repeatable Docker-backed verification-journey validator for
   every pinned example. It integrity-checks catalog files, preserves documented
   behavior provenance, covers normal, boundary, invalid-input, and
   error-handling cases with black-box and gray-box design, runs pre-fix evidence,
@@ -280,7 +280,7 @@ The release is complete only when every item below has current evidence:
   generated test reached Docker, and no investigation or patch was produced.
   Across both approved runs, six calls were made and no patch was approved or
   applied. The configured `gemini-3.5-flash` setup is not acceptable for the
-  recruiter-ready release.
+  Python verification release.
 - 2026-09-16 model migration: the direct Google adapter now targets stable
   `gemini-3.8-flash`. This preserved the existing provider, API key boundary,
   privacy path, structured-output validation, and benchmark fixtures; no
@@ -306,7 +306,7 @@ The release is complete only when every item below has current evidence:
   dry run still targets 3.8 Flash, includes 7,214 bytes of controlled fixture
   context, makes at most eight calls, contains no secrets, and cannot approve
   or apply a patch.
-- 2026-09-16 deterministic Docker review: all three pinned recruiter journeys
+- 2026-09-16 deterministic Docker review: all three pinned verification journeys
   passed against Docker 29.7.2. Refund preserved a passing existing suite and
   a generated boundary failure; shipping preserved an existing-suite failure;
   inventory preserved the no-tests result. Each exact reviewed correction made
@@ -337,7 +337,7 @@ The release is complete only when every item below has current evidence:
   validation, backend compilation, and `git diff --check` passed. Actual
   production values remain intentionally unset until the user chooses the
   Docker-capable backend host, budget, public API URL, and Vercel origin.
-- 2026-09-16 recruiter-release Review Phase: synchronized `PROJECT.md`,
+- 2026-09-16 Python-release Review Phase: synchronized `PROJECT.md`,
   `ARCHITECTURE.md`, and `README.md` with grounded test provenance, explicit
   assumptions, per-test classifications, pytest branch coverage, evidence
   summaries, exact exposing-test verification, public-demo controls, the 3.8
@@ -375,7 +375,7 @@ evaluation only after an observable provider-state change or after the user
 approves a different model/provider and its cost and data-sharing terms. Keep
 the one-call generation probe as the gate before any future full benchmark.
 
-The recruiter-release Review Phase and provider-independent configuration code
+The Python-release Review Phase and provider-independent configuration code
 are complete. The next external decision is the Docker-capable backend host,
 monthly budget, public backend URL/domain plan, and intended Vercel origin.
 After those are approved, add only the selected host's minimal deployment
@@ -759,7 +759,7 @@ If OpenRouter is added later:
 
 Vercel is an excellent home for the Next.js frontend.
 
-If only the frontend is deployed, a recruiter can view the interface, but real
+If only the frontend is deployed, a visitor can view the interface, but real
 workflow actions will fail because the default API URL is
 `http://localhost:8000`. In a visitor's browser, `localhost` means the
 visitor's own computer, not the Verix backend.
@@ -767,7 +767,7 @@ visitor's own computer, not the Verix backend.
 ### What the full deployed product needs
 
 ```text
-Recruiter browser
+User browser
   -> Vercel-hosted Next.js frontend
   -> public FastAPI backend URL
   -> temporary isolated Docker/container execution
@@ -810,13 +810,13 @@ A frontend-only Vercel preview can be free or nearly free at small personal
 usage. A fully working demo has possible costs from backend compute, Docker
 test runs, AI tokens, and optionally a domain.
 
-For a small recruiter demo, costs can remain low with strict limits. A public,
+For a small public demo, costs can remain low with strict limits. A public,
 unlimited code-execution and LLM service should not be assumed to remain free.
 
 ## Python-only MVP finish plan
 
-The immediate goal is not more functionality. It is a deployable,
-recruiter-ready public Python MVP.
+The immediate goal is not more functionality. It is a deployable public Python
+MVP.
 
 ### Scope to keep
 
@@ -918,11 +918,11 @@ Use small curated public Python repositories to check the real deployed system:
 - Proposal is review-only.
 - Explicit temporary patch verification produces a separate result.
 
-For a reliable portfolio demo, create a small public demonstration Python
+For a reliable project demo, create a small public demonstration Python
 repository with a known bug and deterministic test evidence. Do not depend only
 on unrelated public repositories that might change unexpectedly.
 
-#### 7. Prepare the recruiter experience
+#### 7. Prepare the public demo experience
 
 Create or update:
 
@@ -933,7 +933,7 @@ Create or update:
 - A clear limitations/safety section.
 - A stable live URL.
 
-The recruiter should understand the problem, flow, safety boundaries, and
+A visitor should understand the problem, flow, safety boundaries, and
 technical choices in under two minutes.
 
 ## Definition of done for the deployable Python MVP

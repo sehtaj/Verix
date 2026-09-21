@@ -1,4 +1,4 @@
-"""Validate the deterministic recruiter examples without executing their code."""
+"""Validate the deterministic deterministic examples without executing their code."""
 
 from hashlib import sha256
 import json
@@ -20,7 +20,7 @@ ALLOWED_STRATEGIES = {"black_box", "gray_box"}
 ALLOWED_EXISTING_OUTCOMES = {"passed", "failed", "no_tests"}
 
 
-class RecruiterExampleCatalogTests(unittest.TestCase):
+class ExampleCatalogTests(unittest.TestCase):
     """Keep example contracts pinned, complete, and reproducible as data."""
 
     @classmethod

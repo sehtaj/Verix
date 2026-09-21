@@ -23,7 +23,7 @@ from models.repository import (
     RepositoryPaths,
     RepositoryTestPlan,
 )
-from scripts.validate_recruiter_journey import (
+from scripts.validate_verification_journey import (
     LocalCatalogPreparer,
     SCENARIOS,
     load_catalog,

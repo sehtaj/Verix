@@ -1,6 +1,6 @@
 # Verix deterministic Python examples
 
-These small projects are controlled evidence for the recruiter-ready Verix
+These small projects are controlled evidence for the Verix verification
 demo and LLM evaluation. Each project has an explicit behavior contract, one
 intentional defect, a fixed target file, and a documented expected outcome.
 They use only the Python standard library and pytest already present in the

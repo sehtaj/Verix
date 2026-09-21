@@ -15,7 +15,7 @@ from scripts.benchmark_configured_llm import (
     evaluate_report,
     _summarize,
 )
-from scripts.validate_recruiter_journey import (
+from scripts.validate_verification_journey import (
     SCENARIOS,
     build_report,
     load_catalog,

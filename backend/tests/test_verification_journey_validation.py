@@ -1,4 +1,4 @@
-"""Regression tests for the deterministic recruiter-journey catalog."""
+"""Regression tests for the deterministic verification-journey catalog."""
 
 from pathlib import Path
 import sys
@@ -9,7 +9,7 @@ BACKEND_DIRECTORY = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIRECTORY))
 
-from scripts.validate_recruiter_journey import (
+from scripts.validate_verification_journey import (
     REPOSITORY_DIRECTORY,
     SCENARIOS,
     build_report,
@@ -18,7 +18,7 @@ from scripts.validate_recruiter_journey import (
 from services.repository_fix_validation import apply_repository_fix_patch
 
 
-class RecruiterJourneyValidationTests(unittest.TestCase):
+class VerificationJourneyValidationTests(unittest.TestCase):
     """Keep validation artifacts aligned with every pinned example contract."""
 
     def test_scenarios_cover_the_complete_catalog(self) -> None:
